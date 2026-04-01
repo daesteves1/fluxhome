@@ -25,6 +25,7 @@ export type Database = {
           name?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       offices: {
         Row: {
@@ -32,18 +33,8 @@ export type Database = {
           institution_id: string | null;
           name: string;
           slug: string;
-          white_label: {
-            logo_url: string | null;
-            primary_color: string;
-            email_from_name: string;
-          };
-          settings: {
-            propostas_enabled: boolean;
-            required_fields: string[];
-            doc_types: DocTypeTemplate[];
-            plan: string;
-            stripe_customer_id: string | null;
-          };
+          white_label: Json;
+          settings: Json;
           is_active: boolean;
           created_at: string;
         };
@@ -67,6 +58,7 @@ export type Database = {
           is_active?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       users: {
         Row: {
@@ -99,6 +91,7 @@ export type Database = {
           role?: 'super_admin' | 'office_admin' | 'broker';
           created_at?: string;
         };
+        Relationships: [];
       };
       brokers: {
         Row: {
@@ -106,9 +99,7 @@ export type Database = {
           user_id: string;
           office_id: string;
           is_office_admin: boolean;
-          settings: {
-            propostas_enabled: boolean | null;
-          };
+          settings: Json;
           is_active: boolean;
           invited_at: string | null;
           activated_at: string | null;
@@ -133,6 +124,7 @@ export type Database = {
           invited_at?: string | null;
           activated_at?: string | null;
         };
+        Relationships: [];
       };
       invitations: {
         Row: {
@@ -168,6 +160,7 @@ export type Database = {
           accepted_at?: string | null;
           expires_at?: string | null;
         };
+        Relationships: [];
       };
       clients: {
         Row: {
@@ -269,6 +262,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       document_requests: {
         Row: {
@@ -313,6 +307,7 @@ export type Database = {
           broker_notes?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       document_uploads: {
         Row: {
@@ -348,6 +343,7 @@ export type Database = {
           uploaded_by?: 'client' | 'broker';
           uploaded_at?: string;
         };
+        Relationships: [];
       };
       propostas: {
         Row: {
@@ -392,6 +388,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       broker_notes: {
         Row: {
@@ -415,6 +412,7 @@ export type Database = {
           content?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       audit_log: {
         Row: {
@@ -447,6 +445,7 @@ export type Database = {
           metadata?: Json | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       notification_events: {
         Row: {
@@ -473,6 +472,7 @@ export type Database = {
           delivered_at?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
@@ -499,3 +499,22 @@ export type DocTypeTemplate = {
 };
 
 export type UserRole = 'super_admin' | 'office_admin' | 'broker';
+
+// Typed office settings/white_label for application use
+export type OfficeWhiteLabel = {
+  logo_url: string | null;
+  primary_color: string;
+  email_from_name: string;
+};
+
+export type OfficeSettings = {
+  propostas_enabled: boolean;
+  required_fields: string[];
+  doc_types: DocTypeTemplate[];
+  plan: string;
+  stripe_customer_id: string | null;
+};
+
+export type BrokerSettings = {
+  propostas_enabled: boolean | null;
+};
