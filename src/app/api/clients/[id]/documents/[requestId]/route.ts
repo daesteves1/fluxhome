@@ -26,3 +26,31 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }
+
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id, requestId } = await params;
+  const serviceClient = await createServiceClient();
+
+  // Refuse if uploads exist
+  const { count } = await serviceClient
+    .from('document_uploads')
+    .select('id', { count: 'exact', head: true })
+    .eq('document_request_id', requestId);
+
+  if (count && count > 0) {
+    return NextResponse.json({ error: 'Tem ficheiros carregados' }, { status: 409 });
+  }
+
+  const { error } = await serviceClient
+    .from('document_requests')
+    .delete()
+    .eq('id', requestId)
+    .eq('client_id', id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}

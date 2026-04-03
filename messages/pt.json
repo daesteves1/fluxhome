@@ -41,6 +41,7 @@
     "clients": "Clientes",
     "settings": "Definições",
     "office": "Escritório",
+    "mediadores": "Mediadores",
     "institutions": "Instituições",
     "offices": "Escritórios",
     "brokers": "Mediadores",
@@ -52,7 +53,7 @@
   },
   "auth": {
     "login": "Iniciar sessão",
-    "loginTitle": "Bem-vindo ao FluxHome",
+    "loginTitle": "Bem-vindo ao HomeFlux",
     "loginSubtitle": "Aceda à sua conta de mediador",
     "email": "Email",
     "password": "Password",
@@ -79,6 +80,8 @@
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Bem-vindo",
+    "pipeline": "Pipeline",
+    "clients": "Clientes",
     "activeProcesses": "Processos Ativos",
     "docsPendingReview": "Docs. Pendentes",
     "propostasSent": "Propostas Enviadas",
@@ -96,6 +99,7 @@
     "allSteps": "Todas as etapas",
     "name": "Nome",
     "portalLink": "Link do Portal",
+    "backToClients": "Clientes",
     "copyPortalLink": "Copiar link do portal",
     "linkCopied": "Link copiado!",
     "processStep": "Etapa do processo",
@@ -115,6 +119,8 @@
     "termMonths": "Prazo (meses)",
     "propertyAddress": "Morada do imóvel",
     "generalNotes": "Notas gerais",
+    "sendPortalLink": "Enviar link do portal",
+    "portalLinkSent": "Link enviado por email",
     "employmentTypes": {
       "employed": "Trabalhador por conta de outrem",
       "self_employed": "Trabalhador independente",
@@ -147,6 +153,7 @@
     "approveDoc": "Aprovar",
     "rejectDoc": "Rejeitar",
     "pending": "Pendente",
+    "em_analise": "Em análise",
     "uploaded": "Carregado",
     "approved": "Aprovado",
     "rejected": "Rejeitado",
@@ -231,14 +238,23 @@
   },
   "portal": {
     "title": "Portal do Cliente",
-    "welcome": "Bem-vindo",
+    "welcome": "Olá, {name}",
     "welcomeMessage": "Olá {name}, o seu processo de crédito habitação está em curso.",
     "processStep": "Estado do processo",
     "documents": "Documentos",
     "propostas": "Propostas",
+    "documentsTab": "Documentos",
+    "propostasTab": "Propostas",
     "uploadDocuments": "Carregar documentos",
+    "upload": "Carregar",
+    "uploadSuccess": "Documento carregado com sucesso",
+    "pendingDocs": "pendentes",
     "termsTitle": "Termos e Condições",
+    "termsHeader": "Acordo de Privacidade e Partilha de Dados",
+    "termsBody": "Ao continuar, autoriza o tratamento dos seus dados pessoais para efeitos de análise e mediação do seu crédito habitação, nos termos do RGPD e da legislação portuguesa aplicável. Os seus dados serão utilizados exclusivamente para a prestação dos serviços de mediação de crédito e não serão partilhados com terceiros sem o seu consentimento.",
+    "termsCheckbox": "Li e aceito os termos e condições e a política de privacidade.",
     "termsSubtitle": "Por favor leia e aceite os termos antes de continuar",
+    "acceptAndContinue": "Aceitar e Continuar",
     "acceptTerms": "Aceitar e continuar",
     "declineTerms": "Recusar",
     "signature": "Assinatura",
@@ -250,8 +266,20 @@
     "downloadConsent": "Descarregar registo de consentimento",
     "noPropostas": "Nenhuma proposta disponível",
     "noDocuments": "Nenhum documento solicitado",
+    "untitledProposta": "Proposta sem título",
     "sendPortalLink": "Enviar link do portal",
-    "portalLinkSent": "Link enviado por email"
+    "portalLinkSent": "Link enviado por email",
+    "status": {
+      "pending": "Pendente",
+      "em_analise": "Em análise",
+      "approved": "Aprovado",
+      "rejected": "Rejeitado"
+    },
+    "uploadAgain": "Carregar novamente",
+    "addFile": "Adicionar ficheiro",
+    "deleteFile": "Eliminar ficheiro",
+    "filesCount": "{count} de {max} ficheiros",
+    "substituirFicheiro": "Substituir ficheiro"
   },
   "admin": {
     "title": "Painel de Administração",
@@ -340,11 +368,14 @@
     "invalidNif": "NIF inválido"
   },
   "gdpr": {
-    "cookieBanner": "Utilizamos cookies para melhorar a sua experiência.",
+    "cookieBannerText": "Utilizamos cookies essenciais para o funcionamento da plataforma. Consulte a nossa",
+    "cookiePolicy": "Política de Cookies",
+    "privacyPolicy": "Política de Privacidade",
+    "and": "e a nossa",
+    "accept": "Aceitar",
+    "reject": "Rejeitar",
     "acceptAll": "Aceitar todos",
     "rejectNonEssential": "Rejeitar não essenciais",
-    "privacyPolicy": "Política de Privacidade",
-    "cookiePolicy": "Política de Cookies",
     "learnMore": "Saber mais"
   }
 }

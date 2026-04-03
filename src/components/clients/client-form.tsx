@@ -14,6 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import type { Database } from '@/types/database';
+import {
+  SHARED_TEMPLATES,
+  getApplicableSpecific,
+} from '@/lib/document-templates';
 
 type ClientRow = Database['public']['Tables']['clients']['Row'];
 
@@ -54,6 +58,7 @@ export function NewClientForm({ brokerId, officeId }: Props) {
   const tCommon = useTranslations('common');
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [enabledExtraDocs, setEnabledExtraDocs] = useState<Set<string>>(new Set());
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<ClientFormValues>({
     resolver: zodResolver(clientSchema),
@@ -61,6 +66,19 @@ export function NewClientForm({ brokerId, officeId }: Props) {
   });
 
   const hasP2 = watch('has_p2');
+  const mortgageType = watch('mortgage_type');
+
+  const specificTemplates = getApplicableSpecific(mortgageType ?? null);
+  const allOptionalTemplates = [...SHARED_TEMPLATES, ...specificTemplates];
+
+  function toggleExtraDoc(key: string) {
+    setEnabledExtraDocs((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   async function onSubmit(values: ClientFormValues) {
     setError(null);
@@ -76,19 +94,20 @@ export function NewClientForm({ brokerId, officeId }: Props) {
           loan_amount: values.loan_amount ? Number(values.loan_amount) : null,
           term_months: values.term_months ? Number(values.term_months) : null,
           p2_name: values.has_p2 ? values.p2_name : null,
+          enabled_extra_docs: Array.from(enabledExtraDocs),
         }),
       });
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || 'Error creating client');
+        setError(data.error || 'Erro ao criar cliente');
         return;
       }
 
       const { id } = await res.json();
       router.push(`/dashboard/clients/${id}`);
     } catch {
-      setError('Network error');
+      setError('Erro de rede');
     }
   }
 
@@ -127,9 +146,7 @@ export function NewClientForm({ brokerId, officeId }: Props) {
             <div className="space-y-2">
               <Label htmlFor="p1_employment_type">{t('employmentType')}</Label>
               <Select onValueChange={(v) => setValue('p1_employment_type', v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {employmentTypes.map((et) => (
                     <SelectItem key={et} value={et}>
@@ -149,11 +166,7 @@ export function NewClientForm({ brokerId, officeId }: Props) {
 
       {/* P2 toggle */}
       <div className="flex items-center gap-3">
-        <Switch
-          id="has_p2"
-          checked={hasP2}
-          onCheckedChange={(v) => setValue('has_p2', v)}
-        />
+        <Switch id="has_p2" checked={hasP2} onCheckedChange={(v) => setValue('has_p2', v)} />
         <Label htmlFor="has_p2">{hasP2 ? t('removeP2') : t('addP2')}</Label>
       </div>
 
@@ -184,9 +197,7 @@ export function NewClientForm({ brokerId, officeId }: Props) {
               <div className="space-y-2">
                 <Label htmlFor="p2_employment_type">{t('employmentType')}</Label>
                 <Select onValueChange={(v) => setValue('p2_employment_type', v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {employmentTypes.map((et) => (
                       <SelectItem key={et} value={et}>
@@ -215,9 +226,7 @@ export function NewClientForm({ brokerId, officeId }: Props) {
             <div className="space-y-2">
               <Label htmlFor="mortgage_type">{t('mortgageType')}</Label>
               <Select onValueChange={(v) => setValue('mortgage_type', v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {mortgageTypes.map((mt) => (
                     <SelectItem key={mt} value={mt}>
@@ -247,24 +256,67 @@ export function NewClientForm({ brokerId, officeId }: Props) {
         </CardContent>
       </Card>
 
+      {/* Optional docs checklist */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Documentos adicionais</CardTitle>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Os documentos por proponente são criados automaticamente. Ative os documentos adicionais necessários para este processo.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          {/* Shared docs */}
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide pb-1">Imóvel</p>
+          {SHARED_TEMPLATES.map((tpl) => (
+            <label key={tpl.key} className="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-slate-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={enabledExtraDocs.has(tpl.key)}
+                onChange={() => toggleExtraDoc(tpl.key)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600"
+              />
+              <span className="text-sm text-slate-800">{tpl.label}</span>
+            </label>
+          ))}
+
+          {/* Specific docs — only shown when mortgage_type matches */}
+          {specificTemplates.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide pt-2 pb-1">Específicos do processo</p>
+              {specificTemplates.map((tpl) => (
+                <label key={tpl.key} className="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-slate-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enabledExtraDocs.has(tpl.key)}
+                    onChange={() => toggleExtraDoc(tpl.key)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                  />
+                  <span className="text-sm text-slate-800">{tpl.label}</span>
+                </label>
+              ))}
+            </>
+          )}
+
+          {allOptionalTemplates.length === 0 && (
+            <p className="text-xs text-slate-400 italic py-1">
+              Selecione o tipo de crédito para ver documentos específicos.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Notes */}
       <Card className="shadow-sm">
         <CardContent className="pt-4">
           <div className="space-y-2">
             <Label htmlFor="notes_general">{t('generalNotes')}</Label>
-            <Textarea
-              id="notes_general"
-              rows={3}
-              {...register('notes_general')}
-            />
+            <Textarea id="notes_general" rows={3} {...register('notes_general')} />
           </div>
         </CardContent>
       </Card>
 
       {error && (
-        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
+        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
       )}
 
       <div className="flex gap-3">

@@ -1,5 +1,5 @@
 {
-  "name": "fluxhome-app",
+  "name": "homeflux-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -25,6 +25,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-email/components": "^1.0.11",
+    "@react-email/render": "^2.0.5",
     "@react-pdf/renderer": "^4.3.2",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.1",

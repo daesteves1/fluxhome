@@ -40,6 +40,7 @@
     "dashboard": "Dashboard",
     "clients": "Clients",
     "settings": "Settings",
+    "mediadores": "Brokers",
     "office": "Office",
     "institutions": "Institutions",
     "offices": "Offices",
@@ -52,7 +53,7 @@
   },
   "auth": {
     "login": "Sign in",
-    "loginTitle": "Welcome to FluxHome",
+    "loginTitle": "Welcome to HomeFlux",
     "loginSubtitle": "Sign in to your broker account",
     "email": "Email",
     "password": "Password",
@@ -79,6 +80,8 @@
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome",
+    "pipeline": "Pipeline",
+    "clients": "Clients",
     "activeProcesses": "Active Processes",
     "docsPendingReview": "Docs Pending Review",
     "propostasSent": "Proposals Sent",
@@ -96,6 +99,7 @@
     "allSteps": "All steps",
     "name": "Name",
     "portalLink": "Portal Link",
+    "backToClients": "Clients",
     "copyPortalLink": "Copy portal link",
     "linkCopied": "Link copied!",
     "processStep": "Process step",
@@ -115,6 +119,8 @@
     "termMonths": "Term (months)",
     "propertyAddress": "Property address",
     "generalNotes": "General notes",
+    "sendPortalLink": "Send portal link",
+    "portalLinkSent": "Link sent by email",
     "employmentTypes": {
       "employed": "Employed",
       "self_employed": "Self-employed",
@@ -231,14 +237,23 @@
   },
   "portal": {
     "title": "Client Portal",
-    "welcome": "Welcome",
+    "welcome": "Hello, {name}",
     "welcomeMessage": "Hello {name}, your mortgage process is underway.",
     "processStep": "Process status",
     "documents": "Documents",
     "propostas": "Proposals",
+    "documentsTab": "Documents",
+    "propostasTab": "Proposals",
     "uploadDocuments": "Upload documents",
+    "upload": "Upload",
+    "uploadSuccess": "Document uploaded successfully",
+    "pendingDocs": "pending",
     "termsTitle": "Terms and Conditions",
+    "termsHeader": "Privacy and Data Sharing Agreement",
+    "termsBody": "By continuing, you authorize the processing of your personal data for mortgage analysis and mediation purposes, under the GDPR and applicable Portuguese law. Your data will only be used for mortgage mediation services and will not be shared with third parties without your consent.",
+    "termsCheckbox": "I have read and accept the terms and conditions and privacy policy.",
     "termsSubtitle": "Please read and accept the terms before proceeding",
+    "acceptAndContinue": "Accept and Continue",
     "acceptTerms": "Accept and continue",
     "declineTerms": "Decline",
     "signature": "Signature",
@@ -250,8 +265,15 @@
     "downloadConsent": "Download consent record",
     "noPropostas": "No proposals available",
     "noDocuments": "No documents requested",
+    "untitledProposta": "Untitled proposal",
     "sendPortalLink": "Send portal link",
-    "portalLinkSent": "Link sent by email"
+    "portalLinkSent": "Link sent by email",
+    "status": {
+      "pending": "Pending",
+      "uploaded": "Uploaded",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    }
   },
   "admin": {
     "title": "Admin Panel",
@@ -340,11 +362,14 @@
     "invalidNif": "Invalid NIF"
   },
   "gdpr": {
-    "cookieBanner": "We use cookies to improve your experience.",
+    "cookieBannerText": "We use essential cookies for platform operation. See our",
+    "cookiePolicy": "Cookie Policy",
+    "privacyPolicy": "Privacy Policy",
+    "and": "and our",
+    "accept": "Accept",
+    "reject": "Reject",
     "acceptAll": "Accept all",
     "rejectNonEssential": "Reject non-essential",
-    "privacyPolicy": "Privacy Policy",
-    "cookiePolicy": "Cookie Policy",
     "learnMore": "Learn more"
   }
 }

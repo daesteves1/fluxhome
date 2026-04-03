@@ -9,12 +9,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const { label, proponente, is_mandatory, max_files, description } = await request.json();
+  const { label, proponente, is_mandatory, max_files, description, doc_type, sort_order } = await request.json();
 
   const serviceClient = await createServiceClient();
   const { data, error } = await serviceClient
     .from('document_requests')
-    .insert({ client_id: id, label, proponente, is_mandatory, max_files, description })
+    .insert({
+      client_id: id,
+      label,
+      proponente,
+      is_mandatory,
+      max_files,
+      description: description ?? null,
+      doc_type: doc_type ?? null,
+      sort_order: sort_order ?? 99,
+    })
     .select('id')
     .single();
 

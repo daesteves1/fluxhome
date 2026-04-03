@@ -275,7 +275,7 @@ export type Database = {
           is_mandatory: boolean;
           max_files: number;
           sort_order: number;
-          status: 'pending' | 'uploaded' | 'approved' | 'rejected';
+          status: 'pending' | 'em_analise' | 'approved' | 'rejected';
           broker_notes: string | null;
           created_at: string;
         };
@@ -289,7 +289,7 @@ export type Database = {
           is_mandatory?: boolean;
           max_files?: number;
           sort_order?: number;
-          status?: 'pending' | 'uploaded' | 'approved' | 'rejected';
+          status?: 'pending' | 'em_analise' | 'uploaded' | 'approved' | 'rejected';
           broker_notes?: string | null;
           created_at?: string;
         };
@@ -303,7 +303,7 @@ export type Database = {
           is_mandatory?: boolean;
           max_files?: number;
           sort_order?: number;
-          status?: 'pending' | 'uploaded' | 'approved' | 'rejected';
+          status?: 'pending' | 'em_analise' | 'uploaded' | 'approved' | 'rejected';
           broker_notes?: string | null;
           created_at?: string;
         };

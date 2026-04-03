@@ -28,12 +28,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Update document_request status to 'uploaded' if pending
+  // Set status to em_analise on any upload (unless already approved)
   await serviceClient
     .from('document_requests')
-    .update({ status: 'uploaded' })
+    .update({ status: 'em_analise' })
     .eq('id', requestId)
-    .eq('status', 'pending');
+    .neq('status', 'approved');
 
   return NextResponse.json(data);
 }

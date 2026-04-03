@@ -17,7 +17,7 @@ export interface DocumentRequest {
   is_mandatory: boolean;
   max_files: number;
   sort_order: number;
-  status: 'pending' | 'uploaded' | 'approved' | 'rejected';
+  status: 'pending' | 'em_analise' | 'approved' | 'rejected';
   broker_notes: string | null;
   created_at: string;
 }
@@ -80,12 +80,39 @@ export function ClientDetailTabs({
 }: Props) {
   const t = useTranslations();
 
+  const pendingDocs = documentRequests.filter(r => r.status === 'pending' || r.status === 'em_analise').length;
+
   return (
     <Tabs defaultValue="documents">
-      <TabsList>
-        <TabsTrigger value="documents">{t('documents.title')}</TabsTrigger>
-        <TabsTrigger value="propostas">{t('propostas.title')}</TabsTrigger>
-        <TabsTrigger value="notes">{t('notes.title')}</TabsTrigger>
+      <TabsList className="bg-white border border-slate-200 rounded-xl p-1 gap-0.5 h-auto">
+        <TabsTrigger
+          value="documents"
+          className="rounded-lg text-sm font-medium px-4 py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+        >
+          {t('documents.title')}
+          {pendingDocs > 0 && (
+            <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
+              {pendingDocs}
+            </span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger
+          value="propostas"
+          className="rounded-lg text-sm font-medium px-4 py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+        >
+          {t('propostas.title')}
+          {propostas.length > 0 && (
+            <span className="ml-1.5 bg-blue-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
+              {propostas.length}
+            </span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger
+          value="notes"
+          className="rounded-lg text-sm font-medium px-4 py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+        >
+          {t('notes.title')}
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="documents" className="mt-4">

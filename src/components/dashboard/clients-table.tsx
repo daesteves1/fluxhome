@@ -4,10 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Search, ChevronRight } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ProcessStepBadge } from './process-step-badge';
 import { formatDate } from '@/lib/utils';
 import type { ProcessStep } from '@/types/database';
@@ -56,20 +53,21 @@ export function ClientsTable({ clients, showBrokerColumn = false }: ClientsTable
   });
 
   return (
-    <Card className="shadow-sm">
+    <div>
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3 p-4 border-b">
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <input
+            type="text"
             placeholder={t('searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="w-full h-9 pl-9 pr-3 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-slate-400"
           />
         </div>
         <Select value={stepFilter} onValueChange={setStepFilter}>
-          <SelectTrigger className="w-full sm:w-48">
+          <SelectTrigger className="w-full sm:w-44 h-9 text-sm bg-white border-slate-200">
             <SelectValue placeholder={t('filterByStep')} />
           </SelectTrigger>
           <SelectContent>
@@ -83,61 +81,53 @@ export function ClientsTable({ clients, showBrokerColumn = false }: ClientsTable
         </Select>
       </div>
 
-      {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('name')}</TableHead>
-            <TableHead>{t('processStep')}</TableHead>
-            {showBrokerColumn && <TableHead>{t('broker')}</TableHead>}
-            <TableHead>{t('lastUpdated')}</TableHead>
-            <TableHead className="w-8" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={showBrokerColumn ? 5 : 4}
-                className="text-center text-muted-foreground py-12"
-              >
-                {t('noClients')}
-              </TableCell>
-            </TableRow>
-          ) : (
-            filtered.map((client) => (
-              <TableRow key={client.id} className="hover:bg-muted/30 cursor-pointer">
-                <TableCell>
-                  <Link href={`/dashboard/clients/${client.id}`} className="block">
-                    <span className="font-medium text-foreground">{client.p1_name}</span>
-                    {client.p2_name && (
-                      <span className="text-muted-foreground text-xs ml-1.5">
-                        + {client.p2_name}
-                      </span>
-                    )}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <ProcessStepBadge step={client.process_step as ProcessStep} />
-                </TableCell>
-                {showBrokerColumn && (
-                  <TableCell className="text-muted-foreground text-sm">
-                    {(client.brokers?.users as { name: string } | null)?.name ?? '—'}
-                  </TableCell>
+      {/* Client rows */}
+      {filtered.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl py-12 text-center">
+          <p className="text-sm text-slate-400">{t('noClients')}</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
+          {filtered.map((client) => (
+            <Link
+              key={client.id}
+              href={`/dashboard/clients/${client.id}`}
+              className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group"
+            >
+              {/* Avatar */}
+              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold shrink-0">
+                {client.p1_name.charAt(0).toUpperCase()}
+              </div>
+
+              {/* Name */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-900 truncate">
+                  {client.p1_name}
+                  {client.p2_name && (
+                    <span className="text-slate-400 font-normal ml-1.5">+ {client.p2_name}</span>
+                  )}
+                </p>
+                {showBrokerColumn && (client.brokers?.users as { name: string } | null)?.name && (
+                  <p className="text-xs text-slate-400 truncate">
+                    {(client.brokers?.users as { name: string } | null)?.name}
+                  </p>
                 )}
-                <TableCell className="text-muted-foreground text-sm">
-                  {formatDate(client.updated_at)}
-                </TableCell>
-                <TableCell>
-                  <Link href={`/dashboard/clients/${client.id}`}>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </Card>
+              </div>
+
+              {/* Step badge */}
+              <ProcessStepBadge step={client.process_step as ProcessStep} />
+
+              {/* Date */}
+              <p className="text-xs text-slate-400 shrink-0 hidden sm:block">
+                {formatDate(client.updated_at)}
+              </p>
+
+              {/* Arrow */}
+              <ChevronRight className="h-4 w-4 text-slate-300 shrink-0 group-hover:text-slate-400 transition-colors" />
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
