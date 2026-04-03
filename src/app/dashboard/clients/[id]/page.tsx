@@ -6,10 +6,12 @@ import type { ProcessStep } from '@/types/database';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
-export default async function ClientDetailPage({ params }: PageProps) {
+export default async function ClientDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const supabase = await createClient();
   const serviceClient = await createServiceClient();
 
@@ -71,10 +73,10 @@ export default async function ClientDetailPage({ params }: PageProps) {
     uploadsRaw = data ?? [];
   }
 
-  // Get propostas
+  // Get propostas — ALL regardless of is_visible_to_client (broker sees everything)
   const { data: propostasRaw } = await serviceClient
     .from('propostas')
-    .select('id, title, is_visible_to_client, created_at, updated_at')
+    .select('id, title, is_visible_to_client, comparison_data, created_at, updated_at')
     .eq('client_id', id)
     .order('created_at', { ascending: false });
 
@@ -103,7 +105,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
     .single();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <ClientDetailHeader
         client={client}
         portalBaseUrl={process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}
@@ -117,6 +119,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
         currentBrokerId={broker?.id ?? null}
         officeId={client.office_id}
         officeName={(officeRaw as { name: string } | null)?.name ?? ''}
+        defaultTab={tab}
       />
     </div>
   );

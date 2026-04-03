@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  Download,
   AlertCircle,
   Trash2,
   Loader2,
@@ -16,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { HomeFluxLogoMark } from '@/components/layout/homeflux-logo';
 
 type DocRequest = {
@@ -36,12 +35,285 @@ type PortalUpload = {
   uploaded_at: string;
 };
 
+type BankData = {
+  name: string;
+  recommended?: boolean;
+  highlight?: boolean;
+  montante?: string;
+  prazo?: string;
+  tipo_taxa?: string;
+  periodo_fixo?: string;
+  euribor?: string;
+  spread?: string;
+  tan?: string;
+  prestacao?: string;
+  doc_path?: string;
+};
+
+type InsuranceData = {
+  [bankName: string]: {
+    vida: string;
+    multirriscos: string;
+    vida_ext: string;
+    multirriscos_ext: string;
+  };
+};
+
+type ChargeRow = { label: string; [bankName: string]: string | boolean | undefined };
+
 type Proposta = {
   id: string;
   title: string | null;
+  comparison_data: unknown;
+  insurance_data: unknown;
+  one_time_charges: unknown;
+  monthly_charges: unknown;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 };
+
+// ─── Portal Proposta Card ──────────────────────────────────────────────────
+
+function fmtEur(val: number) {
+  return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val);
+}
+function fmtPct(val: string) {
+  const n = parseFloat(val);
+  return isNaN(n) ? val : `${n.toFixed(2)}%`;
+}
+function parse(v: string | undefined): number { return parseFloat(v ?? '0') || 0; }
+
+function calcSubtotalBank(bank: BankData, ins: InsuranceData): number {
+  return parse(bank.prestacao) + parse(ins[bank.name]?.vida) + parse(ins[bank.name]?.multirriscos);
+}
+function calcTotalOneTime(bankName: string, charges: ChargeRow[]): number {
+  return charges.reduce((s, r) => s + parse(r[bankName] as string), 0);
+}
+
+function lowestIdx(values: (number | null)[]): number | null {
+  const filtered = values.map((v, i) => v !== null && v > 0 ? { v, i } : null).filter(Boolean) as { v: number; i: number }[];
+  if (filtered.length < 2) return null;
+  const min = Math.min(...filtered.map((x) => x.v));
+  return filtered.find((x) => x.v === min)?.i ?? null;
+}
+
+function ComparisonTable({ banks, ins, oneTime, monthly }: {
+  banks: BankData[];
+  ins: InsuranceData;
+  oneTime: ChargeRow[];
+  monthly: ChargeRow[];
+}) {
+  const rows: { label: string; values: (string | null)[]; isNumeric?: boolean }[] = [
+    { label: 'Tipo de Taxa', values: banks.map((b) => b.tipo_taxa ?? null) },
+    { label: 'Euribor', values: banks.map((b) => b.tipo_taxa === 'Fixa' ? 'N/A' : (b.euribor ?? null)) },
+    { label: 'Spread', values: banks.map((b) => b.spread ? fmtPct(b.spread) : null), isNumeric: true },
+    { label: 'TAN', values: banks.map((b) => b.tan ? fmtPct(b.tan) : null), isNumeric: true },
+    { label: 'Prestação mensal', values: banks.map((b) => b.prestacao ? fmtEur(parse(b.prestacao)) : null), isNumeric: true },
+    { label: 'Seg. Vida (banco)', values: banks.map((b) => { const v = ins[b.name]?.vida; return v ? fmtEur(parse(v)) : null; }), isNumeric: true },
+    { label: 'Seg. Multirriscos (banco)', values: banks.map((b) => { const v = ins[b.name]?.multirriscos; return v ? fmtEur(parse(v)) : null; }), isNumeric: true },
+    { label: 'Subtotal mensal', values: banks.map((b) => { const s = calcSubtotalBank(b, ins); return s > 0 ? fmtEur(s) : null; }), isNumeric: true },
+    { label: 'Encargos únicos', values: banks.map((b) => { const s = calcTotalOneTime(b.name, oneTime); return s > 0 ? fmtEur(s) : null; }), isNumeric: true },
+    { label: 'Manutenção de conta', values: banks.map((b) => { const v = monthly[0]?.[b.name]; return v ? fmtEur(parse(v as string)) : null; }), isNumeric: true },
+  ];
+
+  const numericValues = (row: typeof rows[number]) =>
+    row.isNumeric ? banks.map((b) => {
+      const raw = row.label === 'Prestação mensal' ? parse(b.prestacao)
+        : row.label === 'Subtotal mensal' ? calcSubtotalBank(b, ins)
+        : row.label === 'Encargos únicos' ? calcTotalOneTime(b.name, oneTime)
+        : null;
+      return raw;
+    }) : [];
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table className="w-full text-sm">
+        <thead>
+          <tr>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide w-40 border-b border-slate-100">
+              Métrica
+            </th>
+            {banks.map((b, i) => {
+              const isRec = b.recommended || b.highlight;
+              return (
+                <th key={i} className={`px-4 py-3 text-center text-sm font-bold border-b border-slate-100 ${isRec ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}>
+                  {isRec && <span className="block text-[10px] font-semibold text-blue-500 mb-0.5">★ Recomendado</span>}
+                  {b.name}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {rows.map((row) => {
+            const nums = numericValues(row);
+            const bestIdx = row.isNumeric ? lowestIdx(nums) : null;
+            return (
+              <tr key={row.label} className="hover:bg-slate-50/50">
+                <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">{row.label}</td>
+                {row.values.map((val, i) => {
+                  const isRec = banks[i].recommended || banks[i].highlight;
+                  const isBest = bestIdx === i;
+                  return (
+                    <td key={i} className={`px-4 py-2.5 text-center text-sm font-medium ${isRec ? 'bg-blue-50/40' : ''} ${isBest ? 'text-green-700' : 'text-slate-700'}`}>
+                      {isBest && val ? (
+                        <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5 text-xs font-semibold">
+                          {val}
+                        </span>
+                      ) : (val ?? <span className="text-slate-300">—</span>)}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SummaryCards({ banks, ins }: { banks: BankData[]; ins: InsuranceData }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {banks.map((b, i) => {
+        const isRec = b.recommended || b.highlight;
+        const subtotal = calcSubtotalBank(b, ins);
+        return (
+          <div key={i} className={`rounded-xl border p-4 ${isRec ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <p className="font-bold text-base text-slate-900">{b.name}</p>
+              {isRec && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5 shrink-0">
+                  ★ Recomendado
+                </span>
+              )}
+            </div>
+            {subtotal > 0 && (
+              <div className="mt-1">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Prestação c/ seguros banco</p>
+                <p className={`text-2xl font-bold mt-0.5 ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
+                  {fmtEur(subtotal)}<span className="text-sm font-normal text-slate-400">/mês</span>
+                </p>
+              </div>
+            )}
+            {b.prestacao && (
+              <p className="text-xs text-slate-500 mt-1">Sem seguros: {fmtEur(parse(b.prestacao))}/mês</p>
+            )}
+            {b.tan && <p className="text-xs text-slate-500 mt-0.5">TAN: {fmtPct(b.tan)}</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BarChart({ banks }: { banks: BankData[] }) {
+  const values = banks.map((b) => parse(b.prestacao));
+  const max = Math.max(...values, 1);
+  const barH = 28;
+  const gap = 10;
+  const labelW = 72;
+  const barMaxW = 160;
+  const valW = 72;
+  const rowH = barH + gap;
+  const svgH = banks.length * rowH + 4;
+
+  return (
+    <svg width="100%" height={svgH} viewBox={`0 0 ${labelW + barMaxW + valW + 16} ${svgH}`} className="overflow-visible">
+      {banks.map((b, i) => {
+        const val = values[i];
+        const bw = val > 0 ? (val / max) * barMaxW : 0;
+        const y = i * rowH;
+        const isRec = b.recommended || b.highlight;
+        const fill = isRec ? '#3b82f6' : '#94a3b8';
+        return (
+          <g key={b.name} transform={`translate(0,${y})`}>
+            <text x={labelW - 6} y={barH / 2 + 4} textAnchor="end" fontSize="11" fill="#64748b" fontWeight={isRec ? '600' : '400'}>
+              {b.name}
+            </text>
+            <rect x={labelW} y={2} width={bw} height={barH - 4} rx="4" fill={fill} />
+            {val > 0 && (
+              <text x={labelW + bw + 8} y={barH / 2 + 4} fontSize="11" fill={isRec ? '#1d4ed8' : '#334155'} fontWeight={isRec ? '600' : '400'}>
+                {fmtEur(val)}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function PortalPropostaCard({ proposta, portalToken }: { proposta: Proposta; portalToken: string }) {
+  const banks = (proposta.comparison_data as BankData[] | null) ?? [];
+  const ins = (proposta.insurance_data as InsuranceData | null) ?? {};
+  const oneTime = (proposta.one_time_charges as ChargeRow[] | null) ?? [];
+  const monthly = (proposta.monthly_charges as ChargeRow[] | null) ?? [];
+
+  const hasBanks = banks.length > 0;
+  const hasChart = hasBanks && banks.some((b) => parse(b.prestacao) > 0);
+  const banksWithPdf = banks.filter((b) => b.doc_path);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-baseline gap-3">
+        <h3 className="font-bold text-base text-slate-900">{proposta.title || 'Proposta'}</h3>
+      </div>
+
+      {!hasBanks && (
+        <p className="text-sm text-slate-400 text-center py-8">Sem dados de comparação disponíveis.</p>
+      )}
+
+      {hasBanks && (
+        <>
+          {/* Comparison table */}
+          <ComparisonTable banks={banks} ins={ins} oneTime={oneTime} monthly={monthly} />
+
+          {/* Summary cards */}
+          <SummaryCards banks={banks} ins={ins} />
+
+          {/* Bar chart */}
+          {hasChart && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Prestação mensal (sem seguros)</p>
+              <BarChart banks={banks} />
+            </div>
+          )}
+
+          {/* PDF downloads per bank */}
+          {banksWithPdf.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Documentos dos bancos</p>
+              <div className="flex flex-wrap gap-2">
+                {banksWithPdf.map((b) => (
+                  <a
+                    key={b.name}
+                    href={`/api/portal/${portalToken}/propostas/${proposta.id}/bank-doc?bank=${encodeURIComponent(b.name)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    PDF — {b.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Broker notes */}
+      {proposta.notes && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1.5">Notas do mediador</p>
+          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{proposta.notes}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface PortalViewProps {
   clientName: string;
@@ -442,33 +714,16 @@ export function PortalView({
           </TabsContent>
 
           {/* Propostas Tab */}
-          <TabsContent value="propostas" className="space-y-2.5">
+          <TabsContent value="propostas" className="space-y-6">
             {propostas.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
                 <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                 <p className="text-sm text-slate-400">{t('noPropostas')}</p>
               </div>
             ) : (
-              propostas.map((proposta) => (
-                <div
-                  key={proposta.id}
-                  className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3"
-                >
-                  <div>
-                    <p className="font-medium text-sm text-slate-900">
-                      {proposta.title || t('untitledProposta')}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">{formatDateTime(proposta.updated_at)}</p>
-                  </div>
-                  <a
-                    href={`/api/portal/${portalToken}/propostas/${proposta.id}/pdf`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors shrink-0"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    PDF
-                  </a>
+              propostas.map((proposta, idx) => (
+                <div key={proposta.id} className={idx > 0 ? 'pt-6 border-t border-slate-200' : ''}>
+                  <PortalPropostaCard proposta={proposta} portalToken={portalToken} />
                 </div>
               ))
             )}

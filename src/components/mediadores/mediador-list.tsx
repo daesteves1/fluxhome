@@ -3,9 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { UserPlus, Mail, ShieldCheck, UserX, UserCheck, Clock, RotateCcw } from 'lucide-react';
+import { UserPlus, Mail, ShieldCheck, UserX, UserCheck, Clock, RotateCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
+import { formatDate, cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 interface Broker {
   id: string;
@@ -36,9 +40,10 @@ export function MediadorList({ brokers, pendingInvitations, currentBrokerId, off
   const t = useTranslations();
   const router = useRouter();
 
-  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
+  const [inviteRole, setInviteRole] = useState<'broker' | 'office_admin'>('broker');
   const [sending, setSending] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -59,9 +64,8 @@ export function MediadorList({ brokers, pendingInvitations, currentBrokerId, off
     }
   }
 
-  async function handleInvite(e: React.FormEvent) {
-    e.preventDefault();
-    if (!inviteEmail) return;
+  async function handleInvite() {
+    if (!inviteEmail || !inviteName) return;
     setSending(true);
     try {
       const res = await fetch('/api/admin/invitations', {
@@ -69,16 +73,17 @@ export function MediadorList({ brokers, pendingInvitations, currentBrokerId, off
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: inviteEmail,
-          role: 'broker',
+          role: inviteRole,
           office_id: officeId,
-          invitee_name: inviteName || undefined,
+          invitee_name: inviteName,
         }),
       });
       if (res.ok) {
         toast.success(t('admin.invitationSent'));
         setInviteEmail('');
         setInviteName('');
-        setShowInviteForm(false);
+        setInviteRole('broker');
+        setInviteOpen(false);
         router.refresh();
       } else {
         const data = await res.json();
@@ -119,54 +124,83 @@ export function MediadorList({ brokers, pendingInvitations, currentBrokerId, off
             {brokers.length} {brokers.length === 1 ? 'mediador' : 'mediadores'}
           </p>
         </div>
-        <button
-          onClick={() => setShowInviteForm((v) => !v)}
-          className="flex items-center gap-1.5 h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-        >
-          <UserPlus className="h-4 w-4" />
-          {t('admin.sendInvitation')}
-        </button>
-      </div>
 
-      {/* Invite Form */}
-      {showInviteForm && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
-          <h2 className="text-sm font-semibold text-slate-900 mb-4">{t('admin.sendInvitation')}</h2>
-          <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              placeholder={t('common.name')}
-              value={inviteName}
-              onChange={(e) => setInviteName(e.target.value)}
-              className="flex-1 h-9 px-3 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-slate-400"
-            />
-            <input
-              type="email"
-              placeholder={t('admin.invitationEmail')}
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              required
-              className="flex-1 h-9 px-3 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-slate-400"
-            />
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={sending || !inviteEmail}
-                className="h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
-              >
-                {sending ? t('common.loading') : t('common.confirm')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowInviteForm(false)}
-                className="h-9 px-4 text-sm font-medium border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
+        <Dialog open={inviteOpen} onOpenChange={(v) => { setInviteOpen(v); if (!v) { setInviteEmail(''); setInviteName(''); setInviteRole('broker'); } }}>
+          <DialogTrigger asChild>
+            <Button className="gap-1.5">
+              <UserPlus className="h-4 w-4" />
+              + Convidar mediador
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Convidar mediador</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div className="space-y-1.5">
+                <Label>Nome *</Label>
+                <Input
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="Nome completo"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="email@exemplo.pt"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Perfil</Label>
+                <div
+                  className="flex h-9 rounded-full p-0.5 border border-slate-200"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setInviteRole('broker')}
+                    className={cn(
+                      'flex-1 rounded-full text-sm font-medium transition-colors duration-150',
+                      inviteRole === 'broker'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-500 hover:text-slate-700'
+                    )}
+                  >
+                    Mediador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInviteRole('office_admin')}
+                    className={cn(
+                      'flex-1 rounded-full text-sm font-medium transition-colors duration-150',
+                      inviteRole === 'office_admin'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-500 hover:text-slate-700'
+                    )}
+                  >
+                    Admin de Escritório
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setInviteOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleInvite}
+                  disabled={sending || !inviteEmail || !inviteName}
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Enviar convite
+                </Button>
+              </div>
             </div>
-          </form>
-        </div>
-      )}
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {/* Brokers list */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-5">

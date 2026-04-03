@@ -105,11 +105,11 @@ export function Sidebar({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt={officeName || 'HomeFlux'} className="h-6 w-auto object-contain" />
         ) : (
-          <div className="text-white/60 shrink-0">
-            <HomeFluxLogoMark size={20} />
+          <div className="text-white/80 shrink-0">
+            <HomeFluxLogoMark size={24} />
           </div>
         )}
-        <span className="font-semibold text-[12px] tracking-tight text-white/50">HomeFlux</span>
+        <span className="font-semibold text-[14px] tracking-tight text-white">HomeFlux</span>
         {role === 'super_admin' && (
           <span className="ml-auto shrink-0 text-[9px] font-bold bg-red-500/20 text-red-400 rounded px-1.5 py-0.5 uppercase tracking-wide">
             Admin

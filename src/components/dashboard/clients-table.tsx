@@ -4,9 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Search, ChevronRight } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProcessStepBadge } from './process-step-badge';
-import { formatDate } from '@/lib/utils';
+import { formatDate, cn } from '@/lib/utils';
 import type { ProcessStep } from '@/types/database';
 
 interface Client {
@@ -29,20 +28,23 @@ interface ClientsTableProps {
 
 const ALL_STEPS = 'all';
 
+const STEP_TABS: { value: ProcessStep | 'all'; label: string; active: string; inactive: string }[] = [
+  { value: 'all',           label: 'Todos',               active: 'bg-slate-800 text-white',   inactive: 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' },
+  { value: 'lead',          label: 'Lead',                active: 'bg-slate-500 text-white',   inactive: 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' },
+  { value: 'docs_pending',  label: 'Docs. Pendentes',     active: 'bg-amber-500 text-white',   inactive: 'text-amber-600 hover:bg-amber-50' },
+  { value: 'docs_complete', label: 'Docs. Completos',     active: 'bg-blue-500 text-white',    inactive: 'text-blue-600 hover:bg-blue-50' },
+  { value: 'propostas_sent',label: 'Propostas Enviadas',  active: 'bg-purple-500 text-white',  inactive: 'text-purple-600 hover:bg-purple-50' },
+  { value: 'approved',      label: 'Aprovado',            active: 'bg-green-500 text-white',   inactive: 'text-green-600 hover:bg-green-50' },
+  { value: 'closed',        label: 'Fechado',             active: 'bg-slate-600 text-white',   inactive: 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' },
+];
+
 export function ClientsTable({ clients, showBrokerColumn = false }: ClientsTableProps) {
   const t = useTranslations('clients');
-  const tSteps = useTranslations('processSteps');
   const [search, setSearch] = useState('');
-  const [stepFilter, setStepFilter] = useState(ALL_STEPS);
+  const [stepFilter, setStepFilter] = useState<ProcessStep | 'all'>(ALL_STEPS);
 
-  const steps: ProcessStep[] = [
-    'lead',
-    'docs_pending',
-    'docs_complete',
-    'propostas_sent',
-    'approved',
-    'closed',
-  ];
+  const countByStep = (step: ProcessStep | 'all') =>
+    step === 'all' ? clients.length : clients.filter((c) => c.process_step === step).length;
 
   const filtered = clients.filter((c) => {
     const matchesSearch =
@@ -54,31 +56,45 @@ export function ClientsTable({ clients, showBrokerColumn = false }: ClientsTable
 
   return (
     <div>
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-2 mb-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          <input
-            type="text"
-            placeholder={t('searchPlaceholder')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-slate-400"
-          />
-        </div>
-        <Select value={stepFilter} onValueChange={setStepFilter}>
-          <SelectTrigger className="w-full sm:w-44 h-9 text-sm bg-white border-slate-200">
-            <SelectValue placeholder={t('filterByStep')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_STEPS}>{t('allSteps')}</SelectItem>
-            {steps.map((step) => (
-              <SelectItem key={step} value={step}>
-                {tSteps(step)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Search bar */}
+      <div className="relative mb-2">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+        <input
+          type="text"
+          placeholder={t('searchPlaceholder')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full h-9 pl-9 pr-3 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-slate-400"
+        />
+      </div>
+
+      {/* Step filter tabs */}
+      <div className="flex gap-1 mb-3 overflow-x-auto pb-0.5 scrollbar-none">
+        {STEP_TABS.map((tab) => {
+          const count = countByStep(tab.value);
+          if (tab.value !== 'all' && count === 0) return null;
+          const isActive = stepFilter === tab.value;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setStepFilter(tab.value)}
+              className={cn(
+                'inline-flex items-center gap-1.5 shrink-0 h-7 px-3 rounded-full text-xs font-medium transition-colors',
+                isActive ? tab.active : tab.inactive
+              )}
+            >
+              {tab.label}
+              <span
+                className={cn(
+                  'inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold',
+                  isActive ? 'bg-white/25 text-inherit' : 'bg-slate-100 text-slate-500'
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Client rows */}

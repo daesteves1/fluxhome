@@ -3,15 +3,42 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { Copy, Check, ExternalLink, Mail, ChevronLeft } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Copy, Check, ExternalLink, Mail, ChevronLeft, Pencil } from 'lucide-react';
 import { ProcessStepBadge } from '@/components/dashboard/process-step-badge';
 import { EditClientDialog } from './edit-client-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import type { ProcessStep } from '@/types/database';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
-const PROCESS_STEPS: ProcessStep[] = [
-  'lead', 'docs_pending', 'docs_complete', 'propostas_sent', 'approved', 'closed'
+const MORTGAGE_TYPE_PT: Record<string, string> = {
+  acquisition:   'Aquisição',
+  transfer:      'Transferência',
+  renegotiation: 'Renegociação',
+};
+
+interface StepMeta {
+  key: ProcessStep;
+  label: string;
+  short: string;
+  circle: string;
+  line: string;
+  ring: string;
+}
+
+const STEP_META: StepMeta[] = [
+  { key: 'lead',           label: 'Lead',               short: 'Lead',       circle: 'bg-slate-500',  line: 'bg-slate-400',  ring: 'ring-slate-300'  },
+  { key: 'docs_pending',   label: 'Docs. Pendentes',    short: 'Docs. Pend.',circle: 'bg-amber-500',  line: 'bg-amber-400',  ring: 'ring-amber-300'  },
+  { key: 'docs_complete',  label: 'Docs. Completos',    short: 'Docs. Com.', circle: 'bg-blue-500',   line: 'bg-blue-400',   ring: 'ring-blue-300'   },
+  { key: 'propostas_sent', label: 'Propostas Enviadas', short: 'Propostas',  circle: 'bg-purple-500', line: 'bg-purple-400', ring: 'ring-purple-300' },
+  { key: 'approved',       label: 'Aprovado',           short: 'Aprovado',   circle: 'bg-green-500',  line: 'bg-green-400',  ring: 'ring-green-300'  },
+  { key: 'closed',         label: 'Fechado',            short: 'Fechado',    circle: 'bg-slate-600',  line: 'bg-slate-500',  ring: 'ring-slate-400'  },
 ];
 
 interface Client {
@@ -22,6 +49,8 @@ interface Client {
   p1_phone: string | null;
   loan_amount: number | null;
   property_value: number | null;
+  term_months: number | null;
+  property_address: string | null;
   mortgage_type: string | null;
   process_step: ProcessStep;
   portal_token: string;
@@ -35,12 +64,12 @@ interface Props {
 
 export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
   const t = useTranslations('clients');
-  const tSteps = useTranslations('processSteps');
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [currentStep, setCurrentStep] = useState<ProcessStep>(client.process_step);
   const [updatingStep, setUpdatingStep] = useState(false);
+  const [pendingStep, setPendingStep] = useState<StepMeta | null>(null);
 
   const portalUrl = `${portalBaseUrl}/portal/${client.portal_token}`;
 
@@ -63,16 +92,18 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  async function handleStepChange(step: ProcessStep) {
+  async function confirmStepChange() {
+    if (!pendingStep) return;
     setUpdatingStep(true);
+    setPendingStep(null);
     try {
       const res = await fetch(`/api/clients/${client.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ process_step: step }),
+        body: JSON.stringify({ process_step: pendingStep.key }),
       });
       if (res.ok) {
-        setCurrentStep(step);
+        setCurrentStep(pendingStep.key);
         router.refresh();
       }
     } finally {
@@ -83,115 +114,203 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
   const fmtEur = (val: number) =>
     new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val);
 
+  const mortgageTypeLabel = client.mortgage_type
+    ? (MORTGAGE_TYPE_PT[client.mortgage_type] ?? client.mortgage_type)
+    : null;
+
+  const currentIdx = STEP_META.findIndex((s) => s.key === currentStep);
+
   return (
     <div>
       {/* Back */}
       <button
         onClick={() => router.back()}
-        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-4"
+        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-3"
       >
         <ChevronLeft className="h-4 w-4" />
         {t('backToClients')}
       </button>
 
-      {/* Header card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          {/* Client info */}
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
-                {client.p1_name.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900 leading-tight">
-                  {client.p1_name}
-                </h1>
-                {client.p2_name && (
-                  <p className="text-sm text-slate-500 mt-0.5">+ {client.p2_name}</p>
-                )}
-              </div>
-            </div>
+      {/* Header card — complete, rounded all sides */}
+      <div className="bg-white rounded-2xl border border-slate-200 px-6 pt-5 pb-5">
 
-            {/* Contact + details */}
-            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-slate-500">
-              {client.p1_email && <span>{client.p1_email}</span>}
-              {client.p1_phone && <span>{client.p1_phone}</span>}
-            </div>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {client.mortgage_type && (
-                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                  {client.mortgage_type}
-                </span>
-              )}
-              {client.loan_amount && (
-                <span className="text-xs text-slate-500">
-                  Financiamento: <span className="font-medium text-slate-700">{fmtEur(client.loan_amount)}</span>
-                </span>
-              )}
-              {client.property_value && (
-                <span className="text-xs text-slate-500">
-                  Imóvel: <span className="font-medium text-slate-700">{fmtEur(client.property_value)}</span>
-                </span>
-              )}
-            </div>
+        {/* Top row: name + actions */}
+        <div className="flex items-start justify-between gap-4">
+          {/* Name */}
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
+            <h1 className="text-xl font-bold text-slate-900 leading-tight">{client.p1_name}</h1>
+            {client.p2_name && (
+              <span className="text-sm text-slate-400 font-normal">+ {client.p2_name}</span>
+            )}
+            <ProcessStepBadge step={currentStep} />
           </div>
 
-          {/* Actions */}
-          <div className="flex flex-wrap items-start gap-2 shrink-0">
-            <Select
-              value={currentStep}
-              onValueChange={(v) => handleStepChange(v as ProcessStep)}
-              disabled={updatingStep}
-            >
-              <SelectTrigger className="h-8 text-xs w-44 bg-white border-slate-200">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PROCESS_STEPS.map((step) => (
-                  <SelectItem key={step} value={step} className="text-xs">
-                    {tSteps(step)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
+          {/* Action buttons */}
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={copyPortalLink}
-              className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors"
             >
-              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-              {t('copyPortalLink')}
+              {copied
+                ? <Check className="h-3.5 w-3.5 text-green-500" />
+                : <Copy className="h-3.5 w-3.5" />}
+              Copiar link
             </button>
 
             <button
               onClick={sendPortalLink}
               disabled={sendingEmail}
-              className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors disabled:opacity-40"
             >
               <Mail className="h-3.5 w-3.5" />
-              {sendingEmail ? '...' : t('sendPortalLink')}
+              Enviar link
             </button>
 
             <a
               href={portalUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               Portal
             </a>
 
-            <EditClientDialog client={client as Parameters<typeof EditClientDialog>[0]['client']} />
+            <EditClientDialog
+              client={client as Parameters<typeof EditClientDialog>[0]['client']}
+              iconOnly
+              customTrigger={
+                <button className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors">
+                  <Pencil className="h-3.5 w-3.5" />
+                  Editar
+                </button>
+              }
+            />
           </div>
         </div>
 
-        {/* Step badge */}
-        <div className="mt-4 pt-4 border-t border-slate-100">
-          <ProcessStepBadge step={currentStep} />
+        {/* Detail grid */}
+        <div className="grid grid-cols-2 gap-x-8 gap-y-3 mt-4">
+          {client.p1_email && (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
+              <p className="text-sm text-slate-700">{client.p1_email}</p>
+            </div>
+          )}
+          {client.p1_phone && (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Telefone</p>
+              <p className="text-sm text-slate-700">{client.p1_phone}</p>
+            </div>
+          )}
+          {mortgageTypeLabel && (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Tipo de processo</p>
+              <p className="text-sm text-slate-700">{mortgageTypeLabel}</p>
+            </div>
+          )}
+          {client.loan_amount ? (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Financiamento</p>
+              <p className="text-sm text-slate-700">{fmtEur(client.loan_amount)}</p>
+            </div>
+          ) : null}
+          {client.property_value ? (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor do imóvel</p>
+              <p className="text-sm text-slate-700">{fmtEur(client.property_value)}</p>
+            </div>
+          ) : null}
+          {client.term_months ? (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prazo</p>
+              <p className="text-sm text-slate-700">{client.term_months} meses</p>
+            </div>
+          ) : null}
+          {client.property_address && (
+            <div className="col-span-2">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Endereço do imóvel</p>
+              <p className="text-sm text-slate-700">{client.property_address}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Process stepper */}
+        <div className="mt-5 pt-4 border-t border-slate-100">
+          <div className="flex items-start">
+            {STEP_META.map((step, i) => {
+              const isCompleted = i < currentIdx;
+              const isCurrent = i === currentIdx;
+              const isFuture = i > currentIdx;
+              const isLast = i === STEP_META.length - 1;
+
+              return (
+                <div key={step.key} className="flex items-start flex-1 min-w-0">
+                  {/* Step node */}
+                  <div className="flex flex-col items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => !isCurrent && !updatingStep && setPendingStep(step)}
+                      disabled={isCurrent || updatingStep}
+                      className={cn(
+                        'w-6 h-6 rounded-full flex items-center justify-center transition-all',
+                        isCompleted && `${step.circle} shadow-sm`,
+                        isCurrent && `${step.circle} ring-4 ${step.ring} shadow-sm`,
+                        isFuture && 'bg-white border-2 border-slate-200 hover:border-slate-300'
+                      )}
+                    >
+                      {isCompleted && (
+                        <Check className="h-3 w-3 text-white" />
+                      )}
+                    </button>
+                    <span
+                      className={cn(
+                        'text-[10px] text-center leading-tight px-0.5',
+                        isCurrent ? 'font-semibold text-slate-800' : '',
+                        isCompleted ? 'text-slate-500' : '',
+                        isFuture ? 'text-slate-400' : '',
+                      )}
+                    >
+                      {step.short}
+                    </span>
+                  </div>
+
+                  {/* Connector line */}
+                  {!isLast && (
+                    <div className="flex-1 mt-3 mx-1">
+                      <div
+                        className={cn(
+                          'h-0.5 w-full rounded-full',
+                          isCompleted ? step.line : 'bg-slate-200'
+                        )}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
+
+      {/* Step confirm dialog */}
+      <Dialog open={!!pendingStep} onOpenChange={(v) => { if (!v) setPendingStep(null); }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Alterar etapa</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600 mt-1">
+            Avançar para <span className="font-semibold text-slate-900">{pendingStep?.label}</span>?
+          </p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setPendingStep(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmStepChange}>
+              Confirmar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

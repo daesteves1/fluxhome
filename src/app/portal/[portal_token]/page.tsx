@@ -55,7 +55,7 @@ export default async function PortalPage({ params }: PageProps) {
 
   const { data: propostasRaw } = await serviceClient
     .from('propostas')
-    .select('id, title, created_at, updated_at')
+    .select('id, title, comparison_data, insurance_data, one_time_charges, monthly_charges, notes, created_at, updated_at')
     .eq('client_id', client.id)
     .eq('is_visible_to_client', true)
     .order('created_at', { ascending: false });
@@ -89,6 +89,11 @@ export default async function PortalPage({ params }: PageProps) {
   type Proposta = {
     id: string;
     title: string | null;
+    comparison_data: unknown;
+    insurance_data: unknown;
+    one_time_charges: unknown;
+    monthly_charges: unknown;
+    notes: string | null;
     created_at: string;
     updated_at: string;
   };

@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FileText, BarChart2, MessageSquare } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { DocumentsTab } from './documents-tab';
 import { PropostasTab } from './propostas-tab';
 import { NotesTab } from './notes-tab';
@@ -38,6 +40,7 @@ export interface Proposta {
   id: string;
   title: string | null;
   is_visible_to_client: boolean;
+  comparison_data: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -67,7 +70,10 @@ interface Props {
   currentBrokerId: string | null;
   officeId: string;
   officeName: string;
+  defaultTab?: string;
 }
+
+type Tab = 'documents' | 'propostas' | 'notes';
 
 export function ClientDetailTabs({
   client,
@@ -77,68 +83,88 @@ export function ClientDetailTabs({
   brokerNotes,
   currentBrokerId,
   officeId,
+  defaultTab,
 }: Props) {
   const t = useTranslations();
+  const validDefault = (['documents', 'propostas', 'notes'] as Tab[]).includes(defaultTab as Tab)
+    ? (defaultTab as Tab)
+    : 'documents';
+  const [activeTab, setActiveTab] = useState<Tab>(validDefault);
 
-  const pendingDocs = documentRequests.filter(r => r.status === 'pending' || r.status === 'em_analise').length;
+  const pendingDocs = documentRequests.filter(
+    (r) => r.status === 'pending' || r.status === 'em_analise'
+  ).length;
+
+  const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
+    { id: 'documents', label: t('documents.title'), icon: FileText,      badge: pendingDocs || undefined },
+    { id: 'propostas', label: t('propostas.title'), icon: BarChart2,     badge: propostas.length || undefined },
+    { id: 'notes',     label: t('notes.title'),     icon: MessageSquare },
+  ];
 
   return (
-    <Tabs defaultValue="documents">
-      <TabsList className="bg-white border border-slate-200 rounded-xl p-1 gap-0.5 h-auto">
-        <TabsTrigger
-          value="documents"
-          className="rounded-lg text-sm font-medium px-4 py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-        >
-          {t('documents.title')}
-          {pendingDocs > 0 && (
-            <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
-              {pendingDocs}
-            </span>
-          )}
-        </TabsTrigger>
-        <TabsTrigger
-          value="propostas"
-          className="rounded-lg text-sm font-medium px-4 py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-        >
-          {t('propostas.title')}
-          {propostas.length > 0 && (
-            <span className="ml-1.5 bg-blue-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
-              {propostas.length}
-            </span>
-          )}
-        </TabsTrigger>
-        <TabsTrigger
-          value="notes"
-          className="rounded-lg text-sm font-medium px-4 py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-        >
-          {t('notes.title')}
-        </TabsTrigger>
-      </TabsList>
+    <div>
+      {/* Tab nav — sits on page background, full width, border-bottom separator */}
+      <div className="border-b border-slate-200">
+        <div className="flex h-11 items-stretch gap-1">
+          {tabs.map(({ id, label, icon: Icon, badge }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={cn(
+                'relative inline-flex items-center gap-1.5 px-3 text-sm font-medium transition-colors',
+                activeTab === id
+                  ? 'text-blue-600'
+                  : 'text-slate-500 hover:text-slate-700'
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {label}
+              {badge !== undefined && (
+                <span
+                  className={cn(
+                    'inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold',
+                    activeTab === id
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-slate-100 text-slate-500'
+                  )}
+                >
+                  {badge}
+                </span>
+              )}
+              {/* Active underline */}
+              {activeTab === id && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <TabsContent value="documents" className="mt-4">
-        <DocumentsTab
-          client={client}
-          documentRequests={documentRequests}
-          uploads={uploads}
-          officeId={officeId}
-        />
-      </TabsContent>
-
-      <TabsContent value="propostas" className="mt-4">
-        <PropostasTab
-          client={client}
-          propostas={propostas}
-          currentBrokerId={currentBrokerId}
-        />
-      </TabsContent>
-
-      <TabsContent value="notes" className="mt-4">
-        <NotesTab
-          clientId={client.id}
-          notes={brokerNotes}
-          currentBrokerId={currentBrokerId}
-        />
-      </TabsContent>
-    </Tabs>
+      {/* Tab content */}
+      <div className="mt-4">
+        {activeTab === 'documents' && (
+          <DocumentsTab
+            client={client}
+            documentRequests={documentRequests}
+            uploads={uploads}
+            officeId={officeId}
+          />
+        )}
+        {activeTab === 'propostas' && (
+          <PropostasTab
+            client={client}
+            propostas={propostas}
+            currentBrokerId={currentBrokerId}
+          />
+        )}
+        {activeTab === 'notes' && (
+          <NotesTab
+            clientId={client.id}
+            notes={brokerNotes}
+            currentBrokerId={currentBrokerId}
+          />
+        )}
+      </div>
+    </div>
   );
 }
