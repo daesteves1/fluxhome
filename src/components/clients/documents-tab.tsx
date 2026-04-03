@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { Plus, Download, Upload, Check, X, FileText, Loader2 } from 'lucide-react';
+import { Plus, Upload, Check, X, FileText, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { DocumentRequest, DocumentUpload } from './client-detail-tabs';
 import { ManageDocumentsPanel } from './manage-documents-panel';
+import { DownloadDocumentsModal } from './download-documents-modal';
 
 interface Client {
   id: string;
@@ -55,7 +56,6 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId }: Pr
   const [newMaxFiles, setNewMaxFiles] = useState(5);
   const [addingDoc, setAddingDoc] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
-  const [downloadingAll, setDownloadingAll] = useState(false);
 
   const groups = {
     p1: documentRequests.filter((r) => r.proponente === 'p1'),
@@ -143,24 +143,6 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId }: Pr
       a.href = data.signedUrl;
       a.download = fileName;
       a.click();
-    }
-  }
-
-  async function downloadAll() {
-    setDownloadingAll(true);
-    try {
-      const res = await fetch(`/api/clients/${client.id}/documents/download-all`);
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `homeflux-${client.p1_name}-docs.zip`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } finally {
-      setDownloadingAll(false);
     }
   }
 
@@ -334,15 +316,12 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId }: Pr
           </Dialog>
         </div>
 
-        {uploads.length > 0 && (
-          <Button variant="outline" size="sm" onClick={downloadAll} disabled={downloadingAll}>
-            {downloadingAll
-              ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              : <Download className="h-4 w-4 mr-1.5" />
-            }
-            {t('downloadAll')}
-          </Button>
-        )}
+        <DownloadDocumentsModal
+          clientId={client.id}
+          clientName={client.p1_name}
+          documentRequests={documentRequests}
+          uploads={uploads}
+        />
       </div>
 
       {/* Document groups */}

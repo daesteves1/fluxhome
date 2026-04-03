@@ -1,5 +1,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { ClientsTable } from '@/components/dashboard/clients-table';
@@ -52,9 +53,17 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
+  const cookieStore = await cookies();
+  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
+
+  // Office admins respect the view preference; regular brokers always see own clients
+  const showOwnOnly =
+    userProfile?.role === 'broker' ||
+    (broker?.is_office_admin && viewCookie === 'broker');
+
   let clientsRaw: ClientRow[] = [];
 
-  if (userProfile?.role === 'broker' && broker) {
+  if (showOwnOnly && broker) {
     const { data } = await serviceClient
       .from('clients')
       .select('id, p1_name, p2_name, process_step, updated_at, broker_id')
@@ -152,7 +161,7 @@ export default async function DashboardPage() {
         </div>
         <ClientsTable
           clients={clientsRaw}
-          showBrokerColumn={userProfile?.role !== 'broker'}
+          showBrokerColumn={!showOwnOnly}
         />
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { ClientsTable } from '@/components/dashboard/clients-table';
 import Link from 'next/link';
@@ -33,6 +34,14 @@ export default async function ClientsPage() {
     redirect('/login');
   }
 
+  const cookieStore = await cookies();
+  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
+
+  // Office admins respect the view preference; regular brokers always see own clients
+  const showOwnOnly =
+    userProfile?.role === 'broker' ||
+    (broker?.is_office_admin && viewCookie === 'broker');
+
   type ClientRow = {
     id: string;
     p1_name: string;
@@ -45,7 +54,7 @@ export default async function ClientsPage() {
 
   let clients: ClientRow[] = [];
 
-  if (userProfile?.role === 'broker' && broker) {
+  if (showOwnOnly && broker) {
     const { data } = await serviceClient
       .from('clients')
       .select('id, p1_name, p2_name, process_step, updated_at, broker_id')
@@ -64,8 +73,6 @@ export default async function ClientsPage() {
     clients = (data ?? []) as unknown as ClientRow[];
   }
 
-  const showBrokerColumn = userProfile?.role !== 'broker';
-
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -83,7 +90,7 @@ export default async function ClientsPage() {
         </Link>
       </div>
 
-      <ClientsTable clients={clients} showBrokerColumn={showBrokerColumn} />
+      <ClientsTable clients={clients} showBrokerColumn={!showOwnOnly} />
     </div>
   );
 }

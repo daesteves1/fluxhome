@@ -28,9 +28,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!userProfile) redirect('/login');
 
+  // Read all cookies once
+  const cookieStore = await cookies();
+  const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
+  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
+
   let officeName: string | undefined;
   let logoUrl: string | undefined;
   let primaryColor: string | undefined;
+  let isOfficeAdmin = false;
+  const currentView: 'broker' | 'office' = viewCookie ?? 'office';
 
   if (userProfile.role !== 'super_admin') {
     const { data: brokerRaw } = await serviceClient
@@ -41,6 +48,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       .single();
 
     const broker = brokerRaw as { id: string; office_id: string; is_office_admin: boolean } | null;
+    isOfficeAdmin = broker?.is_office_admin ?? false;
 
     if (broker?.office_id) {
       const { data: officeRaw } = await serviceClient
@@ -62,10 +70,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  const cookieStore = await cookies();
-  const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
   let impersonatedName: string | null = null;
-
   if (impersonatingId) {
     const { data: impBrokerRaw } = await serviceClient
       .from('brokers')
@@ -98,6 +103,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         officeName={officeName}
         logoUrl={logoUrl}
         primaryColor={primaryColor}
+        isOfficeAdmin={isOfficeAdmin}
+        currentView={currentView}
       />
       <div className="flex flex-col flex-1 min-w-0">
         {impersonatedName && (

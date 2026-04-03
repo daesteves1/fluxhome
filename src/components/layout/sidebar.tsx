@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -11,6 +12,7 @@ import {
   FileText,
   UserPlus,
   UserCog,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HomeFluxLogoMark } from './homeflux-logo';
@@ -22,6 +24,8 @@ interface SidebarProps {
   officeName?: string;
   logoUrl?: string;
   primaryColor?: string;
+  isOfficeAdmin?: boolean;
+  currentView?: 'broker' | 'office';
 }
 
 const brokerLinks = [
@@ -44,13 +48,43 @@ const superAdminLinks = [
   { href: '/admin/impersonate', icon: FileText, labelKey: 'impersonate' },
 ];
 
-export function Sidebar({ role, userEmail, officeName, logoUrl }: SidebarProps) {
+export function Sidebar({
+  role,
+  userEmail,
+  officeName,
+  logoUrl,
+  isOfficeAdmin,
+  currentView,
+}: SidebarProps) {
   const t = useTranslations('nav');
   const pathname = usePathname();
+  const router = useRouter();
+
+  // Local view state — initialised from server-side cookie value
+  const [view, setView] = useState<'broker' | 'office'>(currentView ?? 'office');
+  const [switching, setSwitching] = useState(false);
+
+  async function toggleView() {
+    const next = view === 'office' ? 'broker' : 'office';
+    setSwitching(true);
+    setView(next); // immediate UI feedback
+    try {
+      await fetch('/api/settings/view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: next }),
+      });
+      router.refresh();
+    } finally {
+      setSwitching(false);
+    }
+  }
 
   const links =
     role === 'super_admin'
       ? superAdminLinks
+      : role === 'office_admin' && view === 'broker'
+      ? brokerLinks
       : role === 'office_admin'
       ? officeAdminLinks
       : brokerLinks;
@@ -84,13 +118,44 @@ export function Sidebar({ role, userEmail, officeName, logoUrl }: SidebarProps) 
         )}
       </div>
 
+      {/* Full-width divider below brand */}
+      <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.10)' }} />
+
       {/* Office name */}
-      <div className="px-5 pb-4 shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      <div className="px-5 pt-4 pb-3 shrink-0">
         <p className="text-[15px] font-semibold text-white leading-tight truncate">{displayName}</p>
       </div>
 
+      {/* Short centered divider below office name */}
+      <div className="flex justify-center pb-2 shrink-0">
+        <div style={{ width: '60%', height: '1px', backgroundColor: 'rgba(255,255,255,0.06)' }} />
+      </div>
+
+      {/* View switcher — only for office admins */}
+      {isOfficeAdmin && role === 'office_admin' && (
+        <div className="px-3 pb-2 shrink-0">
+          <button
+            onClick={toggleView}
+            disabled={switching}
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-medium text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-40"
+          >
+            {view === 'office' ? (
+              <>
+                <User className="h-3.5 w-3.5 shrink-0 text-white/30" />
+                Mudar para Vista de Mediador
+              </>
+            ) : (
+              <>
+                <Building2 className="h-3.5 w-3.5 shrink-0 text-white/30" />
+                Mudar para Vista de Escritório
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Navigation */}
-      <nav className="flex-1 px-3 pt-3 pb-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 pt-1 pb-4 space-y-0.5 overflow-y-auto">
         {links.map(({ href, icon: Icon, labelKey }) => {
           const active = isActive(href);
           return (
