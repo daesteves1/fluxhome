@@ -33,12 +33,6 @@ export default async function NewPropostaPage({ params }: PageProps) {
   const broker = brokerRaw as { id: string; office_id: string } | null;
   if (!broker) redirect('/dashboard');
 
-  const { data: officeRaw } = await serviceClient
-    .from('offices')
-    .select('name, white_label')
-    .eq('id', broker.office_id)
-    .single();
-
   return (
     <PropostaEditor
       clientId={id}
@@ -46,7 +40,6 @@ export default async function NewPropostaPage({ params }: PageProps) {
       brokerId={broker.id}
       defaultLoanAmount={client.loan_amount}
       defaultTermMonths={client.term_months}
-      officeName={(officeRaw as { name: string } | null)?.name ?? ''}
     />
   );
 }

@@ -95,7 +95,6 @@ export default async function PortalPage({ params }: PageProps) {
 
   return (
     <PortalView
-      clientId={client.id}
       clientName={client.p1_name}
       portalToken={portal_token}
       termsAcceptedAt={client.terms_accepted_at}

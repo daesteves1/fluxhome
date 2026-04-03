@@ -306,7 +306,7 @@ export function PropostaPDF({
                 { label: 'Seguro Banco - Multirriscos (€)', field: 'multirriscos' as const, type: 'bank' as const },
                 { label: 'DS Seguros - Vida (€)', field: 'vida_ext' as const, type: 'external' as const },
                 { label: 'DS Seguros - Multirriscos (€)', field: 'multirriscos_ext' as const, type: 'external' as const },
-              ].map(({ label, field, type }, ri) => (
+              ].map(({ label, field }) => (
                 <View key={field} style={styles.tableRow}>
                   <Text style={{ ...styles.cellLabel, width: labelWidth }}>{label}</Text>
                   {banks.map((bank, i) => {

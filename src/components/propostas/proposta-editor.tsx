@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -48,7 +47,6 @@ interface PropostaEditorProps {
   propostaId?: string;
   defaultLoanAmount?: number | null;
   defaultTermMonths?: number | null;
-  officeName: string;
   initialData?: {
     title: string;
     comparison_data: BankData[];
@@ -82,7 +80,6 @@ export function PropostaEditor({
   propostaId,
   defaultLoanAmount,
   defaultTermMonths,
-  officeName,
   initialData,
 }: PropostaEditorProps) {
   const t = useTranslations('propostas');

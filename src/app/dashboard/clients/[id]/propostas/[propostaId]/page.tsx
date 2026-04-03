@@ -42,12 +42,6 @@ export default async function EditPropostaPage({ params }: PageProps) {
   const broker = brokerRaw as { id: string; office_id: string } | null;
   if (!broker) redirect('/dashboard');
 
-  const { data: officeRaw } = await serviceClient
-    .from('offices')
-    .select('name, white_label')
-    .eq('id', broker.office_id)
-    .single();
-
   const proposta = propostaRaw as {
     id: string;
     title: string | null;
@@ -67,7 +61,6 @@ export default async function EditPropostaPage({ params }: PageProps) {
       propostaId={propostaId}
       defaultLoanAmount={client.loan_amount}
       defaultTermMonths={client.term_months}
-      officeName={(officeRaw as { name: string } | null)?.name ?? ''}
       initialData={{
         title: proposta.title ?? '',
         comparison_data: proposta.comparison_data as BankData[],

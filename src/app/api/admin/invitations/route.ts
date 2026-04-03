@@ -44,7 +44,7 @@ async function requireAdminAccess(): Promise<AuthResult | null> {
   return null;
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const auth = await requireAdminAccess();
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 

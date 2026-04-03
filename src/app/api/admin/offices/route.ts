@@ -18,7 +18,7 @@ async function requireSuperAdmin() {
   return serviceClient;
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const serviceClient = await requireSuperAdmin();
   if (!serviceClient) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 

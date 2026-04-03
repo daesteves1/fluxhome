@@ -44,7 +44,6 @@ type Proposta = {
 };
 
 interface PortalViewProps {
-  clientId: string;
   clientName: string;
   portalToken: string;
   termsAcceptedAt: string | null;
@@ -84,7 +83,6 @@ function StatusChip({ status }: { status: string }) {
 }
 
 export function PortalView({
-  clientId,
   clientName,
   portalToken,
   termsAcceptedAt,

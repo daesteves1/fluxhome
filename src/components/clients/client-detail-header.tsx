@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { Copy, Check, ExternalLink, Mail, ChevronLeft, Pencil } from 'lucide-react';
+import { Copy, Check, ExternalLink, Mail, ChevronLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProcessStepBadge } from '@/components/dashboard/process-step-badge';
 import { EditClientDialog } from './edit-client-dialog';
