@@ -12,7 +12,6 @@ import {
   FileText,
   UserPlus,
   UserCog,
-  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HomeFluxLogoMark } from './homeflux-logo';
@@ -100,8 +99,8 @@ export function Sidebar({
 
   return (
     <aside className="flex flex-col w-[240px] min-h-screen shrink-0" style={{ backgroundColor: '#0f172a' }}>
-      {/* Brand mark */}
-      <div className="flex items-center gap-2 px-5 pt-5 pb-3 shrink-0">
+      {/* Brand mark — h-14 matches TopBar height so divider aligns with header border */}
+      <div className="flex items-center gap-2 px-5 h-14 shrink-0">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt={officeName || 'HomeFlux'} className="h-6 w-auto object-contain" />
@@ -118,39 +117,48 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Full-width divider below brand */}
-      <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.10)' }} />
+      {/* Full-width divider — flush with brand bottom, aligns with TopBar border-b */}
+      <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.10)' }} className="shrink-0" />
 
-      {/* Office name */}
-      <div className="px-5 pt-4 pb-3 shrink-0">
-        <p className="text-[15px] font-semibold text-white leading-tight truncate">{displayName}</p>
+      {/* Office name — label style */}
+      <div className="px-4 py-3 shrink-0">
+        <p className="text-center text-sm font-medium tracking-wide text-slate-400 uppercase truncate">
+          {displayName}
+        </p>
       </div>
 
-      {/* Short centered divider below office name */}
-      <div className="flex justify-center pb-2 shrink-0">
-        <div style={{ width: '60%', height: '1px', backgroundColor: 'rgba(255,255,255,0.06)' }} />
-      </div>
-
-      {/* View switcher — only for office admins */}
+      {/* View switcher pill — only for office admins */}
       {isOfficeAdmin && role === 'office_admin' && (
-        <div className="px-3 pb-2 shrink-0">
-          <button
-            onClick={toggleView}
-            disabled={switching}
-            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-medium text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors disabled:opacity-40"
+        <div className="px-3 pb-3 shrink-0">
+          <div
+            className="flex h-8 rounded-full p-0.5"
+            style={{ backgroundColor: 'rgba(255,255,255,0.07)' }}
           >
-            {view === 'office' ? (
-              <>
-                <User className="h-3.5 w-3.5 shrink-0 text-white/30" />
-                Mudar para Vista de Mediador
-              </>
-            ) : (
-              <>
-                <Building2 className="h-3.5 w-3.5 shrink-0 text-white/30" />
-                Mudar para Vista de Escritório
-              </>
-            )}
-          </button>
+            <button
+              onClick={view !== 'office' ? toggleView : undefined}
+              disabled={switching}
+              className={cn(
+                'flex-1 rounded-full text-[11px] font-semibold transition-colors duration-150 disabled:opacity-60',
+                view === 'office'
+                  ? 'bg-white text-slate-800'
+                  : 'text-white/40 hover:text-white/65'
+              )}
+            >
+              Escritório
+            </button>
+            <button
+              onClick={view !== 'broker' ? toggleView : undefined}
+              disabled={switching}
+              className={cn(
+                'flex-1 rounded-full text-[11px] font-semibold transition-colors duration-150 disabled:opacity-60',
+                view === 'broker'
+                  ? 'bg-white text-slate-800'
+                  : 'text-white/40 hover:text-white/65'
+              )}
+            >
+              Mediador
+            </button>
+          </div>
         </div>
       )}
 
