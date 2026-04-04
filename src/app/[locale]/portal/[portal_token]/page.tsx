@@ -4,7 +4,7 @@ import { PortalView } from '@/components/portal/portal-view';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
 
 interface PageProps {
-  params: Promise<{ portal_token: string }>;
+  params: Promise<{ locale: string; portal_token: string }>;
 }
 
 export default async function PortalPage({ params }: PageProps) {

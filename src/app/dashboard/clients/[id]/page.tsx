@@ -73,13 +73,6 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
     uploadsRaw = data ?? [];
   }
 
-  // Get propostas — ALL regardless of is_visible_to_client (broker sees everything)
-  const { data: propostasRaw } = await serviceClient
-    .from('propostas')
-    .select('id, title, is_visible_to_client, comparison_data, created_at, updated_at')
-    .eq('client_id', id)
-    .order('created_at', { ascending: false });
-
   // Get broker notes
   const { data: brokerNotesRaw } = await serviceClient
     .from('broker_notes')
@@ -114,7 +107,6 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
         client={client}
         documentRequests={(docRequestsRaw ?? []) as Parameters<typeof ClientDetailTabs>[0]['documentRequests']}
         uploads={uploadsRaw as Parameters<typeof ClientDetailTabs>[0]['uploads']}
-        propostas={(propostasRaw ?? []) as Parameters<typeof ClientDetailTabs>[0]['propostas']}
         brokerNotes={(brokerNotesRaw ?? []) as Parameters<typeof ClientDetailTabs>[0]['brokerNotes']}
         currentBrokerId={broker?.id ?? null}
         officeId={client.office_id}

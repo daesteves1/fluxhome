@@ -36,15 +36,6 @@ export interface DocumentUpload {
   uploaded_at: string;
 }
 
-export interface Proposta {
-  id: string;
-  title: string | null;
-  is_visible_to_client: boolean;
-  comparison_data: unknown;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface BrokerNote {
   id: string;
   client_id: string;
@@ -65,7 +56,6 @@ interface Props {
   client: Client;
   documentRequests: DocumentRequest[];
   uploads: DocumentUpload[];
-  propostas: Proposta[];
   brokerNotes: BrokerNote[];
   currentBrokerId: string | null;
   officeId: string;
@@ -79,7 +69,6 @@ export function ClientDetailTabs({
   client,
   documentRequests,
   uploads,
-  propostas,
   brokerNotes,
   currentBrokerId,
   officeId,
@@ -97,7 +86,7 @@ export function ClientDetailTabs({
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'documents', label: t('documents.title'), icon: FileText,      badge: pendingDocs || undefined },
-    { id: 'propostas', label: t('propostas.title'), icon: BarChart2,     badge: propostas.length || undefined },
+    { id: 'propostas', label: t('propostas.title'), icon: BarChart2 },
     { id: 'notes',     label: t('notes.title'),     icon: MessageSquare },
   ];
 
@@ -151,11 +140,7 @@ export function ClientDetailTabs({
           />
         )}
         {activeTab === 'propostas' && (
-          <PropostasTab
-            client={client}
-            propostas={propostas}
-            currentBrokerId={currentBrokerId}
-          />
+          <PropostasTab client={client} />
         )}
         {activeTab === 'notes' && (
           <NotesTab

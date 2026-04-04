@@ -1,0 +1,591 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { ArrowLeft, Upload, FileText, X, Loader2 } from 'lucide-react';
+import type { BankProposta } from '@/types/proposta';
+import {
+  ONE_TIME_CHARGE_FIELDS,
+  BANK_SUGGESTIONS,
+  calcSubtotalBanco,
+  calcSubtotalExterno,
+  fmtEur,
+} from '@/types/proposta';
+
+type FormData = Omit<BankProposta, 'id' | 'client_id' | 'broker_id' | 'office_id' | 'created_at' | 'updated_at'>;
+
+function emptyForm(): FormData {
+  return {
+    bank_name: '',
+    rate_type: 'variavel',
+    fixed_period_years: null,
+    loan_amount: null,
+    term_months: null,
+    euribor_index: '6m',
+    spread: null,
+    tan: null,
+    taeg: null,
+    monthly_payment: null,
+    vida_banco: null,
+    multiriscos_banco: null,
+    vida_externa: null,
+    multiriscos_externa: null,
+    comissao_avaliacao: null,
+    comissao_estudo: null,
+    abertura_processo: null,
+    comissao_formalizacao: null,
+    comissao_solicitadoria: null,
+    doc_particular_autenticado: null,
+    copia_certificada: null,
+    imposto_selo_mutuo: null,
+    imposto_selo_aquisicao: null,
+    imt: null,
+    deposito_dpa: null,
+    comissao_tramitacao: null,
+    cheque_bancario: null,
+    registo: null,
+    escritura: null,
+    manutencao_conta: null,
+    manutencao_anual: false,
+    bank_pdf_path: null,
+    notes: null,
+  };
+}
+
+interface BankPropostaFormProps {
+  clientId: string;
+  backUrl: string;
+  initialData?: BankProposta;
+}
+
+type RateType = 'variavel' | 'fixa' | 'mista';
+type EuriborIndex = '3m' | '6m' | '12m' | 'na';
+
+const RATE_TYPES: { value: RateType; label: string }[] = [
+  { value: 'variavel', label: 'Variável' },
+  { value: 'fixa', label: 'Fixa' },
+  { value: 'mista', label: 'Mista' },
+];
+
+const EURIBOR_OPTIONS: { value: EuriborIndex; label: string }[] = [
+  { value: '3m', label: '3M' },
+  { value: '6m', label: '6M' },
+  { value: '12m', label: '12M' },
+  { value: 'na', label: 'N/A' },
+];
+
+function numField(v: number | null): string {
+  return v === null ? '' : String(v);
+}
+
+function parseNum(v: string): number | null {
+  if (!v.trim()) return null;
+  const n = parseFloat(v.replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+
+export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropostaFormProps) {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [form, setForm] = useState<FormData>(initialData ? {
+    bank_name: initialData.bank_name,
+    rate_type: initialData.rate_type,
+    fixed_period_years: initialData.fixed_period_years,
+    loan_amount: initialData.loan_amount,
+    term_months: initialData.term_months,
+    euribor_index: initialData.euribor_index,
+    spread: initialData.spread,
+    tan: initialData.tan,
+    taeg: initialData.taeg,
+    monthly_payment: initialData.monthly_payment,
+    vida_banco: initialData.vida_banco,
+    multiriscos_banco: initialData.multiriscos_banco,
+    vida_externa: initialData.vida_externa,
+    multiriscos_externa: initialData.multiriscos_externa,
+    comissao_avaliacao: initialData.comissao_avaliacao,
+    comissao_estudo: initialData.comissao_estudo,
+    abertura_processo: initialData.abertura_processo,
+    comissao_formalizacao: initialData.comissao_formalizacao,
+    comissao_solicitadoria: initialData.comissao_solicitadoria,
+    doc_particular_autenticado: initialData.doc_particular_autenticado,
+    copia_certificada: initialData.copia_certificada,
+    imposto_selo_mutuo: initialData.imposto_selo_mutuo,
+    imposto_selo_aquisicao: initialData.imposto_selo_aquisicao,
+    imt: initialData.imt,
+    deposito_dpa: initialData.deposito_dpa,
+    comissao_tramitacao: initialData.comissao_tramitacao,
+    cheque_bancario: initialData.cheque_bancario,
+    registo: initialData.registo,
+    escritura: initialData.escritura,
+    manutencao_conta: initialData.manutencao_conta,
+    manutencao_anual: initialData.manutencao_anual,
+    bank_pdf_path: initialData.bank_pdf_path,
+    notes: initialData.notes,
+  } : emptyForm());
+
+  const [saving, setSaving] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  // For new propostas: hold the selected file in state until the record is saved
+  const [pendingPdf, setPendingPdf] = useState<File | null>(null);
+  const [showBankSuggestions, setShowBankSuggestions] = useState(false);
+
+  function set<K extends keyof FormData>(key: K, value: FormData[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const subtotalBanco = calcSubtotalBanco({ ...form } as BankProposta);
+  const subtotalExterno = calcSubtotalExterno({ ...form } as BankProposta);
+
+  // The displayed PDF name: uploaded path's filename, or the pending file's name
+  const displayedPdfName = form.bank_pdf_path
+    ? form.bank_pdf_path.split('/').pop() ?? 'bank_proposal.pdf'
+    : pendingPdf?.name ?? null;
+
+  async function uploadPdf(propostaId: string, file: File): Promise<void> {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`/api/clients/${clientId}/bank-propostas/${propostaId}/upload-pdf`, {
+      method: 'POST',
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json() as { error?: string };
+      throw new Error(err.error ?? 'Erro ao enviar PDF');
+    }
+    const json = await res.json() as { path: string };
+    set('bank_pdf_path', json.path);
+  }
+
+  async function handleSave() {
+    if (!form.bank_name.trim()) {
+      toast.error('Introduza o nome do banco');
+      return;
+    }
+    setSaving(true);
+    try {
+      const url = initialData
+        ? `/api/clients/${clientId}/bank-propostas/${initialData.id}`
+        : `/api/clients/${clientId}/bank-propostas`;
+      const method = initialData ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        throw new Error(err.error ?? 'Erro ao guardar');
+      }
+
+      const saved = await res.json() as { id?: string };
+      const propostaId = initialData?.id ?? saved.id;
+
+      // Upload any pending PDF now that we have an ID
+      if (pendingPdf && propostaId) {
+        setUploadingPdf(true);
+        try {
+          await uploadPdf(propostaId, pendingPdf);
+          setPendingPdf(null);
+        } catch (uploadErr) {
+          // PDF upload failed — proposta is saved, warn but don't block navigation
+          toast.warning(uploadErr instanceof Error ? uploadErr.message : 'Proposta guardada, mas falhou o envio do PDF');
+          setSaving(false);
+          setUploadingPdf(false);
+          return;
+        } finally {
+          setUploadingPdf(false);
+        }
+      }
+
+      toast.success('Proposta guardada');
+      router.push(backUrl);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao guardar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so same file can be re-selected after removal
+    e.target.value = '';
+
+    if (initialData) {
+      // Edit mode: upload immediately
+      setUploadingPdf(true);
+      uploadPdf(initialData.id, file)
+        .then(() => toast.success('PDF enviado'))
+        .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Erro ao enviar PDF'))
+        .finally(() => setUploadingPdf(false));
+    } else {
+      // New proposta: hold until save
+      setPendingPdf(file);
+    }
+  }
+
+  function handleRemovePdf() {
+    setPendingPdf(null);
+    set('bank_pdf_path', null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  const filteredSuggestions = BANK_SUGGESTIONS.filter((b) =>
+    b.toLowerCase().includes(form.bank_name.toLowerCase()) && b !== form.bank_name
+  );
+
+  const isBusy = saving || uploadingPdf;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b bg-white flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => router.push(backUrl)}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Voltar
+          </Button>
+          <h1 className="text-lg font-semibold text-gray-900">
+            {initialData ? `Editar — ${initialData.bank_name}` : 'Nova proposta bancária'}
+          </h1>
+        </div>
+        <Button onClick={handleSave} disabled={isBusy} size="sm">
+          {isBusy ? (
+            <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />{uploadingPdf ? 'A enviar PDF…' : 'A guardar…'}</>
+          ) : 'Guardar'}
+        </Button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Card 1: Bank, loan info & PDF */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Banco & Empréstimo</h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {/* Bank name with autocomplete */}
+            <div className="relative col-span-2 md:col-span-1">
+              <Label>Banco *</Label>
+              <Input
+                value={form.bank_name}
+                onChange={(e) => {
+                  set('bank_name', e.target.value);
+                  setShowBankSuggestions(true);
+                }}
+                onBlur={() => setTimeout(() => setShowBankSuggestions(false), 150)}
+                onFocus={() => setShowBankSuggestions(true)}
+                placeholder="Ex: CGD, BPI…"
+              />
+              {showBankSuggestions && filteredSuggestions.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg">
+                  {filteredSuggestions.map((b) => (
+                    <button
+                      key={b}
+                      className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50"
+                      onMouseDown={() => { set('bank_name', b); setShowBankSuggestions(false); }}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label>Montante (€)</Label>
+              <Input
+                type="number"
+                value={numField(form.loan_amount)}
+                onChange={(e) => set('loan_amount', parseNum(e.target.value))}
+                placeholder="150000"
+              />
+            </div>
+
+            <div>
+              <Label>Prazo (meses)</Label>
+              <Input
+                type="number"
+                value={numField(form.term_months)}
+                onChange={(e) => set('term_months', parseNum(e.target.value))}
+                placeholder="360"
+              />
+            </div>
+
+            {/* Rate type pills */}
+            <div>
+              <Label>Tipo de taxa</Label>
+              <div className="flex gap-1 mt-1.5">
+                {RATE_TYPES.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => set('rate_type', value)}
+                    className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                      form.rate_type === value
+                        ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Euribor index pills */}
+            <div>
+              <Label>Euribor</Label>
+              <div className="flex gap-1 mt-1.5 flex-wrap">
+                {EURIBOR_OPTIONS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => set('euribor_index', value)}
+                    className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                      form.euribor_index === value
+                        ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {form.rate_type === 'mista' && (
+              <div>
+                <Label>Período fixo (anos)</Label>
+                <Input
+                  type="number"
+                  value={numField(form.fixed_period_years)}
+                  onChange={(e) => set('fixed_period_years', parseNum(e.target.value))}
+                  placeholder="5"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* PDF upload — always visible */}
+          <div className="pt-2 border-t border-gray-100">
+            <Label className="mb-1.5 block">Documento do banco (PDF)</Label>
+            {displayedPdfName ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg w-fit max-w-full">
+                <FileText className="h-4 w-4 text-gray-400 shrink-0" />
+                <span className="text-sm text-gray-700 truncate max-w-[260px]">{displayedPdfName}</span>
+                {uploadingPdf ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-gray-400 shrink-0" />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRemovePdf}
+                    className="shrink-0 text-gray-400 hover:text-red-500 transition-colors"
+                    aria-label="Remover PDF"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <label className="cursor-pointer">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <div className="inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-white border border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer">
+                  <Upload className="h-4 w-4 text-gray-400" />
+                  Carregar PDF
+                </div>
+              </label>
+            )}
+            {!initialData && pendingPdf && (
+              <p className="mt-1 text-xs text-gray-400">O PDF será enviado quando guardar a proposta.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Card 2: Rates */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Taxas</h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div>
+              <Label>Spread (%)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={numField(form.spread)}
+                onChange={(e) => set('spread', parseNum(e.target.value))}
+                placeholder="0.70"
+              />
+            </div>
+            <div>
+              <Label>TAN (%)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={numField(form.tan)}
+                onChange={(e) => set('tan', parseNum(e.target.value))}
+                placeholder="4.15"
+              />
+            </div>
+            <div>
+              <Label>TAEG (%)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={numField(form.taeg)}
+                onChange={(e) => set('taeg', parseNum(e.target.value))}
+                placeholder="4.32"
+              />
+            </div>
+            <div>
+              <Label>Prestação mensal (€)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={numField(form.monthly_payment)}
+                onChange={(e) => set('monthly_payment', parseNum(e.target.value))}
+                placeholder="750.00"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Insurance */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Seguros</h2>
+          <div className="grid grid-cols-2 gap-6 md:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-gray-500 uppercase">Seguro Banco</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Vida (€/mês)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={numField(form.vida_banco)}
+                    onChange={(e) => set('vida_banco', parseNum(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <Label>Multirriscos (€/mês)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={numField(form.multiriscos_banco)}
+                    onChange={(e) => set('multiriscos_banco', parseNum(e.target.value))}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">Subtotal: <span className="font-semibold">{fmtEur(subtotalBanco || null)}</span>/mês</p>
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-gray-500 uppercase">Seguro Externo</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Vida (€/mês)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={numField(form.vida_externa)}
+                    onChange={(e) => set('vida_externa', parseNum(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <Label>Multirriscos (€/mês)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={numField(form.multiriscos_externa)}
+                    onChange={(e) => set('multiriscos_externa', parseNum(e.target.value))}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">Subtotal: <span className="font-semibold">{fmtEur(subtotalExterno || null)}</span>/mês</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: One-time charges */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Encargos Únicos</h2>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+            {ONE_TIME_CHARGE_FIELDS.map(({ key, label }) => (
+              <div key={key}>
+                <Label className="text-xs leading-tight">{label}</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={numField((form as unknown as Record<string, number | null>)[key as string])}
+                  onChange={(e) => set(key as keyof FormData, parseNum(e.target.value) as never)}
+                  placeholder="0"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Card 5: Monthly account fee */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Encargos Mensais</h2>
+          <div className="grid grid-cols-2 gap-4 items-end">
+            <div>
+              <Label>Manutenção de conta (€/mês)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={numField(form.manutencao_conta)}
+                onChange={(e) => set('manutencao_conta', parseNum(e.target.value))}
+                placeholder="4.50"
+              />
+            </div>
+            <div className="flex items-center gap-2 pb-1">
+              <Switch
+                checked={form.manutencao_anual}
+                onCheckedChange={(v) => set('manutencao_anual', v)}
+              />
+              <Label>Faturação anual</Label>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 6: Notes */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Notas</h2>
+          <div>
+            <Label>Notas internas</Label>
+            <Textarea
+              value={form.notes ?? ''}
+              onChange={(e) => set('notes', e.target.value || null)}
+              placeholder="Condições especiais, observações…"
+              rows={3}
+            />
+          </div>
+        </div>
+
+        {/* Bottom save bar */}
+        <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-3">
+          <p className="text-xs text-gray-400">
+            {form.bank_name.trim() ? `A guardar como: ${form.bank_name}` : 'Introduza o nome do banco para guardar'}
+          </p>
+          <Button onClick={handleSave} disabled={isBusy} size="default" className="min-w-[120px]">
+            {isBusy ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />{uploadingPdf ? 'A enviar PDF…' : 'A guardar…'}</>
+            ) : 'Guardar'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

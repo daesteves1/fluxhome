@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, Star, Save, Eye, EyeOff, ChevronLeft, Upload, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Star, Eye, EyeOff, ChevronLeft, Upload, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export type BankData = {
   name: string;
@@ -59,6 +65,8 @@ interface PropostaEditorProps {
   };
 }
 
+const MAX_BANKS = 6;
+
 const DEFAULT_ONE_TIME_CHARGES = [
   'Comissão de avaliação',
   'Comissão de estudo',
@@ -72,6 +80,9 @@ const DEFAULT_ONE_TIME_CHARGES = [
   'Registo',
   'Escritura',
   'Cheque bancário',
+  'Cópia certificada de contrato',
+  'Depósito online DPA',
+  'Comissão de tramitação',
 ];
 
 const TIPO_TAXA_OPTIONS = ['Variável', 'Fixa', 'Mista'];
@@ -93,12 +104,22 @@ export function PropostaEditor({
   const [isVisible, setIsVisible] = useState(initialData?.is_visible_to_client ?? false);
   const [saving, setSaving] = useState(false);
   const [uploadingBankIdx, setUploadingBankIdx] = useState<number | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadBankIdxRef = useRef<number | null>(null);
 
   const [banks, setBanks] = useState<BankData[]>(
-    initialData?.comparison_data ?? []
+    initialData?.comparison_data?.length
+      ? initialData.comparison_data
+      : [{
+          name: 'Banco 1',
+          montante: defaultLoanAmount?.toString() ?? '',
+          prazo: defaultTermMonths?.toString() ?? '',
+          tipo_taxa: 'Variável',
+          euribor: '3 meses',
+        }]
   );
   const [insurance, setInsurance] = useState<InsuranceData>(
     initialData?.insurance_data ?? {}
@@ -112,7 +133,16 @@ export function PropostaEditor({
 
   const backUrl = `/dashboard/clients/${clientId}?tab=propostas`;
 
+  function handleBack() {
+    if (isDirty) {
+      setShowLeaveConfirm(true);
+    } else {
+      router.push(backUrl);
+    }
+  }
+
   function addBank() {
+    if (banks.length >= MAX_BANKS) return;
     setBanks([...banks, {
       name: `Banco ${banks.length + 1}`,
       montante: defaultLoanAmount?.toString() ?? '',
@@ -120,6 +150,7 @@ export function PropostaEditor({
       tipo_taxa: 'Variável',
       euribor: '3 meses',
     }]);
+    setIsDirty(true);
   }
 
   function removeBank(idx: number) {
@@ -132,6 +163,7 @@ export function PropostaEditor({
       rows.map((r) => { const n = { ...r }; delete n[removed.name]; return n; });
     setOneTimeCharges(cleanCharges(oneTimeCharges));
     setMonthlyCharges(cleanCharges(monthlyCharges));
+    setIsDirty(true);
   }
 
   function updateBank(idx: number, field: keyof BankData, value: string | boolean) {
@@ -159,17 +191,20 @@ export function PropostaEditor({
     }
 
     setBanks(updated);
+    setIsDirty(true);
   }
 
   function setRecommended(idx: number) {
     const updated = banks.map((b, i) => ({ ...b, recommended: i === idx, highlight: i === idx }));
     setBanks(updated);
+    setIsDirty(true);
   }
 
   function clearRecommended(idx: number) {
     const updated = [...banks];
     updated[idx] = { ...updated[idx], recommended: false, highlight: false };
     setBanks(updated);
+    setIsDirty(true);
   }
 
   function updateInsurance(bankName: string, field: keyof InsuranceData[string], value: string) {
@@ -177,12 +212,14 @@ export function PropostaEditor({
       ...prev,
       [bankName]: { ...{ vida: '', multirriscos: '', vida_ext: '', multirriscos_ext: '' }, ...prev[bankName], [field]: value },
     }));
+    setIsDirty(true);
   }
 
   function updateCharge(charges: ChargeRow[], setCharges: (r: ChargeRow[]) => void, rowIdx: number, bankName: string, value: string) {
     const updated = [...charges];
     updated[rowIdx] = { ...updated[rowIdx], [bankName]: value };
     setCharges(updated);
+    setIsDirty(true);
   }
 
   function getIns(bankName: string, field: keyof InsuranceData[string]): string {
@@ -226,7 +263,12 @@ export function PropostaEditor({
     };
   }
 
-  async function save(andRedirect = false): Promise<string | null> {
+  // Saves and returns the proposta ID. Does NOT redirect.
+  async function saveInternal(): Promise<string | null> {
+    if (!title.trim()) {
+      toast.error('Preencha o título antes de guardar');
+      return null;
+    }
     setSaving(true);
     try {
       let res: Response;
@@ -241,22 +283,31 @@ export function PropostaEditor({
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(buildPayload()),
         });
-        if (res.ok) { const j = await res.json(); savedId = j.id; }
+        if (res.ok) { const j = await res.json() as { id: string }; savedId = j.id; }
       }
       if (res.ok) {
-        toast.success('Proposta guardada');
-        if (andRedirect) {
-          router.push(backUrl);
-        } else if (!propostaId && savedId) {
-          router.replace(`/dashboard/clients/${clientId}/propostas/${savedId}`);
-        }
+        setIsDirty(false);
         return savedId;
       } else {
-        toast.error('Erro ao guardar proposta');
+        const errBody = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(errBody.error ?? `Erro ao guardar (${res.status})`);
         return null;
       }
+    } catch (err) {
+      toast.error('Erro de rede ao guardar proposta');
+      console.error('saveInternal error:', err);
+      return null;
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Saves and redirects back to the propostas tab
+  async function save(): Promise<void> {
+    const id = await saveInternal();
+    if (id !== null) {
+      toast.success('Proposta guardada');
+      router.push(backUrl);
     }
   }
 
@@ -271,12 +322,13 @@ export function PropostaEditor({
     if (!file || idx === null) return;
     uploadBankIdxRef.current = null;
 
-    // Must have propostaId to upload
+    // Must have propostaId to upload — save first if needed
     let pid = propostaId;
     if (!pid) {
-      const saved = await save(false);
+      const saved = await saveInternal();
       if (!saved) return;
       pid = saved;
+      router.replace(`/dashboard/clients/${clientId}/propostas/${pid}`);
     }
 
     setUploadingBankIdx(idx);
@@ -339,13 +391,13 @@ export function PropostaEditor({
             else if (field === 'subtotal_ext') val = calcSubtotalExt(bank.name);
             else if (field === 'total_one_time') val = calcTotalOneTime(bank.name);
             return (
-              <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50')}>
+              <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50 border-l-2 border-l-blue-300')}>
                 <div className={readonlyCls}>{val ? `€ ${val}` : '—'}</div>
               </td>
             );
           }
           return (
-            <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50')}>
+            <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50 border-l-2 border-l-blue-300')}>
               <input
                 className={inputCls}
                 value={(bank[field as keyof BankData] as string) ?? ''}
@@ -370,7 +422,7 @@ export function PropostaEditor({
           const isRec = bank.recommended || bank.highlight;
           const shouldHide = field === 'euribor' && bank.tipo_taxa === 'Fixa';
           return (
-            <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50')}>
+            <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50 border-l-2 border-l-blue-300')}>
               {shouldHide ? (
                 <div className={readonlyCls + ' text-slate-300'}>—</div>
               ) : (
@@ -397,7 +449,7 @@ export function PropostaEditor({
         {banks.map((bank, idx) => {
           const isRec = bank.recommended || bank.highlight;
           return (
-            <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50')}>
+            <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50 border-l-2 border-l-blue-300')}>
               <input
                 className={inputCls}
                 value={getIns(bank.name, field)}
@@ -422,7 +474,7 @@ export function PropostaEditor({
           else if (field === 'subtotal_ext') val = calcSubtotalExt(bank.name);
           else val = calcTotalOneTime(bank.name);
           return (
-            <td key={idx} className={cn('py-2 px-2 text-center', isRec && 'bg-blue-50')}>
+            <td key={idx} className={cn('py-2 px-2 text-center', isRec && 'bg-blue-50 border-l-2 border-l-blue-300')}>
               <span className="text-sm font-semibold text-slate-700">{val ? `€ ${val}` : '—'}</span>
             </td>
           );
@@ -433,12 +485,12 @@ export function PropostaEditor({
 
   return (
     <div className="space-y-6 pb-32">
-      {/* Top bar */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
+      {/* Top header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-2">
           <button
-            onClick={() => router.push(backUrl)}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+            onClick={handleBack}
+            className="mt-1 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition-colors shrink-0"
           >
             <ChevronLeft className="h-4 w-4" />
             Voltar
@@ -450,51 +502,68 @@ export function PropostaEditor({
             <p className="text-sm text-muted-foreground">{clientName}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-2">
             {isVisible ? <Eye className="h-4 w-4 text-slate-500" /> : <EyeOff className="h-4 w-4 text-slate-400" />}
-            <Switch checked={isVisible} onCheckedChange={setIsVisible} />
-            <span className="text-sm text-slate-500">{isVisible ? 'Visível ao cliente' : 'Oculto'}</span>
+            <Switch checked={isVisible} onCheckedChange={(v) => { setIsVisible(v); setIsDirty(true); }} />
+            <span className="text-sm text-slate-500 hidden sm:inline">{isVisible ? 'Visível ao cliente' : 'Oculto'}</span>
           </div>
+          <Button onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+            Guardar
+          </Button>
         </div>
       </div>
 
       {/* Title + Notes */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <div className="space-y-1.5">
-          <Label>Título *</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Proposta Comparativa — Março 2025" />
+          <Label>Título</Label>
+          <Input
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); setIsDirty(true); }}
+            placeholder="Ex: Proposta Comparativa — Março 2025"
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Notas (visíveis ao cliente)</Label>
-          <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Informações adicionais para o cliente..." />
+          <Textarea
+            rows={3}
+            value={notes}
+            onChange={(e) => { setNotes(e.target.value); setIsDirty(true); }}
+            placeholder="Informações adicionais para o cliente..."
+          />
         </div>
       </div>
 
       {/* Bank comparison table */}
       <div className="bg-white rounded-xl border border-slate-200">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-800">Bancos</h3>
-          <Button size="sm" variant="outline" onClick={addBank}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Adicionar banco
-          </Button>
+          <h3 className="text-sm font-semibold text-slate-800">
+            Bancos
+            {banks.length >= MAX_BANKS && (
+              <span className="ml-2 text-xs font-normal text-slate-400">(máximo {MAX_BANKS})</span>
+            )}
+          </h3>
+          {banks.length < MAX_BANKS && (
+            <Button size="sm" variant="outline" onClick={addBank}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Adicionar banco
+            </Button>
+          )}
         </div>
 
-        {banks.length === 0 ? (
-          <div className="py-12 text-center text-sm text-slate-400">
-            Adicione pelo menos um banco para começar.
-          </div>
-        ) : (
-          <div className="overflow-x-auto p-5">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr>
-                  <th className="text-left py-2 pr-4 text-xs font-semibold text-slate-400 uppercase tracking-wide w-52">Campo</th>
-                  {banks.map((bank, idx) => {
-                    const isRec = bank.recommended || bank.highlight;
-                    return (
-                      <th key={idx} className={cn('py-2 px-2', COL_W, isRec && 'bg-blue-50/50 rounded-t-lg')}>
+        <div className="overflow-x-auto p-5">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th className="text-left py-2 pr-4 text-xs font-semibold text-slate-400 uppercase tracking-wide w-52">Campo</th>
+                {banks.map((bank, idx) => {
+                  const isRec = bank.recommended || bank.highlight;
+                  return (
+                    <th key={idx} className={cn('py-2 px-2 align-top', COL_W, isRec && 'bg-blue-50/50 rounded-t-lg border-l-2 border-l-blue-300')}>
+                      <div className="space-y-1.5">
+                        {/* Bank name + action icons */}
                         <div className="flex items-center gap-1">
                           <input
                             className={cn(inputCls, isRec && 'border-blue-300 bg-blue-50 font-semibold')}
@@ -522,110 +591,130 @@ export function PropostaEditor({
                               }
                             </button>
                           )}
-                          <button onClick={() => removeBank(idx)} className="p-1 rounded text-slate-300 hover:text-red-500 shrink-0">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {banks.length > 1 && (
+                            <button
+                              onClick={() => removeBank(idx)}
+                              className="p-1 rounded text-slate-300 hover:text-red-500 shrink-0"
+                              title="Remover banco"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
+
+                        {/* Rate type selector in column header */}
+                        <select
+                          className={cn(selectCls, 'text-xs')}
+                          value={bank.tipo_taxa ?? ''}
+                          onChange={(e) => updateBank(idx, 'tipo_taxa', e.target.value)}
+                        >
+                          <option value="">Tipo de taxa…</option>
+                          {TIPO_TAXA_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+
                         {bank.doc_path && (
-                          <p className="text-[10px] text-blue-500 mt-0.5 truncate">PDF carregado ✓</p>
+                          <p className="text-[10px] text-blue-500 truncate">PDF carregado ✓</p>
                         )}
                         {isRec && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-100 rounded-full px-2 py-0.5 mt-1">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-100 rounded-full px-2 py-0.5">
                             ★ Recomendado
                           </span>
                         )}
-                      </th>
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              <SectionHeader>Dados do Empréstimo</SectionHeader>
+              <InputRow label="Montante Financiamento (€)" field="montante" type="currency" />
+              <InputRow label="Prazo (meses)" field="prazo" type="number" />
+              {showPeriodoFixo && <InputRow label="Período fixo (anos)" field="periodo_fixo" type="number" />}
+              {showEuribor && <SelectRow label="Euribor" field="euribor" options={EURIBOR_OPTIONS} />}
+              <InputRow label="Spread (%)" field="spread" type="percent" />
+              <InputRow label="TAN (%)" field="tan" type="percent" />
+              <InputRow label="Prestação Mensal (€)" field="prestacao" type="currency" />
+
+              <SectionHeader>Seguros do Banco</SectionHeader>
+              <InsRow label="Seguro Vida (2 pessoas) — Instituição (€/mês)" field="vida" />
+              <InsRow label="Seguro Multirriscos (€/mês)" field="multirriscos" />
+              <SubtotalRow label="Subtotal c/ seguros banco" field="subtotal_banco" />
+
+              <SectionHeader>Seguros Externos</SectionHeader>
+              <InsRow label="Seguro Vida (2 pessoas) — Seg. Externa Asisa (€/mês)" field="vida_ext" />
+              <InsRow label="Seguro Multirriscos (€/mês)" field="multirriscos_ext" />
+              <SubtotalRow label="Subtotal c/ seguros externos" field="subtotal_ext" />
+
+              <SectionHeader>Encargos Únicos</SectionHeader>
+              {oneTimeCharges.map((row, rowIdx) => (
+                <tr key={rowIdx} className="hover:bg-slate-50/50">
+                  <td className="py-2 pr-4 text-xs text-slate-500 whitespace-nowrap w-52">{row.label}</td>
+                  {banks.map((bank, idx) => {
+                    const isRec = bank.recommended || bank.highlight;
+                    return (
+                      <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50 border-l-2 border-l-blue-300')}>
+                        <input
+                          className={inputCls}
+                          value={(row[bank.name] as string) ?? ''}
+                          onChange={(e) => updateCharge(oneTimeCharges, setOneTimeCharges, rowIdx, bank.name, e.target.value)}
+                          placeholder="€"
+                        />
+                      </td>
                     );
                   })}
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <SectionHeader>Dados do Empréstimo</SectionHeader>
-                <InputRow label="Montante Financiamento (€)" field="montante" type="currency" />
-                <InputRow label="Prazo (meses)" field="prazo" type="number" />
-                <SelectRow label="Tipo de Taxa" field="tipo_taxa" options={TIPO_TAXA_OPTIONS} />
-                {showPeriodoFixo && <InputRow label="Período fixo (anos)" field="periodo_fixo" type="number" />}
-                {showEuribor && <SelectRow label="Euribor" field="euribor" options={EURIBOR_OPTIONS} />}
-                <InputRow label="Spread (%)" field="spread" type="percent" />
-                <InputRow label="TAN (%)" field="tan" type="percent" />
-                <InputRow label="Prestação Mensal (€)" field="prestacao" type="currency" />
+              ))}
+              <SubtotalRow label="Total Encargos Únicos" field="total_one_time" />
 
-                <SectionHeader>Seguros do Banco</SectionHeader>
-                <InsRow label="Seguro Vida — Morte + IAD (€/mês)" field="vida" />
-                <InsRow label="Seguro Multirriscos (€/mês)" field="multirriscos" />
-                <SubtotalRow label="Subtotal c/ seguros banco" field="subtotal_banco" />
-
-                <SectionHeader>Seguros Externos</SectionHeader>
-                <InsRow label="Seguro Vida — Morte + IAD + ITP (€/mês)" field="vida_ext" />
-                <InsRow label="Seguro Multirriscos (€/mês)" field="multirriscos_ext" />
-                <SubtotalRow label="Subtotal c/ seguros externos" field="subtotal_ext" />
-
-                <SectionHeader>Encargos Únicos</SectionHeader>
-                {oneTimeCharges.map((row, rowIdx) => (
-                  <tr key={rowIdx} className="hover:bg-slate-50/50">
-                    <td className="py-2 pr-4 text-xs text-slate-500 whitespace-nowrap w-52">{row.label}</td>
-                    {banks.map((bank, idx) => {
-                      const isRec = bank.recommended || bank.highlight;
-                      return (
-                        <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50')}>
-                          <input
-                            className={inputCls}
-                            value={(row[bank.name] as string) ?? ''}
-                            onChange={(e) => updateCharge(oneTimeCharges, setOneTimeCharges, rowIdx, bank.name, e.target.value)}
-                            placeholder="€"
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-                <SubtotalRow label="Total Encargos Únicos" field="total_one_time" />
-
-                <SectionHeader>Encargos Mensais</SectionHeader>
-                {monthlyCharges.map((row, rowIdx) => (
-                  <tr key={rowIdx} className="hover:bg-slate-50/50">
-                    <td className="py-2 pr-4 text-xs text-slate-500 whitespace-nowrap w-52">{row.label}</td>
-                    {banks.map((bank, idx) => {
-                      const isRec = bank.recommended || bank.highlight;
-                      return (
-                        <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50')}>
-                          <input
-                            className={inputCls}
-                            value={(row[bank.name] as string) ?? ''}
-                            onChange={(e) => updateCharge(monthlyCharges, setMonthlyCharges, rowIdx, bank.name, e.target.value)}
-                            placeholder="€/mês"
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              <SectionHeader>Encargos Mensais</SectionHeader>
+              {monthlyCharges.map((row, rowIdx) => (
+                <tr key={rowIdx} className="hover:bg-slate-50/50">
+                  <td className="py-2 pr-4 text-xs text-slate-500 whitespace-nowrap w-52">{row.label}</td>
+                  {banks.map((bank, idx) => {
+                    const isRec = bank.recommended || bank.highlight;
+                    return (
+                      <td key={idx} className={cn('py-2 px-2', isRec && 'bg-blue-50/50 border-l-2 border-l-blue-300')}>
+                        <input
+                          className={inputCls}
+                          value={(row[bank.name] as string) ?? ''}
+                          onChange={(e) => updateCharge(monthlyCharges, setMonthlyCharges, rowIdx, bank.name, e.target.value)}
+                          placeholder="€/mês"
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Sticky save bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-between gap-4">
-        <button
-          onClick={() => router.push(backUrl)}
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Voltar sem guardar
-        </button>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => save(false)} disabled={saving || !title.trim()}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-            Guardar
-          </Button>
-          <Button onClick={() => save(true)} disabled={saving || !title.trim()}>
-            <Save className="h-4 w-4 mr-1.5" />
-            Guardar e Sair
-          </Button>
-        </div>
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur border-t border-slate-200 px-6 py-3 flex items-center justify-between gap-4">
+        <span className={cn('text-xs transition-colors', isDirty ? 'text-amber-600' : 'text-slate-400')}>
+          {isDirty ? 'Alterações não guardadas' : 'Tudo guardado'}
+        </span>
+        <Button onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+          Guardar
+        </Button>
       </div>
+
+      {/* Leave confirm dialog */}
+      <Dialog open={showLeaveConfirm} onOpenChange={setShowLeaveConfirm}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Alterações não guardadas</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600 mt-1">Tem alterações não guardadas. Quer sair sem guardar?</p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowLeaveConfirm(false)}>Ficar</Button>
+            <Button variant="destructive" onClick={() => router.push(backUrl)}>Sair sem guardar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Hidden file input for bank PDF upload */}
       <input ref={fileInputRef} type="file" accept=".pdf" className="hidden" onChange={handleBankPdfSelected} />

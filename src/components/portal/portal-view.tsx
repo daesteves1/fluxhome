@@ -12,11 +12,15 @@ import {
   Trash2,
   Loader2,
   RefreshCw,
+  Star,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import { HomeFluxLogoMark } from '@/components/layout/homeflux-logo';
+import { ComparisonTable } from '@/components/propostas/comparison-table';
+import type { BankProposta, MapaComparativo } from '@/types/proposta';
+import { calcSubtotalBanco, calcSubtotalExterno, fmtEur, fmtPct } from '@/types/proposta';
 
 type DocRequest = {
   id: string;
@@ -35,173 +39,45 @@ type PortalUpload = {
   uploaded_at: string;
 };
 
-type BankData = {
-  name: string;
-  recommended?: boolean;
-  highlight?: boolean;
-  montante?: string;
-  prazo?: string;
-  tipo_taxa?: string;
-  periodo_fixo?: string;
-  euribor?: string;
-  spread?: string;
-  tan?: string;
-  prestacao?: string;
-  doc_path?: string;
-};
+type PropostaChoice = {
+  proposta_id: string;  // bank_proposta id
+  bank_name: string;
+  insurance_choice: 'banco' | 'externa';
+  confirmed_at: string;
+} | null;
 
-type InsuranceData = {
-  [bankName: string]: {
-    vida: string;
-    multirriscos: string;
-    vida_ext: string;
-    multirriscos_ext: string;
-  };
-};
+// ─── Summary Cards ────────────────────────────────────────────────────────────
 
-type ChargeRow = { label: string; [bankName: string]: string | boolean | undefined };
-
-type Proposta = {
-  id: string;
-  title: string | null;
-  comparison_data: unknown;
-  insurance_data: unknown;
-  one_time_charges: unknown;
-  monthly_charges: unknown;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-// ─── Portal Proposta Card ──────────────────────────────────────────────────
-
-function fmtEur(val: number) {
-  return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val);
-}
-function fmtPct(val: string) {
-  const n = parseFloat(val);
-  return isNaN(n) ? val : `${n.toFixed(2)}%`;
-}
-function parse(v: string | undefined): number { return parseFloat(v ?? '0') || 0; }
-
-function calcSubtotalBank(bank: BankData, ins: InsuranceData): number {
-  return parse(bank.prestacao) + parse(ins[bank.name]?.vida) + parse(ins[bank.name]?.multirriscos);
-}
-function calcTotalOneTime(bankName: string, charges: ChargeRow[]): number {
-  return charges.reduce((s, r) => s + parse(r[bankName] as string), 0);
-}
-
-function lowestIdx(values: (number | null)[]): number | null {
-  const filtered = values.map((v, i) => v !== null && v > 0 ? { v, i } : null).filter(Boolean) as { v: number; i: number }[];
-  if (filtered.length < 2) return null;
-  const min = Math.min(...filtered.map((x) => x.v));
-  return filtered.find((x) => x.v === min)?.i ?? null;
-}
-
-function ComparisonTable({ banks, ins, oneTime, monthly }: {
-  banks: BankData[];
-  ins: InsuranceData;
-  oneTime: ChargeRow[];
-  monthly: ChargeRow[];
-}) {
-  const rows: { label: string; values: (string | null)[]; isNumeric?: boolean }[] = [
-    { label: 'Tipo de Taxa', values: banks.map((b) => b.tipo_taxa ?? null) },
-    { label: 'Euribor', values: banks.map((b) => b.tipo_taxa === 'Fixa' ? 'N/A' : (b.euribor ?? null)) },
-    { label: 'Spread', values: banks.map((b) => b.spread ? fmtPct(b.spread) : null), isNumeric: true },
-    { label: 'TAN', values: banks.map((b) => b.tan ? fmtPct(b.tan) : null), isNumeric: true },
-    { label: 'Prestação mensal', values: banks.map((b) => b.prestacao ? fmtEur(parse(b.prestacao)) : null), isNumeric: true },
-    { label: 'Seg. Vida (banco)', values: banks.map((b) => { const v = ins[b.name]?.vida; return v ? fmtEur(parse(v)) : null; }), isNumeric: true },
-    { label: 'Seg. Multirriscos (banco)', values: banks.map((b) => { const v = ins[b.name]?.multirriscos; return v ? fmtEur(parse(v)) : null; }), isNumeric: true },
-    { label: 'Subtotal mensal', values: banks.map((b) => { const s = calcSubtotalBank(b, ins); return s > 0 ? fmtEur(s) : null; }), isNumeric: true },
-    { label: 'Encargos únicos', values: banks.map((b) => { const s = calcTotalOneTime(b.name, oneTime); return s > 0 ? fmtEur(s) : null; }), isNumeric: true },
-    { label: 'Manutenção de conta', values: banks.map((b) => { const v = monthly[0]?.[b.name]; return v ? fmtEur(parse(v as string)) : null; }), isNumeric: true },
-  ];
-
-  const numericValues = (row: typeof rows[number]) =>
-    row.isNumeric ? banks.map((b) => {
-      const raw = row.label === 'Prestação mensal' ? parse(b.prestacao)
-        : row.label === 'Subtotal mensal' ? calcSubtotalBank(b, ins)
-        : row.label === 'Encargos únicos' ? calcTotalOneTime(b.name, oneTime)
-        : null;
-      return raw;
-    }) : [];
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-      <table className="w-full text-sm">
-        <thead>
-          <tr>
-            <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide w-40 border-b border-slate-100">
-              Métrica
-            </th>
-            {banks.map((b, i) => {
-              const isRec = b.recommended || b.highlight;
-              return (
-                <th key={i} className={`px-4 py-3 text-center text-sm font-bold border-b border-slate-100 ${isRec ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}>
-                  {isRec && <span className="block text-[10px] font-semibold text-blue-500 mb-0.5">★ Recomendado</span>}
-                  {b.name}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {rows.map((row) => {
-            const nums = numericValues(row);
-            const bestIdx = row.isNumeric ? lowestIdx(nums) : null;
-            return (
-              <tr key={row.label} className="hover:bg-slate-50/50">
-                <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">{row.label}</td>
-                {row.values.map((val, i) => {
-                  const isRec = banks[i].recommended || banks[i].highlight;
-                  const isBest = bestIdx === i;
-                  return (
-                    <td key={i} className={`px-4 py-2.5 text-center text-sm font-medium ${isRec ? 'bg-blue-50/40' : ''} ${isBest ? 'text-green-700' : 'text-slate-700'}`}>
-                      {isBest && val ? (
-                        <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5 text-xs font-semibold">
-                          {val}
-                        </span>
-                      ) : (val ?? <span className="text-slate-300">—</span>)}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function SummaryCards({ banks, ins }: { banks: BankData[]; ins: InsuranceData }) {
+function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[]; recommendedId: string | null }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {banks.map((b, i) => {
-        const isRec = b.recommended || b.highlight;
-        const subtotal = calcSubtotalBank(b, ins);
+      {propostas.map((p) => {
+        const isRec = p.id === recommendedId;
+        const subBanco = calcSubtotalBanco(p);
+        const subExt = calcSubtotalExterno(p);
         return (
-          <div key={i} className={`rounded-xl border p-4 ${isRec ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+          <div key={p.id} className={`rounded-xl border p-4 ${isRec ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
             <div className="flex items-start justify-between gap-2 mb-2">
-              <p className="font-bold text-base text-slate-900">{b.name}</p>
+              <p className="font-bold text-base text-slate-900">{p.bank_name}</p>
               {isRec && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5 shrink-0">
-                  ★ Recomendado
+                  <Star className="h-3 w-3 fill-current" />
+                  Recomendado
                 </span>
               )}
             </div>
-            {subtotal > 0 && (
+            {subBanco > 0 && (
               <div className="mt-1">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Prestação c/ seguros banco</p>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Com seguros banco</p>
                 <p className={`text-2xl font-bold mt-0.5 ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
-                  {fmtEur(subtotal)}<span className="text-sm font-normal text-slate-400">/mês</span>
+                  {fmtEur(subBanco)}<span className="text-sm font-normal text-slate-400">/mês</span>
                 </p>
               </div>
             )}
-            {b.prestacao && (
-              <p className="text-xs text-slate-500 mt-1">Sem seguros: {fmtEur(parse(b.prestacao))}/mês</p>
+            {subExt > 0 && (
+              <p className="text-xs text-slate-500 mt-1">Com seguros externos: {fmtEur(subExt)}/mês</p>
             )}
-            {b.tan && <p className="text-xs text-slate-500 mt-0.5">TAN: {fmtPct(b.tan)}</p>}
+            {p.tan && <p className="text-xs text-slate-500 mt-0.5">TAN: {fmtPct(p.tan)}</p>}
           </div>
         );
       })}
@@ -209,29 +85,31 @@ function SummaryCards({ banks, ins }: { banks: BankData[]; ins: InsuranceData })
   );
 }
 
-function BarChart({ banks }: { banks: BankData[] }) {
-  const values = banks.map((b) => parse(b.prestacao));
+// ─── Bar Chart ────────────────────────────────────────────────────────────────
+
+function BarChart({ propostas, recommendedId }: { propostas: BankProposta[]; recommendedId: string | null }) {
+  const values = propostas.map((p) => p.monthly_payment ?? 0);
   const max = Math.max(...values, 1);
   const barH = 28;
   const gap = 10;
-  const labelW = 72;
+  const labelW = 80;
   const barMaxW = 160;
-  const valW = 72;
+  const valW = 80;
   const rowH = barH + gap;
-  const svgH = banks.length * rowH + 4;
+  const svgH = propostas.length * rowH + 4;
 
   return (
     <svg width="100%" height={svgH} viewBox={`0 0 ${labelW + barMaxW + valW + 16} ${svgH}`} className="overflow-visible">
-      {banks.map((b, i) => {
+      {propostas.map((p, i) => {
         const val = values[i];
         const bw = val > 0 ? (val / max) * barMaxW : 0;
         const y = i * rowH;
-        const isRec = b.recommended || b.highlight;
+        const isRec = p.id === recommendedId;
         const fill = isRec ? '#3b82f6' : '#94a3b8';
         return (
-          <g key={b.name} transform={`translate(0,${y})`}>
+          <g key={p.id} transform={`translate(0,${y})`}>
             <text x={labelW - 6} y={barH / 2 + 4} textAnchor="end" fontSize="11" fill="#64748b" fontWeight={isRec ? '600' : '400'}>
-              {b.name}
+              {p.bank_name}
             </text>
             <rect x={labelW} y={2} width={bw} height={barH - 4} rx="4" fill={fill} />
             {val > 0 && (
@@ -246,84 +124,164 @@ function BarChart({ banks }: { banks: BankData[] }) {
   );
 }
 
-function PortalPropostaCard({ proposta, portalToken }: { proposta: Proposta; portalToken: string }) {
-  const banks = (proposta.comparison_data as BankData[] | null) ?? [];
-  const ins = (proposta.insurance_data as InsuranceData | null) ?? {};
-  const oneTime = (proposta.one_time_charges as ChargeRow[] | null) ?? [];
-  const monthly = (proposta.monthly_charges as ChargeRow[] | null) ?? [];
+// ─── Portal Mapa Card ──────────────────────────────────────────────────────────
 
-  const hasBanks = banks.length > 0;
-  const hasChart = hasBanks && banks.some((b) => parse(b.prestacao) > 0);
-  const banksWithPdf = banks.filter((b) => b.doc_path);
+function PortalMapaCard({
+  mapa,
+  propostas,
+  portalToken,
+  currentChoice,
+  onChoiceSaved,
+}: {
+  mapa: MapaComparativo;
+  propostas: BankProposta[];
+  portalToken: string;
+  currentChoice: PropostaChoice;
+  onChoiceSaved: (c: PropostaChoice) => void;
+}) {
+  const isMyChoice = (pid: string) => currentChoice?.proposta_id === pid;
+  const anyChoice = currentChoice !== null && propostas.some((p) => isMyChoice(p.id));
+
+  const [selectedBankId, setSelectedBankId] = useState<string>(
+    anyChoice ? (currentChoice?.proposta_id ?? '') : ''
+  );
+  const [insuranceChoice, setInsuranceChoice] = useState<'banco' | 'externa' | ''>(
+    anyChoice ? (currentChoice?.insurance_choice ?? '') : ''
+  );
+  const [confirming, setConfirming] = useState(false);
+
+  const selectedBank = propostas.find((p) => p.id === selectedBankId);
+  const hasChart = propostas.some((p) => (p.monthly_payment ?? 0) > 0);
+
+  async function handleConfirmChoice() {
+    if (!selectedBankId || !insuranceChoice || !selectedBank) return;
+    setConfirming(true);
+    try {
+      const res = await fetch(`/api/portal/${portalToken}/proposta-choice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposta_id: selectedBankId,
+          bank_name: selectedBank.bank_name,
+          insurance_choice: insuranceChoice,
+        }),
+      });
+      if (res.ok) {
+        onChoiceSaved({
+          proposta_id: selectedBankId,
+          bank_name: selectedBank.bank_name,
+          insurance_choice: insuranceChoice,
+          confirmed_at: new Date().toISOString(),
+        });
+      }
+    } finally {
+      setConfirming(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
-      <div className="flex items-baseline gap-3">
-        <h3 className="font-bold text-base text-slate-900">{proposta.title || 'Proposta'}</h3>
-      </div>
+      {/* Summary cards */}
+      <SummaryCards propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
 
-      {!hasBanks && (
-        <p className="text-sm text-slate-400 text-center py-8">Sem dados de comparação disponíveis.</p>
-      )}
+      {/* Comparison table */}
+      <ComparisonTable propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
 
-      {hasBanks && (
-        <>
-          {/* Comparison table */}
-          <ComparisonTable banks={banks} ins={ins} oneTime={oneTime} monthly={monthly} />
-
-          {/* Summary cards */}
-          <SummaryCards banks={banks} ins={ins} />
-
-          {/* Bar chart */}
-          {hasChart && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Prestação mensal (sem seguros)</p>
-              <BarChart banks={banks} />
-            </div>
-          )}
-
-          {/* PDF downloads per bank */}
-          {banksWithPdf.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Documentos dos bancos</p>
-              <div className="flex flex-wrap gap-2">
-                {banksWithPdf.map((b) => (
-                  <a
-                    key={b.name}
-                    href={`/api/portal/${portalToken}/propostas/${proposta.id}/bank-doc?bank=${encodeURIComponent(b.name)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    PDF — {b.name}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
+      {/* Bar chart */}
+      {hasChart && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Prestação mensal (sem seguros)</p>
+          <BarChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+        </div>
       )}
 
       {/* Broker notes */}
-      {proposta.notes && (
+      {mapa.broker_notes && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
           <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1.5">Notas do mediador</p>
-          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{proposta.notes}</p>
+          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{mapa.broker_notes}</p>
         </div>
       )}
+
+      {/* A minha escolha */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <p className="text-sm font-semibold text-slate-800 mb-4">A minha escolha</p>
+
+        {/* Bank selector */}
+        <div className="mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Banco</p>
+          <div className="space-y-2">
+            {propostas.map((p) => {
+              const isRec = p.id === mapa.recommended_proposta_id;
+              return (
+                <label key={p.id} className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="radio"
+                    name="bank-choice"
+                    value={p.id}
+                    checked={selectedBankId === p.id}
+                    onChange={() => setSelectedBankId(p.id)}
+                    className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm text-slate-700 group-hover:text-slate-900">{p.bank_name}</span>
+                  {isRec && <Star className="h-3.5 w-3.5 text-amber-500 shrink-0 fill-current" />}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Insurance choice */}
+        <div className="mb-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Seguros</p>
+          <div className="space-y-2">
+            {(['banco', 'externa'] as const).map((opt) => (
+              <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
+                <input
+                  type="radio"
+                  name="insurance-choice"
+                  value={opt}
+                  checked={insuranceChoice === opt}
+                  onChange={() => setInsuranceChoice(opt)}
+                  className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-sm text-slate-700 group-hover:text-slate-900">
+                  {opt === 'banco' ? 'Seguros do banco' : 'Seguros externos (Asisa)'}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {anyChoice ? (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1">
+              <CheckCircle className="h-3.5 w-3.5" />
+              Escolha confirmada — {currentChoice!.bank_name}
+            </span>
+            <button
+              onClick={() => { setSelectedBankId(''); setInsuranceChoice(''); onChoiceSaved(null); }}
+              className="text-xs text-slate-400 hover:text-slate-600 underline"
+            >
+              Alterar
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleConfirmChoice}
+            disabled={!selectedBankId || !insuranceChoice || confirming}
+            className="h-9 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors inline-flex items-center gap-2"
+          >
+            {confirming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Confirmar escolha
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-interface PortalViewProps {
-  clientName: string;
-  portalToken: string;
-  termsAcceptedAt: string | null;
-  officeName: string;
-  documentRequests: DocRequest[];
-  uploads: PortalUpload[];
-  propostas: Proposta[];
-}
+// ─── Status Chip ──────────────────────────────────────────────────────────────
 
 function StatusChip({ status }: { status: string }) {
   const t = useTranslations('portal');
@@ -354,6 +312,20 @@ function StatusChip({ status }: { status: string }) {
   );
 }
 
+// ─── Portal View ──────────────────────────────────────────────────────────────
+
+interface PortalViewProps {
+  clientName: string;
+  portalToken: string;
+  termsAcceptedAt: string | null;
+  officeName: string;
+  documentRequests: DocRequest[];
+  uploads: PortalUpload[];
+  mapa: MapaComparativo | null;
+  bankPropostas: BankProposta[];
+  propostaChoice: unknown;
+}
+
 export function PortalView({
   clientName,
   portalToken,
@@ -361,7 +333,9 @@ export function PortalView({
   officeName,
   documentRequests,
   uploads,
-  propostas,
+  mapa,
+  bankPropostas,
+  propostaChoice,
 }: PortalViewProps) {
   const t = useTranslations('portal');
   const tCommon = useTranslations('common');
@@ -369,6 +343,7 @@ export function PortalView({
   const [showTerms, setShowTerms] = useState(!termsAcceptedAt);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [acceptingTerms, setAcceptingTerms] = useState(false);
+  const [savedChoice, setSavedChoice] = useState<PropostaChoice>(propostaChoice as PropostaChoice ?? null);
 
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
@@ -381,6 +356,15 @@ export function PortalView({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeRequestIdRef = useRef<string | null>(null);
+
+  // Ordered bank propostas for the mapa
+  const orderedPropostas = mapa
+    ? (mapa.proposta_ids
+        .map((pid) => bankPropostas.find((p) => p.id === pid))
+        .filter(Boolean) as BankProposta[])
+    : [];
+
+  const hasVisibleMapa = mapa && mapa.is_visible_to_client && orderedPropostas.length > 0;
 
   function getUploadsForRequest(requestId: string) {
     return localUploads.filter((u) => u.document_request_id === requestId);
@@ -465,7 +449,6 @@ export function PortalView({
     }
   }
 
-  /** Delete all existing uploads for the request, then open the file dialog */
   async function handleReplaceFiles(requestId: string) {
     const existingUploads = getUploadsForRequest(requestId);
     setReplacingIds((prev) => new Set(prev).add(requestId));
@@ -484,7 +467,6 @@ export function PortalView({
         return next;
       });
     }
-    // Open file picker after clearing
     triggerUpload(requestId);
   }
 
@@ -595,9 +577,9 @@ export function PortalView({
               className="flex-1 rounded-lg text-sm font-medium py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
             >
               {t('propostasTab')}
-              {propostas.length > 0 && (
+              {hasVisibleMapa && (
                 <span className="ml-1.5 bg-blue-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
-                  {propostas.length}
+                  {orderedPropostas.length}
                 </span>
               )}
             </TabsTrigger>
@@ -619,13 +601,11 @@ export function PortalView({
 
                 return (
                   <div key={req.id} className="bg-white border border-slate-200 rounded-xl p-4">
-                    {/* Header row */}
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <p className="font-medium text-sm text-slate-900 leading-snug">{req.label}</p>
                       <StatusChip status={status} />
                     </div>
 
-                    {/* Rejection reason */}
                     {status === 'rejected' && req.broker_notes && (
                       <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                         <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
@@ -633,7 +613,6 @@ export function PortalView({
                       </div>
                     )}
 
-                    {/* Uploaded files list */}
                     {reqUploads.length > 0 && (
                       <div className="mb-3 space-y-1.5">
                         {reqUploads.map((u) => (
@@ -664,7 +643,6 @@ export function PortalView({
                           </div>
                         ))}
 
-                        {/* File count — only shown when max_files > 1 */}
                         {req.max_files > 1 && (
                           <p className="text-[11px] text-slate-400 mt-1">
                             {t('filesCount', { count: reqUploads.length, max: req.max_files })}
@@ -673,9 +651,7 @@ export function PortalView({
                       </div>
                     )}
 
-                    {/* Action buttons */}
                     <div className="flex items-center gap-2">
-                      {/* Upload button: only for pending or rejected */}
                       {(status === 'pending' || status === 'rejected') && (
                         <button
                           onClick={() => triggerUpload(req.id)}
@@ -691,7 +667,6 @@ export function PortalView({
                         </button>
                       )}
 
-                      {/* Substituir ficheiro: only for em_analise */}
                       {status === 'em_analise' && (
                         <button
                           onClick={() => handleReplaceFiles(req.id)}
@@ -715,23 +690,24 @@ export function PortalView({
 
           {/* Propostas Tab */}
           <TabsContent value="propostas" className="space-y-6">
-            {propostas.length === 0 ? (
+            {!hasVisibleMapa ? (
               <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
                 <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                 <p className="text-sm text-slate-400">{t('noPropostas')}</p>
               </div>
             ) : (
-              propostas.map((proposta, idx) => (
-                <div key={proposta.id} className={idx > 0 ? 'pt-6 border-t border-slate-200' : ''}>
-                  <PortalPropostaCard proposta={proposta} portalToken={portalToken} />
-                </div>
-              ))
+              <PortalMapaCard
+                mapa={mapa!}
+                propostas={orderedPropostas}
+                portalToken={portalToken}
+                currentChoice={savedChoice}
+                onChoiceSaved={setSavedChoice}
+              />
             )}
           </TabsContent>
         </Tabs>
       </main>
 
-      {/* Hidden file input — multiple allowed */}
       <input
         ref={fileInputRef}
         type="file"
