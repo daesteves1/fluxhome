@@ -43,7 +43,7 @@ export default async function PortalPage({ params }: PageProps) {
 
   const { data: documentRequestsRaw } = await serviceClient
     .from('document_requests')
-    .select('id, label, status, broker_notes, max_files, sort_order, created_at')
+    .select('id, label, status, broker_notes, max_files, sort_order, created_at, proponente, is_mandatory')
     .eq('client_id', client.id)
     .order('sort_order', { ascending: true });
 
@@ -109,6 +109,8 @@ export default async function PortalPage({ params }: PageProps) {
     broker_notes: string | null;
     max_files: number;
     created_at: string;
+    proponente: string;
+    is_mandatory: boolean;
   };
   type Upload = {
     id: string;
@@ -121,6 +123,7 @@ export default async function PortalPage({ params }: PageProps) {
   return (
     <PortalView
       clientName={client.p1_name}
+      p2Name={client.p2_name}
       portalToken={portal_token}
       termsAcceptedAt={client.terms_accepted_at}
       officeName={(officeRaw as { name: string } | null)?.name ?? ''}

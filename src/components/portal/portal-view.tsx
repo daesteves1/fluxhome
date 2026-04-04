@@ -9,7 +9,6 @@ import {
   Clock,
   XCircle,
   AlertCircle,
-  Trash2,
   Loader2,
   RefreshCw,
   Star,
@@ -29,6 +28,8 @@ type DocRequest = {
   broker_notes: string | null;
   max_files: number;
   created_at: string;
+  proponente: string;
+  is_mandatory: boolean;
 };
 
 type PortalUpload = {
@@ -316,6 +317,7 @@ function StatusChip({ status }: { status: string }) {
 
 interface PortalViewProps {
   clientName: string;
+  p2Name: string | null;
   portalToken: string;
   termsAcceptedAt: string | null;
   officeName: string;
@@ -328,6 +330,7 @@ interface PortalViewProps {
 
 export function PortalView({
   clientName,
+  p2Name,
   portalToken,
   termsAcceptedAt,
   officeName,
@@ -346,16 +349,27 @@ export function PortalView({
   const [savedChoice, setSavedChoice] = useState<PropostaChoice>(propostaChoice as PropostaChoice ?? null);
 
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set());
-  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [replacingIds, setReplacingIds] = useState<Set<string>>(new Set());
 
   const [localUploads, setLocalUploads] = useState<PortalUpload[]>(uploads);
   const [localStatuses, setLocalStatuses] = useState<Record<string, string>>(
     Object.fromEntries(documentRequests.map((r) => [r.id, r.status]))
   );
+  const [localBrokerNotes, setLocalBrokerNotes] = useState<Record<string, string | null>>(
+    Object.fromEntries(documentRequests.map((r) => [r.id, r.broker_notes]))
+  );
+
+  // Sub-navigation: which proponente to show
+  const hasP2 = Boolean(p2Name);
+  const [activeProponente, setActiveProponente] = useState<'p1' | 'p2' | 'shared'>('p1');
+
+  // Collapsed approved section
+  const [approvedExpanded, setApprovedExpanded] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
   const activeRequestIdRef = useRef<string | null>(null);
+  const replaceRequestIdRef = useRef<string | null>(null);
 
   // Ordered bank propostas for the mapa
   const orderedPropostas = mapa
@@ -423,51 +437,57 @@ export function PortalView({
     }
   }
 
-  async function handleDeleteUpload(uploadId: string, requestId: string) {
-    setDeletingIds((prev) => new Set(prev).add(uploadId));
-    try {
-      const res = await fetch(`/api/portal/${portalToken}/uploads/${uploadId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        const { remaining } = (await res.json()) as { remaining: number };
-        setLocalUploads((prev) => prev.filter((u) => u.id !== uploadId));
-        setLocalStatuses((prev) => ({
-          ...prev,
-          [requestId]: remaining === 0 ? 'pending' : 'em_analise',
-        }));
-      } else {
-        toast.error(tCommon('error'));
-      }
-    } finally {
-      setDeletingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(uploadId);
-        return next;
-      });
+  function handleReplaceClick(requestId: string) {
+    replaceRequestIdRef.current = requestId;
+    if (replaceInputRef.current) {
+      replaceInputRef.current.value = '';
+      replaceInputRef.current.click();
     }
   }
 
-  async function handleReplaceFiles(requestId: string) {
-    const existingUploads = getUploadsForRequest(requestId);
+  async function handleReplaceFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !replaceRequestIdRef.current) return;
+    const requestId = replaceRequestIdRef.current;
+    replaceRequestIdRef.current = null;
+
     setReplacingIds((prev) => new Set(prev).add(requestId));
     try {
-      await Promise.all(
-        existingUploads.map((u) =>
-          fetch(`/api/portal/${portalToken}/uploads/${u.id}`, { method: 'DELETE' })
-        )
-      );
-      setLocalUploads((prev) => prev.filter((u) => u.document_request_id !== requestId));
-      setLocalStatuses((prev) => ({ ...prev, [requestId]: 'pending' }));
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('request_id', requestId);
+
+      const res = await fetch(`/api/portal/${portalToken}/replace-upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as { id: string };
+        setLocalUploads((prev) => [
+          ...prev.filter((u) => u.document_request_id !== requestId),
+          {
+            id: data.id,
+            document_request_id: requestId,
+            file_name: file.name,
+            storage_path: '',
+            uploaded_at: new Date().toISOString(),
+          },
+        ]);
+        setLocalStatuses((prev) => ({ ...prev, [requestId]: 'em_analise' }));
+        setLocalBrokerNotes((prev) => ({ ...prev, [requestId]: null }));
+        toast.success(t('uploadSuccess'));
+      } else {
+        toast.error(tCommon('error'));
+      }
     } finally {
       setReplacingIds((prev) => {
         const next = new Set(prev);
         next.delete(requestId);
         return next;
       });
+      if (replaceInputRef.current) replaceInputRef.current.value = '';
     }
-    triggerUpload(requestId);
   }
 
   async function handleAcceptTerms() {
@@ -586,106 +606,201 @@ export function PortalView({
           </TabsList>
 
           {/* Documents Tab */}
-          <TabsContent value="documents" className="space-y-2.5">
-            {documentRequests.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
-                <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm text-slate-400">{t('noDocuments')}</p>
+          <TabsContent value="documents" className="space-y-3">
+            {/* Sub-navigation for multi-proponente */}
+            {hasP2 && (
+              <div className="flex rounded-xl bg-white border border-slate-200 p-1 gap-0.5">
+                {(['p1', 'p2', 'shared'] as const).map((tab) => {
+                  const label = tab === 'p1' ? clientName : tab === 'p2' ? p2Name! : 'Partilhados';
+                  const pendingForTab = documentRequests.filter((r) => {
+                    const s = localStatuses[r.id] ?? r.status;
+                    return r.proponente === tab && (s === 'pending' || s === 'rejected');
+                  }).length;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveProponente(tab)}
+                      className={`flex-1 text-xs font-medium py-1.5 rounded-lg transition-colors ${
+                        activeProponente === tab
+                          ? 'bg-slate-900 text-white'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      {label}
+                      {pendingForTab > 0 && (
+                        <span className={`ml-1.5 text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center ${
+                          activeProponente === tab ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {pendingForTab}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            ) : (
-              documentRequests.map((req) => {
-                const status = localStatuses[req.id] ?? req.status;
-                const reqUploads = getUploadsForRequest(req.id);
-                const isUploading = uploadingIds.has(req.id);
-                const isReplacing = replacingIds.has(req.id);
+            )}
 
+            {/* Document cards */}
+            {(() => {
+              const filtered = hasP2
+                ? documentRequests.filter((r) => r.proponente === activeProponente)
+                : documentRequests;
+
+              if (filtered.length === 0) {
                 return (
-                  <div key={req.id} className="bg-white border border-slate-200 rounded-xl p-4">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <p className="font-medium text-sm text-slate-900 leading-snug">{req.label}</p>
-                      <StatusChip status={status} />
-                    </div>
-
-                    {status === 'rejected' && req.broker_notes && (
-                      <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                        <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-700">{req.broker_notes}</p>
-                      </div>
-                    )}
-
-                    {reqUploads.length > 0 && (
-                      <div className="mb-3 space-y-1.5">
-                        {reqUploads.map((u) => (
-                          <div key={u.id} className="flex items-center gap-2 text-xs">
-                            {status === 'approved' ? (
-                              <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                            ) : (
-                              <FileText className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                            )}
-                            <span className="truncate max-w-[220px] text-slate-700">
-                              {u.file_name ?? u.storage_path.split('/').pop()}
-                            </span>
-                            <span className="shrink-0 text-slate-400">· {formatDate(u.uploaded_at)}</span>
-                            {status === 'em_analise' && (
-                              <button
-                                onClick={() => handleDeleteUpload(u.id, req.id)}
-                                disabled={deletingIds.has(u.id)}
-                                className="ml-auto shrink-0 text-slate-400 hover:text-red-500 disabled:opacity-40 transition-colors"
-                                aria-label={t('deleteFile')}
-                              >
-                                {deletingIds.has(u.id) ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        ))}
-
-                        {req.max_files > 1 && (
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            {t('filesCount', { count: reqUploads.length, max: req.max_files })}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      {(status === 'pending' || status === 'rejected') && (
-                        <button
-                          onClick={() => triggerUpload(req.id)}
-                          disabled={isUploading}
-                          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
-                        >
-                          {isUploading ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Upload className="h-3.5 w-3.5" />
-                          )}
-                          {status === 'rejected' ? t('uploadAgain') : t('upload')}
-                        </button>
-                      )}
-
-                      {status === 'em_analise' && (
-                        <button
-                          onClick={() => handleReplaceFiles(req.id)}
-                          disabled={isReplacing || isUploading}
-                          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
-                        >
-                          {isReplacing ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-3.5 w-3.5" />
-                          )}
-                          {t('substituirFicheiro')}
-                        </button>
-                      )}
-                    </div>
+                  <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
+                    <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                    <p className="text-sm text-slate-400">{t('noDocuments')}</p>
                   </div>
                 );
-              })
-            )}
+              }
+
+              const statusOrder: Record<string, number> = { rejected: 0, pending: 1, em_analise: 2, approved: 3 };
+              const sorted = [...filtered].sort((a, b) => {
+                const sa = localStatuses[a.id] ?? a.status;
+                const sb = localStatuses[b.id] ?? b.status;
+                return (statusOrder[sa] ?? 1) - (statusOrder[sb] ?? 1);
+              });
+
+              const activeDocs = sorted.filter((r) => (localStatuses[r.id] ?? r.status) !== 'approved');
+              const approvedDocs = sorted.filter((r) => (localStatuses[r.id] ?? r.status) === 'approved');
+
+              return (
+                <div className="space-y-2.5">
+                  {activeDocs.map((req) => {
+                    const status = localStatuses[req.id] ?? req.status;
+                    const reqUploads = getUploadsForRequest(req.id);
+                    const isUploading = uploadingIds.has(req.id);
+                    const isReplacing = replacingIds.has(req.id);
+                    const brokerNote = localBrokerNotes[req.id] ?? req.broker_notes;
+
+                    return (
+                      <div
+                        key={req.id}
+                        className={`bg-white border rounded-xl p-4 ${
+                          status === 'rejected' ? 'border-red-200' : 'border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-slate-900 leading-snug">{req.label}</p>
+                            {req.is_mandatory && (
+                              <span className="text-[10px] text-slate-400 font-medium">Obrigatório</span>
+                            )}
+                          </div>
+                          <StatusChip status={status} />
+                        </div>
+
+                        {/* REJECTED */}
+                        {status === 'rejected' && (
+                          <>
+                            {brokerNote && (
+                              <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                                <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                                <p className="text-xs text-red-700">{brokerNote}</p>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => triggerUpload(req.id)}
+                              disabled={isUploading}
+                              className="w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                            >
+                              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                              {t('uploadAgain')}
+                            </button>
+                          </>
+                        )}
+
+                        {/* PENDING */}
+                        {status === 'pending' && (
+                          <>
+                            <p className="text-xs text-slate-400 mb-3">PDF, JPG, PNG · Máx. 15MB</p>
+                            <button
+                              onClick={() => triggerUpload(req.id)}
+                              disabled={isUploading}
+                              className="w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                            >
+                              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                              {t('upload')}
+                            </button>
+                          </>
+                        )}
+
+                        {/* EM_ANALISE */}
+                        {status === 'em_analise' && (
+                          <>
+                            {reqUploads.length > 0 && (
+                              <div className="mb-3 space-y-1.5">
+                                {reqUploads.map((u) => (
+                                  <div key={u.id} className="flex items-center gap-2 text-xs text-slate-600">
+                                    <FileText className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                    <span className="truncate">{u.file_name ?? u.storage_path.split('/').pop()}</span>
+                                    <span className="shrink-0 text-slate-400">· {formatDate(u.uploaded_at)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleReplaceClick(req.id)}
+                                disabled={isReplacing || isUploading}
+                                className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
+                              >
+                                {isReplacing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                {t('substituirFicheiro')}
+                              </button>
+                              <p className="text-xs text-slate-400">Em análise pelo mediador</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Approved section — collapsible */}
+                  {approvedDocs.length > 0 && (
+                    <div>
+                      <button
+                        onClick={() => setApprovedExpanded((v) => !v)}
+                        className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle className="h-4 w-4" />
+                          {approvedDocs.length} documento{approvedDocs.length !== 1 ? 's' : ''} aprovado{approvedDocs.length !== 1 ? 's' : ''}
+                        </span>
+                        <span className="text-emerald-500 text-base leading-none">{approvedExpanded ? '▲' : '▼'}</span>
+                      </button>
+
+                      {approvedExpanded && (
+                        <div className="mt-1.5 space-y-1.5">
+                          {approvedDocs.map((req) => {
+                            const reqUploads = getUploadsForRequest(req.id);
+                            return (
+                              <div key={req.id} className="bg-white border border-emerald-100 rounded-xl p-4 opacity-75">
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <p className="font-medium text-sm text-slate-700">{req.label}</p>
+                                  <StatusChip status="approved" />
+                                </div>
+                                {reqUploads.length > 0 && (
+                                  <div className="space-y-1">
+                                    {reqUploads.map((u) => (
+                                      <div key={u.id} className="flex items-center gap-2 text-xs text-slate-500">
+                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                        <span className="truncate">{u.file_name ?? u.storage_path.split('/').pop()}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </TabsContent>
 
           {/* Propostas Tab */}
@@ -714,6 +829,13 @@ export function PortalView({
         multiple
         className="hidden"
         onChange={handleFileSelected}
+        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+      />
+      <input
+        ref={replaceInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleReplaceFileSelected}
         accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
       />
     </div>
