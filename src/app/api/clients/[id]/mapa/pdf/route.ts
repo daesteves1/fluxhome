@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import React from 'react';
 import { renderToBuffer, Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
+import type { DocumentProps } from '@react-pdf/renderer';
 import type { BankProposta } from '@/types/proposta';
 import {
   ONE_TIME_CHARGE_FIELDS,
@@ -205,9 +206,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     propostas = mapaRaw.proposta_ids.map((pid) => map.get(pid)).filter(Boolean) as BankProposta[];
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buffer = await renderToBuffer(
-    React.createElement(MapaDocument, { propostas, recId: mapaRaw.recommended_proposta_id }) as any
+    React.createElement(MapaDocument, { propostas, recId: mapaRaw.recommended_proposta_id }) as React.ReactElement<DocumentProps>
   );
 
   return new NextResponse(new Uint8Array(buffer), {
