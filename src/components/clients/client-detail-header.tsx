@@ -33,12 +33,12 @@ interface StepMeta {
 }
 
 const STEP_META: StepMeta[] = [
-  { key: 'lead',           label: 'Lead',               short: 'Lead',       circle: 'bg-slate-500',  line: 'bg-slate-400',  ring: 'ring-slate-300'  },
-  { key: 'docs_pending',   label: 'Docs. Pendentes',    short: 'Docs. Pend.',circle: 'bg-amber-500',  line: 'bg-amber-400',  ring: 'ring-amber-300'  },
-  { key: 'docs_complete',  label: 'Docs. Completos',    short: 'Docs. Com.', circle: 'bg-blue-500',   line: 'bg-blue-400',   ring: 'ring-blue-300'   },
-  { key: 'propostas_sent', label: 'Propostas Enviadas', short: 'Propostas',  circle: 'bg-purple-500', line: 'bg-purple-400', ring: 'ring-purple-300' },
-  { key: 'approved',       label: 'Aprovado',           short: 'Aprovado',   circle: 'bg-green-500',  line: 'bg-green-400',  ring: 'ring-green-300'  },
-  { key: 'closed',         label: 'Fechado',            short: 'Fechado',    circle: 'bg-slate-600',  line: 'bg-slate-500',  ring: 'ring-slate-400'  },
+  { key: 'lead',           label: 'Lead',               short: 'Lead',        circle: 'bg-slate-500',  line: 'bg-slate-400',  ring: 'ring-slate-300'  },
+  { key: 'docs_pending',   label: 'Docs. Pendentes',    short: 'Docs. Pend.', circle: 'bg-amber-500',  line: 'bg-amber-400',  ring: 'ring-amber-300'  },
+  { key: 'docs_complete',  label: 'Docs. Completos',    short: 'Docs. Comp.', circle: 'bg-blue-500',   line: 'bg-blue-400',   ring: 'ring-blue-300'   },
+  { key: 'propostas_sent', label: 'Propostas Enviadas', short: 'Propostas',   circle: 'bg-purple-500', line: 'bg-purple-400', ring: 'ring-purple-300' },
+  { key: 'approved',       label: 'Aprovado',           short: 'Aprovado',    circle: 'bg-green-500',  line: 'bg-green-400',  ring: 'ring-green-300'  },
+  { key: 'closed',         label: 'Fechado',            short: 'Fechado',     circle: 'bg-slate-600',  line: 'bg-slate-500',  ring: 'ring-slate-400'  },
 ];
 
 interface Client {
@@ -131,11 +131,11 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
         {t('backToClients')}
       </button>
 
-      {/* Header card — complete, rounded all sides */}
-      <div className="bg-white rounded-2xl border border-slate-200 px-4 pt-4 pb-4 sm:px-6 sm:pt-5 sm:pb-5">
+      <div className="bg-white rounded-2xl border border-slate-200 px-4 pt-4 pb-5 sm:px-6 sm:pt-5">
 
-        {/* Top row: name + step badge */}
-        <div className="flex items-start justify-between gap-3 mb-3">
+        {/* ── Top row: name + badge + desktop action buttons ── */}
+        <div className="flex items-start justify-between gap-3">
+          {/* Name + p2 + step badge */}
           <div className="flex items-center gap-2.5 flex-wrap min-w-0">
             <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">{client.p1_name}</h1>
             {client.p2_name && (
@@ -143,24 +143,63 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
             )}
             <ProcessStepBadge step={currentStep} />
           </div>
+
+          {/* Desktop action buttons — same row as name */}
+          <div className="hidden sm:flex items-center gap-1 shrink-0">
+            <button
+              onClick={copyPortalLink}
+              className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+              Copiar link
+            </button>
+
+            <button
+              onClick={sendPortalLink}
+              disabled={sendingEmail}
+              className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors disabled:opacity-40"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Enviar link
+            </button>
+
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Portal
+            </a>
+
+            <EditClientDialog
+              client={client as Parameters<typeof EditClientDialog>[0]['client']}
+              iconOnly
+              customTrigger={
+                <button className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors">
+                  <Pencil className="h-3.5 w-3.5" />
+                  Editar
+                </button>
+              }
+            />
+          </div>
         </div>
 
-        {/* Action buttons — 2×2 on mobile, single row on desktop */}
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-1 mb-3 sm:mb-0">
+        {/* Mobile action buttons — 2×2 grid below name */}
+        <div className="sm:hidden grid grid-cols-2 gap-1.5 mt-3">
           <button
             onClick={copyPortalLink}
-            className="inline-flex items-center justify-center gap-1.5 h-9 sm:h-8 px-3 text-xs font-medium text-slate-600 bg-slate-50 sm:bg-transparent hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors border border-slate-200 sm:border-transparent"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
           >
-            {copied
-              ? <Check className="h-3.5 w-3.5 text-green-500" />
-              : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
             Copiar link
           </button>
 
           <button
             onClick={sendPortalLink}
             disabled={sendingEmail}
-            className="inline-flex items-center justify-center gap-1.5 h-9 sm:h-8 px-3 text-xs font-medium text-slate-600 bg-slate-50 sm:bg-transparent hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors disabled:opacity-40 border border-slate-200 sm:border-transparent"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors disabled:opacity-40"
           >
             <Mail className="h-3.5 w-3.5" />
             Enviar link
@@ -170,7 +209,7 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
             href={portalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1.5 h-9 sm:h-8 px-3 text-xs font-medium text-slate-600 bg-slate-50 sm:bg-transparent hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors border border-slate-200 sm:border-transparent"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Portal
@@ -180,7 +219,7 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
             client={client as Parameters<typeof EditClientDialog>[0]['client']}
             iconOnly
             customTrigger={
-              <button className="inline-flex items-center justify-center gap-1.5 h-9 sm:h-8 px-3 text-xs font-medium text-slate-600 bg-slate-50 sm:bg-transparent hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors border border-slate-200 sm:border-transparent w-full">
+              <button className="inline-flex items-center justify-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors w-full">
                 <Pencil className="h-3.5 w-3.5" />
                 Editar
               </button>
@@ -188,8 +227,8 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
           />
         </div>
 
-        {/* Detail grid */}
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3 mt-4 sm:mt-4">
+        {/* ── Detail info grid ── */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 mt-4">
           {client.p1_email && (
             <div>
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
@@ -234,10 +273,10 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
           )}
         </div>
 
-        {/* Process stepper — compact on mobile, full on desktop */}
+        {/* ── Process stepper ── */}
         <div className="mt-5 pt-4 border-t border-slate-100">
 
-          {/* Mobile: prev/current/next arrows */}
+          {/* Mobile: compact prev / label / next */}
           <div className="flex md:hidden items-center justify-between gap-3">
             <button
               onClick={() => currentIdx > 0 && !updatingStep && setPendingStep(STEP_META[currentIdx - 1])}
@@ -259,45 +298,70 @@ export function ClientDetailHeader({ client, portalBaseUrl }: Props) {
             </button>
           </div>
 
-          {/* Desktop: full horizontal stepper */}
+          {/*
+            Desktop stepper — each step is flex-1 with the circle centered.
+            Connector lines are absolutely positioned within each cell:
+              left half  → left-0  to left-1/2  (connects from previous step)
+              right half → left-1/2 to right-0  (connects to next step)
+            Circle sits above the connector via relative z-10.
+            top-3 (12px) = vertical center of the 24px circle.
+          */}
           <div className="hidden md:flex items-start">
             {STEP_META.map((step, i) => {
               const isCompleted = i < currentIdx;
-              const isCurrent = i === currentIdx;
-              const isFuture = i > currentIdx;
-              const isLast = i === STEP_META.length - 1;
+              const isCurrent   = i === currentIdx;
+              const isFuture    = i > currentIdx;
+              const isFirst     = i === 0;
+              const isLast      = i === STEP_META.length - 1;
+
+              // Colour of the left-side connector entering this step
+              const leftLineClass = i > 0 && (i - 1) < currentIdx
+                ? STEP_META[i - 1].line
+                : 'bg-slate-200';
+
+              // Colour of the right-side connector leaving this step
+              const rightLineClass = isCompleted ? step.line : 'bg-slate-200';
 
               return (
-                <div key={step.key} className="flex items-start flex-1 min-w-0">
-                  <div className="flex flex-col items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => !isCurrent && !updatingStep && setPendingStep(step)}
-                      disabled={isCurrent || updatingStep}
-                      className={cn(
-                        'w-6 h-6 rounded-full flex items-center justify-center transition-all',
-                        isCompleted && `${step.circle} shadow-sm`,
-                        isCurrent && `${step.circle} ring-4 ${step.ring} shadow-sm`,
-                        isFuture && 'bg-white border-2 border-slate-200 hover:border-slate-300'
-                      )}
-                    >
-                      {isCompleted && <Check className="h-3 w-3 text-white" />}
-                    </button>
-                    <span
-                      className={cn(
-                        'text-[10px] text-center leading-tight px-0.5',
-                        isCurrent ? 'font-semibold text-slate-800' : '',
-                        isCompleted ? 'text-slate-500' : '',
-                        isFuture ? 'text-slate-400' : '',
-                      )}
-                    >
-                      {step.short}
-                    </span>
-                  </div>
-                  {!isLast && (
-                    <div className="flex-1 mt-3 mx-1">
-                      <div className={cn('h-0.5 w-full rounded-full', isCompleted ? step.line : 'bg-slate-200')} />
-                    </div>
+                <div key={step.key} className="flex-1 flex flex-col items-center relative">
+                  {/* Left connector */}
+                  {!isFirst && (
+                    <div
+                      className={cn('absolute top-3 left-0 right-1/2 h-0.5 -translate-y-px', leftLineClass)}
+                    />
                   )}
+                  {/* Right connector */}
+                  {!isLast && (
+                    <div
+                      className={cn('absolute top-3 left-1/2 right-0 h-0.5 -translate-y-px', rightLineClass)}
+                    />
+                  )}
+
+                  {/* Circle button */}
+                  <button
+                    onClick={() => !isCurrent && !updatingStep && setPendingStep(step)}
+                    disabled={isCurrent || updatingStep}
+                    className={cn(
+                      'w-6 h-6 rounded-full flex items-center justify-center transition-all relative z-10',
+                      isCompleted && `${step.circle} shadow-sm`,
+                      isCurrent  && `${step.circle} ring-4 ${step.ring} shadow-sm`,
+                      isFuture   && 'bg-white border-2 border-slate-200 hover:border-slate-300',
+                    )}
+                  >
+                    {isCompleted && <Check className="h-3 w-3 text-white" />}
+                  </button>
+
+                  {/* Label */}
+                  <span
+                    className={cn(
+                      'mt-1.5 text-[10px] text-center leading-tight w-full px-1 truncate',
+                      isCurrent  ? 'font-semibold text-slate-800' : '',
+                      isCompleted ? 'text-slate-500' : '',
+                      isFuture   ? 'text-slate-400' : '',
+                    )}
+                  >
+                    {step.short}
+                  </span>
                 </div>
               );
             })}
