@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Blue rounded background -->
+  <rect width="48" height="48" rx="10" fill="#1E40AF"/>
+  <!-- House icon, scaled to fill 34×34 centered in 48×48 (7px margin each side) -->
+  <svg x="7" y="7" width="34" height="34" viewBox="0 0 28 28">
+    <!-- House silhouette (roof + walls) -->
+    <path d="M14 3L26 13H22V24H16V17H12V24H6V13H2L14 3Z" fill="white"/>
+    <!-- Door cut-out in blue so it reads as an opening -->
+    <rect x="11.5" y="17" width="5" height="7" rx="1" fill="#1E40AF"/>
+  </svg>
+</svg>

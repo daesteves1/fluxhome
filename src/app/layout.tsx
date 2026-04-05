@@ -11,6 +11,13 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 export const metadata: Metadata = {
   title: 'HomeFlux',
   description: 'Plataforma de mediação de crédito habitação',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' },
+    ],
+    apple: '/favicon.svg',
+  },
 };
 
 export default async function RootLayout({
