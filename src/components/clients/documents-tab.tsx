@@ -392,8 +392,8 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId }: Pr
     <>
       <div className="space-y-5">
         {/* Toolbar */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <ManageDocumentsPanel
               clientId={client.id}
               mortgageType={(client.mortgage_type as string | null) ?? null}
@@ -447,12 +447,14 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId }: Pr
             </Dialog>
           </div>
 
-          <DownloadDocumentsModal
-            clientId={client.id}
-            clientName={client.p1_name}
-            documentRequests={documentRequests}
-            uploads={uploads}
-          />
+          <div className="shrink-0">
+            <DownloadDocumentsModal
+              clientId={client.id}
+              clientName={client.p1_name}
+              documentRequests={documentRequests}
+              uploads={uploads}
+            />
+          </div>
         </div>
 
         {/* Document groups */}

@@ -93,8 +93,8 @@ export function ClientDetailTabs({
   return (
     <div>
       {/* Tab nav — sits on page background, full width, border-bottom separator */}
-      <div className="border-b border-slate-200">
-        <div className="flex h-11 items-stretch gap-1">
+      <div className="border-b border-slate-200 overflow-x-auto scrollbar-none">
+        <div className="flex h-11 items-stretch gap-1 min-w-max">
           {tabs.map(({ id, label, icon: Icon, badge }) => (
             <button
               key={id}

@@ -1,9 +1,7 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { Sidebar } from '@/components/layout/sidebar';
-import { TopBar } from '@/components/layout/topbar';
-import { ImpersonationBanner } from '@/components/layout/impersonation-banner';
+import { MobileLayoutShell } from '@/components/layout/mobile-layout-shell';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -28,7 +26,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!userProfile) redirect('/login');
 
-  // Read all cookies once
   const cookieStore = await cookies();
   const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
   const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
@@ -92,11 +89,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const role = userProfile.role as 'super_admin' | 'office_admin' | 'broker';
 
   return (
-    <div className="flex min-h-screen">
+    <>
       {primaryColor && primaryColor !== '#1E40AF' && (
         <style>{`:root { --brand-primary: ${primaryColor}; }`}</style>
       )}
-      <Sidebar
+      <MobileLayoutShell
         role={role}
         userName={userProfile.name}
         userEmail={userProfile.email}
@@ -105,18 +102,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         primaryColor={primaryColor}
         isOfficeAdmin={isOfficeAdmin}
         currentView={currentView}
-      />
-      <div className="flex flex-col flex-1 min-w-0">
-        {impersonatedName && (
-          <ImpersonationBanner impersonatedName={impersonatedName} />
-        )}
-        <TopBar userName={userProfile.name} />
-        <main className="flex-1 overflow-y-auto bg-slate-50">
-          <div className="max-w-5xl mx-auto px-6 py-6">
-            {children}
-          </div>
-        </main>
-      </div>
-    </div>
+        impersonatedName={impersonatedName}
+      >
+        {children}
+      </MobileLayoutShell>
+    </>
   );
 }

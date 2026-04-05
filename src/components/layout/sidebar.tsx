@@ -25,6 +25,7 @@ interface SidebarProps {
   primaryColor?: string;
   isOfficeAdmin?: boolean;
   currentView?: 'broker' | 'office';
+  onClose?: () => void;
 }
 
 const brokerLinks = [
@@ -54,6 +55,7 @@ export function Sidebar({
   logoUrl,
   isOfficeAdmin,
   currentView,
+  onClose,
 }: SidebarProps) {
   const t = useTranslations('nav');
   const pathname = usePathname();
@@ -98,7 +100,7 @@ export function Sidebar({
   const displayName = officeName || (role === 'super_admin' ? 'Super Admin' : 'HomeFlux');
 
   return (
-    <aside className="flex flex-col w-[240px] min-h-screen shrink-0" style={{ backgroundColor: '#0f172a' }}>
+    <aside className="flex flex-col w-[240px] min-h-screen shrink-0 h-full" style={{ backgroundColor: '#0f172a' }}>
       {/* Brand mark — h-14 matches TopBar height so divider aligns with header border */}
       <div className="flex items-center gap-2 px-5 h-14 shrink-0">
         {logoUrl ? (
@@ -170,8 +172,9 @@ export function Sidebar({
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
                 active
                   ? 'bg-white/10 text-white'
                   : 'text-white/50 hover:bg-white/[0.08] hover:text-white/85'

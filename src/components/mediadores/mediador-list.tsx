@@ -217,7 +217,7 @@ export function MediadorList({ brokers, pendingInvitations, currentBrokerId, off
               const isSelf = broker.id === currentBrokerId;
               const isToggling = togglingId === broker.id;
               return (
-                <div key={broker.id} className="flex items-center gap-4 px-4 py-3">
+                <div key={broker.id} className="flex items-center gap-3 px-4 py-3 min-h-[60px]">
                   {/* Avatar */}
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${broker.is_active ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
                     {broker.users?.name?.charAt(0).toUpperCase() ?? '?'}
@@ -259,7 +259,7 @@ export function MediadorList({ brokers, pendingInvitations, currentBrokerId, off
                     <button
                       onClick={() => toggleActive(broker)}
                       disabled={isToggling}
-                      className={`flex items-center gap-1.5 h-8 px-3 text-xs font-medium border rounded-lg transition-colors disabled:opacity-50 shrink-0 ${
+                      className={`flex items-center gap-1.5 h-9 px-3 text-xs font-medium border rounded-lg transition-colors disabled:opacity-50 shrink-0 min-w-[44px] ${
                         broker.is_active
                           ? 'border-slate-200 text-slate-600 hover:bg-slate-50'
                           : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
@@ -289,7 +289,7 @@ export function MediadorList({ brokers, pendingInvitations, currentBrokerId, off
           </div>
           <div className="divide-y divide-slate-100">
             {pendingInvitations.map((inv) => (
-              <div key={inv.id} className="flex items-center gap-4 px-4 py-3">
+              <div key={inv.id} className="flex items-center gap-3 px-4 py-3 min-h-[60px]">
                 <div className="w-9 h-9 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                   <Mail className="h-4 w-4" />
                 </div>
