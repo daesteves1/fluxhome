@@ -18,8 +18,9 @@ import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import { HomeFluxLogoMark } from '@/components/layout/homeflux-logo';
 import { ComparisonTable } from '@/components/propostas/comparison-table';
+import { PropostasCharts } from '@/components/propostas/propostas-charts';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
-import { calcSubtotalBanco, calcSubtotalExterno, fmtEur, fmtPct } from '@/types/proposta';
+import { calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, fmtEur, fmtPct } from '@/types/proposta';
 
 type DocRequest = {
   id: string;
@@ -54,12 +55,19 @@ function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[];
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {propostas.map((p) => {
         const isRec = p.id === recommendedId;
-        const subBanco = calcSubtotalBanco(p);
-        const subExt = calcSubtotalExterno(p);
+        const totalBanco = calcPrestacaoTotalBanco(p);
+        const totalExt = calcPrestacaoTotalExterno(p);
+        const initials = p.bank_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+        const isExpired = p.validade_ate ? new Date(p.validade_ate) < new Date() : false;
         return (
           <div key={p.id} className={`rounded-xl border p-4 ${isRec ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <p className="font-bold text-base text-slate-900">{p.bank_name}</p>
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 text-white ${isRec ? 'bg-blue-600' : 'bg-[#1E3A5F]'}`}>
+                  {initials}
+                </div>
+                <p className="font-bold text-base text-slate-900">{p.bank_name}</p>
+              </div>
               {isRec && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5 shrink-0">
                   <Star className="h-3 w-3 fill-current" />
@@ -67,61 +75,38 @@ function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[];
                 </span>
               )}
             </div>
-            {subBanco > 0 && (
+            {totalBanco > 0 && (
               <div className="mt-1">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Com seguros banco</p>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Prestação total (seguros banco)</p>
                 <p className={`text-2xl font-bold mt-0.5 ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
-                  {fmtEur(subBanco)}<span className="text-sm font-normal text-slate-400">/mês</span>
+                  {fmtEur(totalBanco)}<span className="text-sm font-normal text-slate-400">/mês</span>
                 </p>
               </div>
             )}
-            {subExt > 0 && (
-              <p className="text-xs text-slate-500 mt-1">Com seguros externos: {fmtEur(subExt)}/mês</p>
+            {totalExt > 0 && totalExt !== totalBanco && (
+              <p className="text-xs text-slate-500 mt-1">Com seguros externos: {fmtEur(totalExt)}/mês</p>
             )}
-            {p.tan && <p className="text-xs text-slate-500 mt-0.5">TAN: {fmtPct(p.tan)}</p>}
+            <div className="flex flex-wrap gap-3 mt-2">
+              {p.tan && <p className="text-xs text-slate-500">TAN: <span className="font-medium text-slate-700">{fmtPct(p.tan)}</span></p>}
+              {p.taeg && <p className="text-xs text-slate-500">TAEG: <span className="font-medium text-slate-700">{fmtPct(p.taeg)}</span></p>}
+              {p.spread && <p className="text-xs text-slate-500">Spread: <span className="font-medium text-slate-700">{fmtPct(p.spread)}</span></p>}
+            </div>
+            {p.condicoes_spread && p.condicoes_spread.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {p.condicoes_spread.map((c: string) => (
+                  <span key={c} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{c}</span>
+                ))}
+              </div>
+            )}
+            {p.validade_ate && (
+              <p className={`text-[11px] mt-2 ${isExpired ? 'text-red-600 font-medium' : 'text-slate-400'}`}>
+                Válida até {p.validade_ate}{isExpired ? ' — Expirada' : ''}
+              </p>
+            )}
           </div>
         );
       })}
     </div>
-  );
-}
-
-// ─── Bar Chart ────────────────────────────────────────────────────────────────
-
-function BarChart({ propostas, recommendedId }: { propostas: BankProposta[]; recommendedId: string | null }) {
-  const values = propostas.map((p) => p.monthly_payment ?? 0);
-  const max = Math.max(...values, 1);
-  const barH = 28;
-  const gap = 10;
-  const labelW = 80;
-  const barMaxW = 160;
-  const valW = 80;
-  const rowH = barH + gap;
-  const svgH = propostas.length * rowH + 4;
-
-  return (
-    <svg width="100%" height={svgH} viewBox={`0 0 ${labelW + barMaxW + valW + 16} ${svgH}`} className="overflow-visible">
-      {propostas.map((p, i) => {
-        const val = values[i];
-        const bw = val > 0 ? (val / max) * barMaxW : 0;
-        const y = i * rowH;
-        const isRec = p.id === recommendedId;
-        const fill = isRec ? '#3b82f6' : '#94a3b8';
-        return (
-          <g key={p.id} transform={`translate(0,${y})`}>
-            <text x={labelW - 6} y={barH / 2 + 4} textAnchor="end" fontSize="11" fill="#64748b" fontWeight={isRec ? '600' : '400'}>
-              {p.bank_name}
-            </text>
-            <rect x={labelW} y={2} width={bw} height={barH - 4} rx="4" fill={fill} />
-            {val > 0 && (
-              <text x={labelW + bw + 8} y={barH / 2 + 4} fontSize="11" fill={isRec ? '#1d4ed8' : '#334155'} fontWeight={isRec ? '600' : '400'}>
-                {fmtEur(val)}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
   );
 }
 
@@ -152,7 +137,7 @@ function PortalMapaCard({
   const [confirming, setConfirming] = useState(false);
 
   const selectedBank = propostas.find((p) => p.id === selectedBankId);
-  const hasChart = propostas.some((p) => (p.monthly_payment ?? 0) > 0);
+  const hasChart = propostas.some((p) => (p.monthly_payment ?? 0) > 0 || (p.spread ?? 0) > 0);
 
   async function handleConfirmChoice() {
     if (!selectedBankId || !insuranceChoice || !selectedBank) return;
@@ -188,12 +173,9 @@ function PortalMapaCard({
       {/* Comparison table */}
       <ComparisonTable propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
 
-      {/* Bar chart */}
+      {/* Charts */}
       {hasChart && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Prestação mensal (sem seguros)</p>
-          <BarChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
-        </div>
+        <PropostasCharts propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
       )}
 
       {/* Broker notes */}

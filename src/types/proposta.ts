@@ -40,6 +40,12 @@ export type BankProposta = {
   // Monthly charges
   manutencao_conta: number | null;
   manutencao_anual: boolean;
+  outras_comissoes_mensais: number | null;
+  // Validity & residual
+  validade_ate: string | null;  // ISO date string
+  valor_residual: number | null;
+  // Spread conditions (array of tags)
+  condicoes_spread: string[] | null;
   // Other
   bank_pdf_path: string | null;
   notes: string | null;
@@ -103,11 +109,19 @@ export const BANK_SUGGESTIONS = [
 ];
 
 export function calcSubtotalBanco(p: BankProposta): number {
-  return (p.monthly_payment ?? 0) + (p.vida_banco ?? 0) + (p.multiriscos_banco ?? 0);
+  return (p.monthly_payment ?? 0) + (p.vida_banco ?? 0) + (p.multiriscos_banco ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
 }
 
 export function calcSubtotalExterno(p: BankProposta): number {
-  return (p.monthly_payment ?? 0) + (p.vida_externa ?? 0) + (p.multiriscos_externa ?? 0);
+  return (p.monthly_payment ?? 0) + (p.vida_externa ?? 0) + (p.multiriscos_externa ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+}
+
+export function calcPrestacaoTotalBanco(p: BankProposta): number {
+  return (p.monthly_payment ?? 0) + (p.vida_banco ?? 0) + (p.multiriscos_banco ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+}
+
+export function calcPrestacaoTotalExterno(p: BankProposta): number {
+  return (p.monthly_payment ?? 0) + (p.vida_externa ?? 0) + (p.multiriscos_externa ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
 }
 
 export function calcTotalEncargosUnicos(p: BankProposta): number {

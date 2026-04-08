@@ -18,6 +18,75 @@ import {
   fmtEur,
 } from '@/types/proposta';
 
+const SPREAD_CONDITION_OPTIONS = [
+  'Domiciliação de ordenado',
+  'Cartão de crédito ativo',
+  'Débito direto',
+  'Seguro de vida banco',
+  'Seguro multirriscos banco',
+  'PPR banco',
+  'Fundo de investimento',
+  'Conta poupança',
+  'Produto de capitalização',
+];
+
+function CondicoesSpreadInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [custom, setCustom] = useState('');
+
+  function toggle(opt: string) {
+    onChange(value.includes(opt) ? value.filter((x) => x !== opt) : [...value, opt]);
+  }
+
+  function addCustom() {
+    const trimmed = custom.trim();
+    if (trimmed && !value.includes(trimmed)) {
+      onChange([...value, trimmed]);
+    }
+    setCustom('');
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {SPREAD_CONDITION_OPTIONS.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => toggle(opt)}
+            className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+              value.includes(opt)
+                ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+      {value.filter((v) => !SPREAD_CONDITION_OPTIONS.includes(v)).map((custom) => (
+        <span key={custom} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-[#1E3A5F] text-white rounded-full">
+          {custom}
+          <button type="button" onClick={() => onChange(value.filter((x) => x !== custom))} className="hover:text-gray-300">
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <div className="flex gap-2 mt-1">
+        <Input
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+          placeholder="Outra condição…"
+          className="h-8 text-sm"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={addCustom} disabled={!custom.trim()}>
+          Adicionar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 type FormData = Omit<BankProposta, 'id' | 'client_id' | 'broker_id' | 'office_id' | 'created_at' | 'updated_at'>;
 
 function emptyForm(): FormData {
@@ -53,6 +122,10 @@ function emptyForm(): FormData {
     escritura: null,
     manutencao_conta: null,
     manutencao_anual: false,
+    outras_comissoes_mensais: null,
+    validade_ate: null,
+    valor_residual: null,
+    condicoes_spread: null,
     bank_pdf_path: null,
     notes: null,
   };
@@ -126,6 +199,10 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
     escritura: initialData.escritura,
     manutencao_conta: initialData.manutencao_conta,
     manutencao_anual: initialData.manutencao_anual,
+    outras_comissoes_mensais: initialData.outras_comissoes_mensais,
+    validade_ate: initialData.validade_ate,
+    valor_residual: initialData.valor_residual,
+    condicoes_spread: initialData.condicoes_spread,
     bank_pdf_path: initialData.bank_pdf_path,
     notes: initialData.notes,
   } : emptyForm());
@@ -374,6 +451,26 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
             )}
           </div>
 
+            <div>
+              <Label>Validade da proposta</Label>
+              <Input
+                type="date"
+                value={form.validade_ate ?? ''}
+                onChange={(e) => set('validade_ate', e.target.value || null)}
+              />
+            </div>
+
+            <div>
+              <Label>Capital residual (€)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={numField(form.valor_residual)}
+                onChange={(e) => set('valor_residual', parseNum(e.target.value))}
+                placeholder="0"
+              />
+            </div>
+
           {/* PDF upload — always visible */}
           <div className="pt-2 border-t border-gray-100">
             <Label className="mb-1.5 block">Documento do banco (PDF)</Label>
@@ -539,7 +636,7 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
         {/* Card 5: Monthly account fee */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Encargos Mensais</h2>
-          <div className="grid grid-cols-2 gap-4 items-end">
+          <div className="grid grid-cols-2 gap-4 items-end md:grid-cols-3">
             <div>
               <Label>Manutenção de conta (€/mês)</Label>
               <Input
@@ -550,6 +647,16 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
                 placeholder="4.50"
               />
             </div>
+            <div>
+              <Label>Outras comissões mensais (€)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={numField(form.outras_comissoes_mensais)}
+                onChange={(e) => set('outras_comissoes_mensais', parseNum(e.target.value))}
+                placeholder="0"
+              />
+            </div>
             <div className="flex items-center gap-2 pb-1">
               <Switch
                 checked={form.manutencao_anual}
@@ -557,6 +664,14 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
               />
               <Label>Faturação anual</Label>
             </div>
+          </div>
+          {/* Spread conditions tags */}
+          <div>
+            <Label className="mb-2 block">Condições para o spread</Label>
+            <CondicoesSpreadInput
+              value={form.condicoes_spread ?? []}
+              onChange={(tags) => set('condicoes_spread', tags.length ? tags : null)}
+            />
           </div>
         </div>
 
