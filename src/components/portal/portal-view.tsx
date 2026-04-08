@@ -51,12 +51,15 @@ type PropostaChoice = {
 // ─── Summary Cards ────────────────────────────────────────────────────────────
 
 function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[]; recommendedId: string | null }) {
+  const minMonthly = Math.min(...propostas.map((p) => calcPrestacaoTotalBanco(p)).filter((v) => v > 0));
+
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
       {propostas.map((p) => {
         const isRec = p.id === recommendedId;
         const totalBanco = calcPrestacaoTotalBanco(p);
         const totalExt = calcPrestacaoTotalExterno(p);
+        const hasExternal = (p.vida_externa ?? 0) > 0 || (p.multiriscos_externa ?? 0) > 0;
         const initials = p.bank_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
 
         const now = new Date();
@@ -65,67 +68,99 @@ function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[];
         const daysUntilExpiry = expiryDate && !isExpired
           ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
           : null;
-        const expiresSoon = daysUntilExpiry !== null && daysUntilExpiry <= 7;
+        const expiresSoon = daysUntilExpiry !== null && daysUntilExpiry <= 14;
+        const isLowestPayment = totalBanco > 0 && totalBanco === minMonthly;
+
+        const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        const fmtDate = (s: string) => {
+          const [y, m, d] = s.split('-').map(Number);
+          return `${d} ${MONTHS_PT[m-1]} ${y}`;
+        };
+
+        let borderClass = 'border border-slate-200';
+        if (isRec) borderClass = 'border-2 border-blue-500 shadow-md';
+        else if (isExpired) borderClass = 'border border-slate-200 border-l-4 border-l-red-400';
+        else if (isLowestPayment) borderClass = 'border border-slate-200 border-l-4 border-l-green-500';
 
         return (
-          <div
-            key={p.id}
-            className={`rounded-xl border-l-4 border p-4 ${
-              isRec
-                ? 'border-blue-300 border-l-blue-600 bg-blue-50'
-                : 'border-slate-200 border-l-slate-300 bg-white'
-            }`}
-          >
-            {/* Recommended badge at top */}
+          <div key={p.id} className={`rounded-xl bg-white p-4 ${borderClass}`}>
+            {/* Recommended badge */}
             {isRec && (
-              <div className="mb-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-blue-600 rounded-full px-2.5 py-1">
+              <div className="mb-3">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-blue-600 rounded-full px-2.5 py-1 w-full justify-center">
                   <Star className="h-3 w-3 fill-current" />
                   Recomendado
                 </span>
               </div>
             )}
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 text-white ${isRec ? 'bg-blue-600' : 'bg-[#1E3A5F]'}`}>
-                {initials}
+
+            {/* Header: logo + name + rate type */}
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 text-white ${isRec ? 'bg-blue-600' : 'bg-[#1E3A5F]'}`}>
+                  {initials}
+                </div>
+                <p className="font-bold text-base text-slate-900 leading-tight">{p.bank_name}</p>
               </div>
-              <p className="font-bold text-base text-slate-900">{p.bank_name}</p>
+              {p.rate_type && (
+                <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">
+                  {p.rate_type === 'variavel' ? 'Variável' : p.rate_type === 'fixa' ? 'Fixa' : 'Mista'}
+                </span>
+              )}
             </div>
-            {totalBanco > 0 && (
-              <div className="mb-2">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prestação total (seguros banco)</p>
-                <p className={`text-xl sm:text-2xl font-bold ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
-                  {fmtEur(totalBanco)}<span className="text-sm font-normal text-slate-400">/mês</span>
+
+            {/* Prestação base */}
+            {p.monthly_payment && p.monthly_payment > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prestação base</p>
+                <p className={`text-3xl font-bold ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
+                  {fmtEur(p.monthly_payment)}<span className="text-sm font-normal text-slate-400">/mês</span>
                 </p>
               </div>
             )}
-            {totalExt > 0 && totalExt !== totalBanco && (
-              <p className="text-xs text-slate-500 mb-2">Com seguros externos: <span className="font-medium">{fmtEur(totalExt)}/mês</span></p>
-            )}
-            <div className="flex flex-wrap gap-3">
-              {p.tan && <p className="text-xs text-slate-500">TAN: <span className="font-semibold text-slate-700">{fmtPct(p.tan)}</span></p>}
-              {p.taeg && <p className="text-xs text-slate-500">TAEG: <span className="font-semibold text-slate-700">{fmtPct(p.taeg)}</span></p>}
-              {p.spread && <p className="text-xs text-slate-500">Spread: <span className="font-semibold text-slate-700">{fmtPct(p.spread)}</span></p>}
+
+            {/* Two-column insurance totals */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {totalBanco > 0 && (
+                <div className="bg-slate-50 rounded-lg p-2">
+                  <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Com seguros banco</p>
+                  <p className="text-sm font-bold text-slate-800">{fmtEur(totalBanco)}<span className="text-[10px] font-normal text-slate-400">/mês</span></p>
+                </div>
+              )}
+              {hasExternal && totalExt > 0 && (
+                <div className="bg-slate-50 rounded-lg p-2">
+                  <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Com seguros ext.</p>
+                  <p className="text-sm font-bold text-slate-800">{fmtEur(totalExt)}<span className="text-[10px] font-normal text-slate-400">/mês</span></p>
+                </div>
+              )}
             </div>
+
+            <div className="h-px bg-slate-100 mb-3" />
+
+            {/* Rate metrics */}
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 mb-2">
+              {p.tan && <span>TAN: <strong className="text-slate-700">{fmtPct(p.tan)}</strong></span>}
+              {p.taeg && <span>TAEG: <strong className="text-slate-700">{fmtPct(p.taeg)}</strong></span>}
+              {p.spread && <span>Spread: <strong className="text-slate-700">{fmtPct(p.spread)}</strong></span>}
+            </div>
+
+            {/* Conditions */}
             {p.condicoes_spread && p.condicoes_spread.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {p.condicoes_spread.map((c: string) => (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {p.condicoes_spread.slice(0, 3).map((c: string) => (
                   <span key={c} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{c}</span>
                 ))}
+                {p.condicoes_spread.length > 3 && (
+                  <span className="text-[10px] text-slate-400">+{p.condicoes_spread.length - 3} mais</span>
+                )}
               </div>
             )}
-            {isExpired && (
-              <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-white bg-red-500 rounded-full px-2 py-0.5">
-                Expirada
-              </span>
-            )}
-            {expiresSoon && !isExpired && (
-              <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
-                Expira em {daysUntilExpiry} dia{daysUntilExpiry !== 1 ? 's' : ''}
-              </span>
-            )}
-            {p.validade_ate && !isExpired && !expiresSoon && (
-              <p className="text-[11px] mt-2 text-slate-400">Válida até {p.validade_ate}</p>
+
+            {/* Validity */}
+            {p.validade_ate && (
+              <p className={`text-[11px] ${isExpired ? 'text-red-600 font-medium' : expiresSoon ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                {isExpired ? '⚠ Expirada' : expiresSoon ? `⚠ Expira em ${daysUntilExpiry} dias` : `Válida até ${fmtDate(p.validade_ate)}`}
+              </p>
             )}
           </div>
         );
@@ -149,19 +184,16 @@ function PortalMapaCard({
   currentChoice: PropostaChoice;
   onChoiceSaved: (c: PropostaChoice) => void;
 }) {
-  const isMyChoice = (pid: string) => currentChoice?.proposta_id === pid;
-  const anyChoice = currentChoice !== null && propostas.some((p) => isMyChoice(p.id));
-
-  const [selectedBankId, setSelectedBankId] = useState<string>(
-    anyChoice ? (currentChoice?.proposta_id ?? '') : ''
-  );
-  const [insuranceChoice, setInsuranceChoice] = useState<'banco' | 'externa' | ''>(
-    anyChoice ? (currentChoice?.insurance_choice ?? '') : ''
-  );
+  const anyChoice = currentChoice !== null && propostas.some((p) => p.id === currentChoice?.proposta_id);
+  const [editing, setEditing] = useState(false);
+  const [selectedBankId, setSelectedBankId] = useState<string>(anyChoice ? (currentChoice?.proposta_id ?? '') : '');
+  const [insuranceChoice, setInsuranceChoice] = useState<'banco' | 'externa' | ''>(anyChoice ? (currentChoice?.insurance_choice ?? '') : '');
+  const [notes, setNotes] = useState('');
   const [confirming, setConfirming] = useState(false);
 
   const selectedBank = propostas.find((p) => p.id === selectedBankId);
   const hasChart = propostas.some((p) => (p.monthly_payment ?? 0) > 0 || (p.spread ?? 0) > 0);
+  const showChoiceForm = !anyChoice || editing;
 
   async function handleConfirmChoice() {
     if (!selectedBankId || !insuranceChoice || !selectedBank) return;
@@ -170,24 +202,22 @@ function PortalMapaCard({
       const res = await fetch(`/api/portal/${portalToken}/proposta-choice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          proposta_id: selectedBankId,
-          bank_name: selectedBank.bank_name,
-          insurance_choice: insuranceChoice,
-        }),
+        body: JSON.stringify({ proposta_id: selectedBankId, bank_name: selectedBank.bank_name, insurance_choice: insuranceChoice }),
       });
       if (res.ok) {
-        onChoiceSaved({
-          proposta_id: selectedBankId,
-          bank_name: selectedBank.bank_name,
-          insurance_choice: insuranceChoice,
-          confirmed_at: new Date().toISOString(),
-        });
+        onChoiceSaved({ proposta_id: selectedBankId, bank_name: selectedBank.bank_name, insurance_choice: insuranceChoice, confirmed_at: new Date().toISOString() });
+        setEditing(false);
       }
     } finally {
       setConfirming(false);
     }
   }
+
+  const insuranceLabel = currentChoice?.insurance_choice === 'banco' ? 'seguros do banco' : 'seguros externos';
+  const choiceBank = propostas.find((p) => p.id === currentChoice?.proposta_id);
+  const choiceMonthly = choiceBank
+    ? (currentChoice?.insurance_choice === 'banco' ? calcPrestacaoTotalBanco(choiceBank) : calcPrestacaoTotalExterno(choiceBank))
+    : 0;
 
   return (
     <div className="space-y-5">
@@ -197,9 +227,13 @@ function PortalMapaCard({
       {/* Comparison table */}
       <ComparisonTable propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
 
-      {/* Charts */}
+      {/* Charts section */}
       {hasChart && (
-        <PropostasCharts propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+        <div className="border-t border-slate-200 pt-6">
+          <p className="text-base font-bold text-slate-900 mb-1">Análise Comparativa</p>
+          <p className="text-xs text-slate-500 mb-4">Visualize e compare as propostas para tomar a melhor decisão</p>
+          <PropostasCharts propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+        </div>
       )}
 
       {/* Broker notes */}
@@ -210,78 +244,133 @@ function PortalMapaCard({
         </div>
       )}
 
-      {/* A minha escolha */}
+      {/* Client choice section */}
       <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <p className="text-sm font-semibold text-slate-800 mb-4">A minha escolha</p>
+        <p className="text-base font-bold text-slate-800 mb-1">A minha preferência</p>
+        <p className="text-xs text-slate-500 mb-4">Indique ao seu mediador qual a proposta que prefere. Isto não é vinculativo.</p>
 
-        {/* Bank selector */}
-        <div className="mb-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Banco</p>
-          <div className="space-y-2">
-            {propostas.map((p) => {
-              const isRec = p.id === mapa.recommended_proposta_id;
-              return (
-                <label key={p.id} className="flex items-center gap-2.5 cursor-pointer group">
-                  <input
-                    type="radio"
-                    name="bank-choice"
-                    value={p.id}
-                    checked={selectedBankId === p.id}
-                    onChange={() => setSelectedBankId(p.id)}
-                    className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <span className="text-sm text-slate-700 group-hover:text-slate-900">{p.bank_name}</span>
-                  {isRec && <Star className="h-3.5 w-3.5 text-amber-500 shrink-0 fill-current" />}
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Insurance choice */}
-        <div className="mb-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Seguros</p>
-          <div className="space-y-2">
-            {(['banco', 'externa'] as const).map((opt) => (
-              <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
-                <input
-                  type="radio"
-                  name="insurance-choice"
-                  value={opt}
-                  checked={insuranceChoice === opt}
-                  onChange={() => setInsuranceChoice(opt)}
-                  className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                />
-                <span className="text-sm text-slate-700 group-hover:text-slate-900">
-                  {opt === 'banco' ? 'Seguros do banco' : 'Seguros externos (Asisa)'}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {anyChoice ? (
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1">
-              <CheckCircle className="h-3.5 w-3.5" />
-              Escolha confirmada — {currentChoice!.bank_name}
-            </span>
-            <button
-              onClick={() => { setSelectedBankId(''); setInsuranceChoice(''); onChoiceSaved(null); }}
-              className="text-xs text-slate-400 hover:text-slate-600 underline"
-            >
-              Alterar
+        {/* Success state */}
+        {anyChoice && !editing && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-3">
+            <div className="flex items-start gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-green-800">Preferência guardada</p>
+                <p className="text-sm text-green-700 mt-0.5">
+                  Optou por <strong>{currentChoice!.bank_name}</strong> com {insuranceLabel}
+                  {choiceMonthly > 0 && ` — ${fmtEur(choiceMonthly)}/mês`}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setEditing(true)} className="mt-2 text-xs text-green-600 hover:text-green-800 underline">
+              Alterar preferência
             </button>
           </div>
-        ) : (
-          <button
-            onClick={handleConfirmChoice}
-            disabled={!selectedBankId || !insuranceChoice || confirming}
-            className="h-9 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors inline-flex items-center gap-2"
-          >
-            {confirming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Confirmar escolha
-          </button>
+        )}
+
+        {/* Bank selection form */}
+        {showChoiceForm && (
+          <div className="space-y-4">
+            {/* Bank cards */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Escolha o banco</p>
+              <div className="overflow-x-auto">
+                <div className="flex gap-3 pb-2" style={{ minWidth: 'max-content' }}>
+                  {propostas.map((p) => {
+                    const isRec = p.id === mapa.recommended_proposta_id;
+                    const total = calcPrestacaoTotalBanco(p);
+                    const initials = p.bank_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+                    const isSelected = selectedBankId === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => { setSelectedBankId(p.id); setInsuranceChoice(''); }}
+                        className={`flex flex-col items-center p-3 rounded-xl border-2 w-[130px] shrink-0 transition-all ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold text-white mb-2 ${isSelected ? 'bg-blue-600' : 'bg-[#1E3A5F]'}`}>
+                          {initials}
+                          {isSelected && (
+                            <CheckCircle className="h-4 w-4 absolute text-blue-600" />
+                          )}
+                        </div>
+                        <p className="text-xs font-semibold text-slate-800 text-center leading-tight mb-1">{p.bank_name}</p>
+                        {total > 0 && <p className="text-[10px] text-slate-500">{fmtEur(total)}/mês</p>}
+                        {isRec && <span className="text-[9px] font-bold text-blue-600 mt-1">★ Recomendado</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Insurance choice */}
+            {selectedBankId && selectedBank && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Tipo de seguros</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { value: 'banco' as const, label: 'Seguros do banco', sublabel: 'Fornecidos pelo banco credor', total: calcPrestacaoTotalBanco(selectedBank) },
+                    { value: 'externa' as const, label: 'Seguros externos', sublabel: 'Ex: Asisa, Lusitania', total: calcPrestacaoTotalExterno(selectedBank) },
+                  ].map(({ value, label, sublabel, total }) => (
+                    <button
+                      key={value}
+                      onClick={() => setInsuranceChoice(value)}
+                      className={`flex flex-col items-start p-3 rounded-xl border-2 transition-all text-left ${
+                        insuranceChoice === value
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        {insuranceChoice === value
+                          ? <CheckCircle className="h-4 w-4 text-blue-600 shrink-0" />
+                          : <div className="h-4 w-4 rounded-full border-2 border-slate-300 shrink-0" />
+                        }
+                        <p className="text-sm font-semibold text-slate-800">{label}</p>
+                      </div>
+                      <p className="text-[11px] text-slate-500 pl-6">{sublabel}</p>
+                      {total > 0 && <p className="text-sm font-bold text-slate-900 pl-6 mt-1">{fmtEur(total)}/mês</p>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Optional notes */}
+            {selectedBankId && insuranceChoice && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Observações (opcional)</p>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Tem alguma questão ou comentário para o seu mediador?"
+                  className="w-full text-sm border border-slate-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  rows={2}
+                />
+              </div>
+            )}
+
+            {/* Submit */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleConfirmChoice}
+                disabled={!selectedBankId || !insuranceChoice || confirming}
+                className="flex-1 sm:flex-none h-10 px-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors inline-flex items-center justify-center gap-2"
+              >
+                {confirming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Confirmar preferência
+              </button>
+              {editing && (
+                <button onClick={() => setEditing(false)} className="text-xs text-slate-400 hover:text-slate-600">
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

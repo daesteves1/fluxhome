@@ -61,7 +61,6 @@ function SectionHeader({ label, colCount, collapsible, collapsed, onToggle }: Se
 }
 
 interface DataRowProps {
-  rowNum?: number;
   label: string;
   values: (string | null | React.ReactNode)[];
   propostas: BankProposta[];
@@ -72,21 +71,14 @@ interface DataRowProps {
   greenIndices?: number[];
 }
 
-function DataRow({ rowNum, label, values, propostas, recommendedId, highlightedCells, rowKey, isBold, greenIndices = [] }: DataRowProps) {
+function DataRow({ label, values, propostas, recommendedId, highlightedCells, rowKey, isBold, greenIndices = [] }: DataRowProps) {
   return (
     <tr className="hover:bg-gray-50/50">
       <td className={cn(
         'sticky left-0 z-10 px-3 py-1.5 text-xs border border-gray-200 bg-white w-[220px] min-w-[200px]',
         isBold ? 'font-semibold text-gray-800 bg-[#E8EEF7]' : 'text-gray-600'
       )}>
-        <span className="flex items-center gap-2">
-          {rowNum != null && (
-            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold shrink-0">
-              {rowNum}
-            </span>
-          )}
-          {label}
-        </span>
+        {label}
       </td>
       {propostas.map((p, i) => {
         const cellKey = `${rowKey}-${p.id}`;
@@ -190,13 +182,13 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
         <tbody>
           {/* ── Loan info ── */}
           <SectionHeader label="Informação do Empréstimo" colCount={propostas.length} />
-          <DataRow rowNum={1} label="Montante" values={propostas.map((p) => fmtEur(p.loan_amount))} rowKey="loan_amount" {...rowProps} />
-          <DataRow rowNum={2} label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} rowKey="term_months" {...rowProps} />
-          <DataRow rowNum={3} label="Tipo de taxa" values={propostas.map((p) => p.rate_type ? (RATE_TYPE_LABELS[p.rate_type] ?? null) : null)} rowKey="rate_type" {...rowProps} />
-          <DataRow rowNum={4} label="Euribor" values={propostas.map((p) => p.euribor_index ? (EURIBOR_LABELS[p.euribor_index] ?? null) : null)} rowKey="euribor_index" {...rowProps} />
-          <DataRow rowNum={5} label="Spread" values={propostas.map((p) => fmtPct(p.spread))} rowKey="spread" {...rowProps} />
-          <DataRow rowNum={6} label="TAN" values={propostas.map((p) => fmtPct(p.tan))} rowKey="tan" {...rowProps} />
-          <DataRow rowNum={7} label="TAEG" values={propostas.map((p) => fmtPct(p.taeg))} rowKey="taeg" {...rowProps} />
+          <DataRow label="Montante" values={propostas.map((p) => fmtEur(p.loan_amount))} rowKey="loan_amount" {...rowProps} />
+          <DataRow label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} rowKey="term_months" {...rowProps} />
+          <DataRow label="Tipo de taxa" values={propostas.map((p) => p.rate_type ? (RATE_TYPE_LABELS[p.rate_type] ?? null) : null)} rowKey="rate_type" {...rowProps} />
+          <DataRow label="Euribor" values={propostas.map((p) => p.euribor_index ? (EURIBOR_LABELS[p.euribor_index] ?? null) : null)} rowKey="euribor_index" {...rowProps} />
+          <DataRow label="Spread" values={propostas.map((p) => fmtPct(p.spread))} rowKey="spread" {...rowProps} />
+          <DataRow label="TAN" values={propostas.map((p) => fmtPct(p.tan))} rowKey="tan" {...rowProps} />
+          <DataRow label="TAEG" values={propostas.map((p) => fmtPct(p.taeg))} rowKey="taeg" {...rowProps} />
           {propostas.some((p) => p.condicoes_spread?.length) && (
             <DataRow
               label="Condições para o spread"
@@ -218,8 +210,15 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
               label="Válida até"
               values={propostas.map((p) => {
                 if (!p.validade_ate) return null;
-                const expired = new Date(p.validade_ate) < new Date();
-                return <span className={expired ? 'text-red-600 font-medium' : undefined}>{p.validade_ate}</span>;
+                const expiry = new Date(p.validade_ate);
+                const now = new Date();
+                const days = Math.ceil((expiry.getTime() - now.getTime()) / (1000*60*60*24));
+                const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                const [yr, mo, dy] = p.validade_ate.split('-').map(Number);
+                const formatted = `${dy} ${MONTHS[mo-1]} ${yr}`;
+                if (days < 0) return <span className="text-red-600 font-medium">⚠ Expirada</span>;
+                if (days <= 14) return <span className="text-amber-600 font-medium">⚠ Expira em {days} dias</span>;
+                return <span className="text-slate-600">{formatted}</span>;
               })}
               rowKey="validade_ate"
               {...rowProps}
@@ -228,7 +227,7 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
 
           {/* ── Monthly banco ── */}
           <SectionHeader label="Prestação Mensal — Seguro Banco" colCount={propostas.length} />
-          <DataRow rowNum={8} label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} rowKey="monthly_payment_banco" {...rowProps} />
+          <DataRow label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} rowKey="monthly_payment_banco" {...rowProps} />
           <DataRow label="Seguro de vida (banco)" values={propostas.map((p) => fmtEur(p.vida_banco))} rowKey="vida_banco" {...rowProps} />
           <DataRow label="Multirriscos (banco)" values={propostas.map((p) => fmtEur(p.multiriscos_banco))} rowKey="multiriscos_banco" {...rowProps} />
           <DataRow label="Manutenção de conta" values={propostas.map((p) => fmtEur(p.manutencao_conta))} rowKey="manutencao_conta_banco" {...rowProps} />
@@ -245,7 +244,7 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
 
           {/* ── Monthly externa ── */}
           <SectionHeader label="Prestação Mensal — Seguro Externo" colCount={propostas.length} />
-          <DataRow rowNum={9} label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} rowKey="monthly_payment_ext" {...rowProps} />
+          <DataRow label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} rowKey="monthly_payment_ext" {...rowProps} />
           <DataRow label="Seguro de vida (externo)" values={propostas.map((p) => fmtEur(p.vida_externa))} rowKey="vida_externa" {...rowProps} />
           <DataRow label="Multirriscos (externo)" values={propostas.map((p) => fmtEur(p.multiriscos_externa))} rowKey="multiriscos_externa" {...rowProps} />
           <DataRow label="Manutenção de conta" values={propostas.map((p) => fmtEur(p.manutencao_conta))} rowKey="manutencao_conta_ext" {...rowProps} />
@@ -268,7 +267,7 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
             collapsed={encargosCollapsed}
             onToggle={() => setEncargosCollapsed((v) => !v)}
           />
-          {!encargosCollapsed && ONE_TIME_CHARGE_FIELDS.map(({ key, label }, idx) => {
+          {!encargosCollapsed && ONE_TIME_CHARGE_FIELDS.map(({ key, label }) => {
             const vals = propostas.map((p) => p[key] as number | null);
             const min = getLowest(vals);
             const customHighlight: Record<string, string> = {};
@@ -280,7 +279,6 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
             return (
               <DataRow
                 key={key}
-                rowNum={10 + Math.floor(idx / ONE_TIME_CHARGE_FIELDS.length)}
                 label={label}
                 values={vals.map(fmtEur)}
                 rowKey={key}
@@ -299,10 +297,10 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
 
           {/* ── Monthly fee row (just manutenção — already shown above) ── */}
           <SectionHeader label="Encargos Mensais" colCount={propostas.length} />
-          <DataRow rowNum={11} label="Manutenção de conta" values={propostas.map((p) => fmtEur(p.manutencao_conta))} rowKey="manutencao_conta" {...rowProps} />
+          <DataRow label="Manutenção de conta" values={propostas.map((p) => fmtEur(p.manutencao_conta))} rowKey="manutencao_conta" {...rowProps} />
           <DataRow label="Faturação" values={propostas.map((p) => p.manutencao_anual ? 'Anual' : 'Mensal')} rowKey="manutencao_anual" {...rowProps} />
           {propostas.some((p) => p.outras_comissoes_mensais) && (
-            <DataRow rowNum={12} label="Outras comissões mensais" values={propostas.map((p) => fmtEur(p.outras_comissoes_mensais))} rowKey="outras_comissoes_mensais" {...rowProps} />
+            <DataRow label="Outras comissões mensais" values={propostas.map((p) => fmtEur(p.outras_comissoes_mensais))} rowKey="outras_comissoes_mensais" {...rowProps} />
           )}
         </tbody>
       </table>

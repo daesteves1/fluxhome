@@ -53,7 +53,17 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       bankPropostas = data ?? [];
     }
 
-    return NextResponse.json({ mapa: mapaRaw, bankPropostas });
+    let propostaChoice: unknown = null;
+    try {
+      const { data: clientData } = await serviceClient
+        .from('clients')
+        .select('proposta_choice')
+        .eq('id', id)
+        .maybeSingle() as unknown as { data: { proposta_choice: unknown } | null };
+      propostaChoice = clientData?.proposta_choice ?? null;
+    } catch { /* ignore */ }
+
+    return NextResponse.json({ mapa: mapaRaw, bankPropostas, propostaChoice });
   } catch (e) {
     console.error('[GET /api/clients/[id]/mapa] Unexpected error:', e);
     return NextResponse.json({ error: errMsg(e) }, { status: 500 });
