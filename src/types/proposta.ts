@@ -135,5 +135,5 @@ export function fmtEur(v: number | null | undefined): string {
 
 export function fmtPct(v: number | null | undefined): string {
   if (v == null) return '—';
-  return `${v.toFixed(2)}%`;
+  return `${(v * 100).toFixed(2)}%`;
 }

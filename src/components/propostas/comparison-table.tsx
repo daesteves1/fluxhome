@@ -76,7 +76,7 @@ function DataRow({ rowNum, label, values, propostas, recommendedId, highlightedC
   return (
     <tr className="hover:bg-gray-50/50">
       <td className={cn(
-        'sticky left-0 z-10 px-3 py-1.5 text-xs border border-gray-200 bg-white min-w-[200px] max-w-[240px]',
+        'sticky left-0 z-10 px-3 py-1.5 text-xs border border-gray-200 bg-white w-[220px] min-w-[200px]',
         isBold ? 'font-semibold text-gray-800 bg-[#E8EEF7]' : 'text-gray-600'
       )}>
         <span className="flex items-center gap-2">
@@ -97,7 +97,7 @@ function DataRow({ rowNum, label, values, propostas, recommendedId, highlightedC
           <td
             key={p.id}
             className={cn(
-              'px-3 py-1.5 text-xs text-center border border-gray-200 min-w-[120px]',
+              'px-3 py-1.5 text-xs text-center border border-gray-200 min-w-[150px]',
               isBold ? 'font-semibold' : '',
               isGreen ? 'bg-green-100 text-green-800' :
               customClass ?? (isRec ? 'bg-blue-50' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30')
@@ -124,7 +124,7 @@ function TotalRow({ label, values, propostas, recommendedId, greenIndices, isPri
   return (
     <tr>
       <td className={cn(
-        'sticky left-0 z-10 px-3 py-2 text-xs font-bold border border-gray-200 min-w-[200px]',
+        'sticky left-0 z-10 px-3 py-2 text-xs font-bold border border-gray-200 w-[220px] min-w-[200px]',
         isPrimary ? 'text-white bg-[#1E3A5F]' : 'text-gray-800 bg-[#E8EEF7]'
       )}>
         {label}
@@ -133,7 +133,7 @@ function TotalRow({ label, values, propostas, recommendedId, greenIndices, isPri
         <td
           key={p.id}
           className={cn(
-            'px-3 py-2 text-xs font-bold text-center border border-gray-200 min-w-[120px]',
+            'px-3 py-2 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
             isPrimary
               ? greenIndices.includes(i) ? 'bg-green-700 text-white' : p.id === recommendedId ? 'bg-[#2D5BA3] text-white' : 'bg-[#1E3A5F] text-white'
               : greenIndices.includes(i) ? 'bg-green-100 text-green-800' : p.id === recommendedId ? 'bg-blue-100' : 'bg-[#E8EEF7]'
@@ -162,18 +162,18 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
   const rowProps = { propostas, recommendedId, highlightedCells };
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-      <table className="border-collapse text-sm w-full">
+    <div className="w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm -webkit-overflow-scrolling-touch">
+      <table className="border-collapse text-sm w-full" style={{ minWidth: `${220 + propostas.length * 150}px` }}>
         <thead>
           <tr>
-            <th className="sticky left-0 z-20 px-3 py-3 text-left text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 min-w-[200px]">
+            <th className="sticky left-0 z-20 px-3 py-3 text-left text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 w-[220px] min-w-[200px]">
               &nbsp;
             </th>
             {propostas.map((p) => (
               <th
                 key={p.id}
                 className={cn(
-                  'px-3 py-3 text-xs font-bold text-center border border-gray-200 min-w-[120px]',
+                  'px-3 py-3 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
                   p.id === recommendedId
                     ? 'bg-[#2D5BA3] text-white border-l-2 border-l-blue-400'
                     : 'bg-[#1E3A5F] text-white'

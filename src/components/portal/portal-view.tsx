@@ -52,44 +52,60 @@ type PropostaChoice = {
 
 function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[]; recommendedId: string | null }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
       {propostas.map((p) => {
         const isRec = p.id === recommendedId;
         const totalBanco = calcPrestacaoTotalBanco(p);
         const totalExt = calcPrestacaoTotalExterno(p);
         const initials = p.bank_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-        const isExpired = p.validade_ate ? new Date(p.validade_ate) < new Date() : false;
+
+        const now = new Date();
+        const expiryDate = p.validade_ate ? new Date(p.validade_ate) : null;
+        const isExpired = expiryDate ? expiryDate < now : false;
+        const daysUntilExpiry = expiryDate && !isExpired
+          ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        const expiresSoon = daysUntilExpiry !== null && daysUntilExpiry <= 7;
+
         return (
-          <div key={p.id} className={`rounded-xl border p-4 ${isRec ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 text-white ${isRec ? 'bg-blue-600' : 'bg-[#1E3A5F]'}`}>
-                  {initials}
-                </div>
-                <p className="font-bold text-base text-slate-900">{p.bank_name}</p>
-              </div>
-              {isRec && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5 shrink-0">
+          <div
+            key={p.id}
+            className={`rounded-xl border-l-4 border p-4 ${
+              isRec
+                ? 'border-blue-300 border-l-blue-600 bg-blue-50'
+                : 'border-slate-200 border-l-slate-300 bg-white'
+            }`}
+          >
+            {/* Recommended badge at top */}
+            {isRec && (
+              <div className="mb-2">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-blue-600 rounded-full px-2.5 py-1">
                   <Star className="h-3 w-3 fill-current" />
                   Recomendado
                 </span>
-              )}
+              </div>
+            )}
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 text-white ${isRec ? 'bg-blue-600' : 'bg-[#1E3A5F]'}`}>
+                {initials}
+              </div>
+              <p className="font-bold text-base text-slate-900">{p.bank_name}</p>
             </div>
             {totalBanco > 0 && (
-              <div className="mt-1">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Prestação total (seguros banco)</p>
-                <p className={`text-2xl font-bold mt-0.5 ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
+              <div className="mb-2">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prestação total (seguros banco)</p>
+                <p className={`text-xl sm:text-2xl font-bold ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
                   {fmtEur(totalBanco)}<span className="text-sm font-normal text-slate-400">/mês</span>
                 </p>
               </div>
             )}
             {totalExt > 0 && totalExt !== totalBanco && (
-              <p className="text-xs text-slate-500 mt-1">Com seguros externos: {fmtEur(totalExt)}/mês</p>
+              <p className="text-xs text-slate-500 mb-2">Com seguros externos: <span className="font-medium">{fmtEur(totalExt)}/mês</span></p>
             )}
-            <div className="flex flex-wrap gap-3 mt-2">
-              {p.tan && <p className="text-xs text-slate-500">TAN: <span className="font-medium text-slate-700">{fmtPct(p.tan)}</span></p>}
-              {p.taeg && <p className="text-xs text-slate-500">TAEG: <span className="font-medium text-slate-700">{fmtPct(p.taeg)}</span></p>}
-              {p.spread && <p className="text-xs text-slate-500">Spread: <span className="font-medium text-slate-700">{fmtPct(p.spread)}</span></p>}
+            <div className="flex flex-wrap gap-3">
+              {p.tan && <p className="text-xs text-slate-500">TAN: <span className="font-semibold text-slate-700">{fmtPct(p.tan)}</span></p>}
+              {p.taeg && <p className="text-xs text-slate-500">TAEG: <span className="font-semibold text-slate-700">{fmtPct(p.taeg)}</span></p>}
+              {p.spread && <p className="text-xs text-slate-500">Spread: <span className="font-semibold text-slate-700">{fmtPct(p.spread)}</span></p>}
             </div>
             {p.condicoes_spread && p.condicoes_spread.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
@@ -98,10 +114,18 @@ function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[];
                 ))}
               </div>
             )}
-            {p.validade_ate && (
-              <p className={`text-[11px] mt-2 ${isExpired ? 'text-red-600 font-medium' : 'text-slate-400'}`}>
-                Válida até {p.validade_ate}{isExpired ? ' — Expirada' : ''}
-              </p>
+            {isExpired && (
+              <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-white bg-red-500 rounded-full px-2 py-0.5">
+                Expirada
+              </span>
+            )}
+            {expiresSoon && !isExpired && (
+              <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
+                Expira em {daysUntilExpiry} dia{daysUntilExpiry !== 1 ? 's' : ''}
+              </span>
+            )}
+            {p.validade_ate && !isExpired && !expiresSoon && (
+              <p className="text-[11px] mt-2 text-slate-400">Válida até {p.validade_ate}</p>
             )}
           </div>
         );
