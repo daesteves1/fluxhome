@@ -25,6 +25,8 @@ export function TopBar({ userName, onMenuToggle }: TopBarProps) {
 
   async function handleLogout() {
     const supabase = createClient();
+    // Clear any active impersonation before signing out
+    await fetch('/api/admin/impersonate/exit', { method: 'POST' });
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();

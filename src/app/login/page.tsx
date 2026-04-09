@@ -43,6 +43,9 @@ function LoginForm() {
       return;
     }
 
+    // Clear any stale impersonation from a previous session
+    await fetch('/api/admin/impersonate/exit', { method: 'POST' });
+
     router.push(nextPath);
     router.refresh();
   }

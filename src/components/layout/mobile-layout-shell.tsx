@@ -36,45 +36,49 @@ export function MobileLayoutShell({
   const sidebarProps = { role, userName, userEmail, officeName, logoUrl, primaryColor, isOfficeAdmin, currentView };
 
   return (
-    <div className="flex min-h-screen">
-      {/* Desktop sidebar — hidden below md */}
-      <div className="hidden md:flex shrink-0">
-        <Sidebar {...sidebarProps} />
-      </div>
+    <div className="flex flex-col min-h-screen">
+      {/* Impersonation banner spans full width — above sidebar */}
+      {impersonatedName && <ImpersonationBanner impersonatedName={impersonatedName} />}
 
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="md:hidden">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={() => setSidebarOpen(false)}
-          />
-          {/* Panel */}
-          <div className="fixed inset-y-0 left-0 z-50 w-[280px] flex flex-col shadow-2xl">
-            <div className="absolute top-3 right-3 z-10">
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-                aria-label="Fechar menu"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <Sidebar {...sidebarProps} onClose={() => setSidebarOpen(false)} />
-          </div>
+      <div className="flex flex-1">
+        {/* Desktop sidebar — hidden below md */}
+        <div className="hidden md:flex shrink-0">
+          <Sidebar {...sidebarProps} />
         </div>
-      )}
 
-      {/* Main area */}
-      <div className="flex flex-col flex-1 min-w-0">
-        {impersonatedName && <ImpersonationBanner impersonatedName={impersonatedName} />}
-        <TopBar userName={userName} onMenuToggle={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto bg-slate-50">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-            {children}
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && (
+          <div className="md:hidden">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/50 z-40"
+              onClick={() => setSidebarOpen(false)}
+            />
+            {/* Panel */}
+            <div className="fixed inset-y-0 left-0 z-50 w-[280px] flex flex-col shadow-2xl">
+              <div className="absolute top-3 right-3 z-10">
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  aria-label="Fechar menu"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <Sidebar {...sidebarProps} onClose={() => setSidebarOpen(false)} />
+            </div>
           </div>
-        </main>
+        )}
+
+        {/* Main area */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <TopBar userName={userName} onMenuToggle={() => setSidebarOpen(true)} />
+          <main className="flex-1 overflow-y-auto bg-slate-50">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -30,13 +30,56 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
   const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
 
+  // ── Sidebar/TopBar display data (may be overridden by impersonation) ──────
+  let displayRole = userProfile.role as 'super_admin' | 'office_admin' | 'broker';
+  let displayName = userProfile.name;
+  let displayEmail = userProfile.email;
   let officeName: string | undefined;
   let logoUrl: string | undefined;
   let primaryColor: string | undefined;
   let isOfficeAdmin = false;
+  let impersonatedName: string | null = null;
   const currentView: 'broker' | 'office' = viewCookie ?? 'office';
 
-  if (userProfile.role !== 'super_admin') {
+  if (impersonatingId) {
+    // ── Impersonation mode: load target broker's full context ─────────────
+    const { data: impBrokerRaw } = await serviceClient
+      .from('brokers')
+      .select('id, user_id, office_id, is_office_admin')
+      .eq('id', impersonatingId)
+      .single();
+
+    const impBroker = impBrokerRaw as {
+      id: string;
+      user_id: string;
+      office_id: string;
+      is_office_admin: boolean;
+    } | null;
+
+    if (impBroker) {
+      const [{ data: impUserRaw }, { data: impOfficeRaw }] = await Promise.all([
+        serviceClient.from('users').select('name, email').eq('id', impBroker.user_id).single(),
+        serviceClient.from('offices').select('name, white_label').eq('id', impBroker.office_id).single(),
+      ]);
+
+      const impUser = impUserRaw as { name: string; email: string } | null;
+      const impOffice = impOfficeRaw as {
+        name: string;
+        white_label: { logo_url: string | null; primary_color: string } | null;
+      } | null;
+
+      // Override display context with impersonated broker's data
+      displayRole = impBroker.is_office_admin ? 'office_admin' : 'broker';
+      displayName = impUser?.name ?? '—';
+      displayEmail = impUser?.email ?? '—';
+      isOfficeAdmin = impBroker.is_office_admin;
+      officeName = impOffice?.name;
+      logoUrl = impOffice?.white_label?.logo_url ?? undefined;
+      primaryColor = impOffice?.white_label?.primary_color;
+      impersonatedName = impUser?.name ?? null;
+    }
+  } else if (userProfile.role !== 'super_admin') {
+    // ── Normal broker/office-admin mode ───────────────────────────────────
     const { data: brokerRaw } = await serviceClient
       .from('brokers')
       .select('id, office_id, is_office_admin')
@@ -67,36 +110,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  let impersonatedName: string | null = null;
-  if (impersonatingId) {
-    const { data: impBrokerRaw } = await serviceClient
-      .from('brokers')
-      .select('user_id')
-      .eq('id', impersonatingId)
-      .single();
-
-    if (impBrokerRaw) {
-      const impBroker = impBrokerRaw as { user_id: string };
-      const { data: impUserRaw } = await serviceClient
-        .from('users')
-        .select('name')
-        .eq('id', impBroker.user_id)
-        .single();
-      impersonatedName = (impUserRaw as { name: string } | null)?.name ?? null;
-    }
-  }
-
-  const role = userProfile.role as 'super_admin' | 'office_admin' | 'broker';
-
   return (
     <>
       {primaryColor && primaryColor !== '#1E40AF' && (
         <style>{`:root { --brand-primary: ${primaryColor}; }`}</style>
       )}
       <MobileLayoutShell
-        role={role}
-        userName={userProfile.name}
-        userEmail={userProfile.email}
+        role={displayRole}
+        userName={displayName}
+        userEmail={displayEmail}
         officeName={officeName}
         logoUrl={logoUrl}
         primaryColor={primaryColor}
