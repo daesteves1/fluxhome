@@ -54,7 +54,7 @@ function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[];
   const minMonthly = Math.min(...propostas.map((p) => calcPrestacaoTotalBanco(p)).filter((v) => v > 0));
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
       {propostas.map((p) => {
         const isRec = p.id === recommendedId;
         const totalBanco = calcPrestacaoTotalBanco(p);
@@ -245,7 +245,7 @@ function PortalMapaCard({
       )}
 
       {/* Client choice section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="max-w-[600px] mx-auto bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-base font-bold text-slate-800 mb-1">A minha preferência</p>
         <p className="text-xs text-slate-500 mb-4">Indique ao seu mediador qual a proposta que prefere. Isto não é vinculativo.</p>
 
@@ -673,8 +673,9 @@ export function PortalView({
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6">
+      <main className="w-full py-6">
         <Tabs defaultValue="documents">
+          <div className="max-w-2xl mx-auto px-4">
           <TabsList className="bg-white border border-slate-200 rounded-xl p-1 gap-0.5 h-auto w-full mb-4">
             <TabsTrigger
               value="documents"
@@ -699,9 +700,11 @@ export function PortalView({
               )}
             </TabsTrigger>
           </TabsList>
+          </div>
 
           {/* Documents Tab */}
-          <TabsContent value="documents" className="space-y-3">
+          <TabsContent value="documents">
+            <div className="max-w-[680px] mx-auto px-4 space-y-3">
             {/* Sub-navigation for multi-proponente */}
             {hasP2 && (
               <div className="flex rounded-xl bg-white border border-slate-200 p-1 gap-0.5">
@@ -896,10 +899,11 @@ export function PortalView({
                 </div>
               );
             })()}
+            </div>
           </TabsContent>
 
           {/* Propostas Tab */}
-          <TabsContent value="propostas" className="space-y-6">
+          <TabsContent value="propostas" className="px-6 space-y-6">
             {!hasVisibleMapa ? (
               <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
                 <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />

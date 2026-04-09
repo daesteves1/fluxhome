@@ -40,9 +40,8 @@ function SectionHeader({ label, colCount, collapsible, collapsed, onToggle }: Se
   return (
     <tr>
       <td
-        colSpan={colCount + 1}
         className={cn(
-          'px-3 py-1.5 text-xs font-semibold text-[#1E3A5F] bg-[#E8EEF7] border border-gray-200',
+          'sticky left-0 z-10 px-3 py-1.5 text-xs font-semibold text-[#1E3A5F] bg-[#E8EEF7] border border-gray-200 w-[220px] min-w-[200px]',
           collapsible && 'cursor-pointer select-none hover:bg-[#dce5f2]'
         )}
         onClick={collapsible ? onToggle : undefined}
@@ -56,6 +55,16 @@ function SectionHeader({ label, colCount, collapsible, collapsed, onToggle }: Se
           {label}
         </div>
       </td>
+      {Array.from({ length: colCount }).map((_, i) => (
+        <td
+          key={i}
+          className={cn(
+            'px-3 py-1.5 text-xs border border-gray-200 bg-[#E8EEF7]',
+            collapsible && 'cursor-pointer select-none'
+          )}
+          onClick={collapsible ? onToggle : undefined}
+        />
+      ))}
     </tr>
   );
 }
@@ -154,18 +163,18 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
   const rowProps = { propostas, recommendedId, highlightedCells };
 
   return (
-    <div className="w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm -webkit-overflow-scrolling-touch">
-      <table className="border-collapse text-sm w-full" style={{ minWidth: `${220 + propostas.length * 150}px` }}>
+    <div className="relative w-full overflow-x-auto overflow-y-visible rounded-lg border border-gray-200 shadow-sm">
+      <table className="text-sm w-full" style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: `${220 + propostas.length * 150}px` }}>
         <thead>
           <tr>
-            <th className="sticky left-0 z-20 px-3 py-3 text-left text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 w-[220px] min-w-[200px]">
+            <th className="sticky left-0 top-16 z-30 px-3 py-3 text-left text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 w-[220px] min-w-[200px]">
               &nbsp;
             </th>
             {propostas.map((p) => (
               <th
                 key={p.id}
                 className={cn(
-                  'px-3 py-3 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
+                  'sticky top-16 z-20 px-3 py-3 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
                   p.id === recommendedId
                     ? 'bg-[#2D5BA3] text-white border-l-2 border-l-blue-400'
                     : 'bg-[#1E3A5F] text-white'
