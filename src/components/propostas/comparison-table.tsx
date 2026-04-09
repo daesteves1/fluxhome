@@ -298,7 +298,7 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
               label="Condições para o spread"
               values={propostas.map((p) =>
                 p.condicoes_spread?.length
-                  ? <span className="flex flex-wrap gap-0.5 justify-center">
+                  ? <span key={p.id} className="flex flex-wrap gap-0.5 justify-center">
                       {p.condicoes_spread.map((c) => (
                         <span key={c} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px]">{c}</span>
                       ))}
@@ -320,9 +320,9 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
                 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
                 const [yr, mo, dy] = p.validade_ate.split('-').map(Number);
                 const formatted = `${dy} ${MONTHS[mo-1]} ${yr}`;
-                if (days < 0) return <span className="text-red-600 font-medium">⚠ Expirada</span>;
-                if (days <= 14) return <span className="text-amber-600 font-medium">⚠ Expira em {days} dias</span>;
-                return <span className="text-slate-600">{formatted}</span>;
+                if (days < 0) return <span key={p.id} className="text-red-600 font-medium">⚠ Expirada</span>;
+                if (days <= 14) return <span key={p.id} className="text-amber-600 font-medium">⚠ Expira em {days} dias</span>;
+                return <span key={p.id} className="text-slate-600">{formatted}</span>;
               })}
               rowKey="validade_ate"
               {...rowProps}
