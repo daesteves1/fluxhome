@@ -46,7 +46,12 @@ function LoginForm() {
     // Clear any stale impersonation from a previous session
     await fetch('/api/admin/impersonate/exit', { method: 'POST' });
 
-    router.push(nextPath);
+    // Redirect based on role
+    const roleRes = await fetch('/api/auth/role');
+    const { role } = await roleRes.json() as { role: string | null };
+    const destination = role === 'super_admin' ? '/admin' : nextPath;
+
+    router.push(destination);
     router.refresh();
   }
 

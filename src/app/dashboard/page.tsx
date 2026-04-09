@@ -42,6 +42,11 @@ export default async function DashboardPage() {
 
   const cookieStore = await cookies();
   const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
+
+  // Super admins must use /admin (dashboard layout also enforces this, belt-and-suspenders)
+  if (userProfile?.role === 'super_admin' && !impersonatingId) {
+    redirect('/admin');
+  }
   const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
 
   // When impersonating, load that broker's data instead

@@ -28,6 +28,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const cookieStore = await cookies();
   const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
+
+  // Super admins must use /admin — only allow /dashboard when actively impersonating
+  if (userProfile.role === 'super_admin' && !impersonatingId) {
+    redirect('/admin');
+  }
   const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
 
   // ── Sidebar/TopBar display data (may be overridden by impersonation) ──────
