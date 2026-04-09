@@ -21,6 +21,8 @@ import { ComparisonTable } from '@/components/propostas/comparison-table';
 import { PropostasCharts } from '@/components/propostas/propostas-charts';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
 import { calcTotalRecomendado, calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, getRecomendadaLabel, fmtEur, fmtPct } from '@/types/proposta';
+import type { PlatformSettings } from '@/lib/settings';
+import { PLATFORM_DEFAULTS } from '@/lib/settings';
 
 type DocRequest = {
   id: string;
@@ -172,6 +174,7 @@ function PortalMapaCard({
   currentChoice,
   onChoiceSaved,
   p2Name,
+  chartsEnabled = true,
 }: {
   mapa: MapaComparativo;
   propostas: BankProposta[];
@@ -179,6 +182,7 @@ function PortalMapaCard({
   currentChoice: PropostaChoice;
   onChoiceSaved: (c: PropostaChoice) => void;
   p2Name: string | null;
+  chartsEnabled?: boolean;
 }) {
   const hasP2 = Boolean(p2Name);
   const anyChoice = currentChoice !== null && propostas.some((p) => p.id === currentChoice?.proposta_id);
@@ -189,7 +193,7 @@ function PortalMapaCard({
   const [confirming, setConfirming] = useState(false);
 
   const selectedBank = propostas.find((p) => p.id === selectedBankId);
-  const hasChart = propostas.some((p) => (p.monthly_payment ?? 0) > 0 || (p.spread ?? 0) > 0);
+  const hasChart = chartsEnabled && propostas.some((p) => (p.monthly_payment ?? 0) > 0 || (p.spread ?? 0) > 0);
   const showChoiceForm = !anyChoice || editing;
 
   async function handleConfirmChoice() {
@@ -418,6 +422,7 @@ interface PortalViewProps {
   mapa: MapaComparativo | null;
   bankPropostas: BankProposta[];
   propostaChoice: unknown;
+  settings?: PlatformSettings;
 }
 
 export function PortalView({
@@ -431,7 +436,9 @@ export function PortalView({
   mapa,
   bankPropostas,
   propostaChoice,
+  settings,
 }: PortalViewProps) {
+  const effectiveSettings = settings ?? PLATFORM_DEFAULTS;
   const t = useTranslations('portal');
   const tCommon = useTranslations('common');
 
@@ -671,9 +678,11 @@ export function PortalView({
       </header>
 
       <main className="w-full py-6">
-        <Tabs defaultValue="documents">
+        <Tabs defaultValue={effectiveSettings.documents_tab_enabled ? 'documents' : 'propostas'}>
+          {(effectiveSettings.documents_tab_enabled && effectiveSettings.propostas_tab_enabled) && (
           <div className="max-w-2xl mx-auto px-4">
           <TabsList className="bg-white border border-slate-200 rounded-xl p-1 gap-0.5 h-auto w-full mb-4">
+            {effectiveSettings.documents_tab_enabled && (
             <TabsTrigger
               value="documents"
               className="flex-1 rounded-lg text-sm font-medium py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
@@ -685,6 +694,8 @@ export function PortalView({
                 </span>
               )}
             </TabsTrigger>
+            )}
+            {effectiveSettings.propostas_tab_enabled && (
             <TabsTrigger
               value="propostas"
               className="flex-1 rounded-lg text-sm font-medium py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
@@ -696,8 +707,12 @@ export function PortalView({
                 </span>
               )}
             </TabsTrigger>
+            )}
           </TabsList>
           </div>
+          )}
+
+
 
           {/* Documents Tab */}
           <TabsContent value="documents">
@@ -915,6 +930,7 @@ export function PortalView({
                 currentChoice={savedChoice}
                 onChoiceSaved={setSavedChoice}
                 p2Name={p2Name}
+                chartsEnabled={effectiveSettings.charts_enabled}
               />
             )}
             </div>

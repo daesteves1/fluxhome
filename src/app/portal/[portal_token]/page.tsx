@@ -2,6 +2,8 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { PortalView } from '@/components/portal/portal-view';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
+import { resolveSettings } from '@/lib/settings';
+import type { PlatformSettings, BrokerSettingsOverride } from '@/lib/settings';
 
 interface PageProps {
   params: Promise<{ portal_token: string }>;
@@ -93,14 +95,18 @@ export default async function PortalPage({ params }: PageProps) {
 
   const { data: brokerRaw } = await serviceClient
     .from('brokers')
-    .select('id, office_id')
+    .select('id, office_id, settings')
     .eq('id', client.broker_id)
     .single();
 
-  const officeId = (brokerRaw as { id: string; office_id: string } | null)?.office_id;
+  const brokerData = brokerRaw as { id: string; office_id: string; settings: BrokerSettingsOverride | null } | null;
+  const officeId = brokerData?.office_id;
   const { data: officeRaw } = officeId
-    ? await serviceClient.from('offices').select('name, white_label').eq('id', officeId).single()
+    ? await serviceClient.from('offices').select('name, white_label, settings').eq('id', officeId).single()
     : { data: null };
+
+  const officeData = officeRaw as { name: string; white_label: { logo_url?: string | null; primary_color?: string } | null; settings: Partial<PlatformSettings> | null } | null;
+  const settings = resolveSettings(officeData?.settings, brokerData?.settings);
 
   type DocRequest = {
     id: string;
@@ -126,7 +132,8 @@ export default async function PortalPage({ params }: PageProps) {
       p2Name={client.p2_name}
       portalToken={portal_token}
       termsAcceptedAt={client.terms_accepted_at}
-      officeName={(officeRaw as { name: string } | null)?.name ?? ''}
+      officeName={officeData?.name ?? ''}
+      settings={settings}
       documentRequests={documentRequestsSorted as unknown as DocRequest[]}
       uploads={(uploadsRaw ?? []) as unknown as Upload[]}
       mapa={mapa}

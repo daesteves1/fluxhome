@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -124,7 +125,11 @@ export function AdminOfficesTable({ offices }: Props) {
             ) : (
               filtered.map((office) => (
                 <TableRow key={office.id}>
-                  <TableCell className="font-medium">{office.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link href={`/admin/offices/${office.id}`} className="hover:underline">
+                      {office.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground font-mono text-sm">{office.slug}</TableCell>
                   <TableCell>
                     <Badge variant={office.is_active ? 'default' : 'secondary'}>

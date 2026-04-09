@@ -12,6 +12,7 @@ import {
   FileText,
   UserPlus,
   UserCog,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HomeFluxLogoMark } from './homeflux-logo';
@@ -45,7 +46,8 @@ const superAdminLinks = [
   { href: '/admin/offices', icon: Building2, labelKey: 'offices' },
   { href: '/admin/brokers', icon: UserCog, labelKey: 'brokers' },
   { href: '/admin/invitations', icon: UserPlus, labelKey: 'invitations' },
-  { href: '/admin/impersonate', icon: FileText, labelKey: 'impersonate' },
+  { href: '/admin/impersonate', icon: Users, labelKey: 'impersonate' },
+  { href: '/admin/settings', icon: Settings, labelKey: 'settings' },
 ];
 
 export function Sidebar({

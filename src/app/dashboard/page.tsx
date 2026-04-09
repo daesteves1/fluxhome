@@ -40,24 +40,40 @@ export default async function DashboardPage() {
 
   const userProfile = userProfileRaw as { id: string; role: string; name: string } | null;
 
-  const { data: brokerRaw } = await serviceClient
-    .from('brokers')
-    .select('id, office_id, is_office_admin')
-    .eq('user_id', user.id)
-    .eq('is_active', true)
-    .single();
+  const cookieStore = await cookies();
+  const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
+  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
 
-  const broker = brokerRaw as { id: string; office_id: string; is_office_admin: boolean } | null;
+  // When impersonating, load that broker's data instead
+  type BrokerData = { id: string; office_id: string; is_office_admin: boolean };
+  let broker: BrokerData | null = null;
+
+  if (impersonatingId) {
+    const { data: impBrokerRaw } = await serviceClient
+      .from('brokers')
+      .select('id, office_id, is_office_admin')
+      .eq('id', impersonatingId)
+      .eq('is_active', true)
+      .single();
+    broker = impBrokerRaw as BrokerData | null;
+  } else {
+    const { data: brokerRaw } = await serviceClient
+      .from('brokers')
+      .select('id, office_id, is_office_admin')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single();
+    broker = brokerRaw as BrokerData | null;
+  }
 
   if (!broker && userProfile?.role !== 'super_admin') {
     redirect('/login');
   }
 
-  const cookieStore = await cookies();
-  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
-
   // Office admins respect the view preference; regular brokers always see own clients
+  // When impersonating, always show that broker's own clients
   const showOwnOnly =
+    Boolean(impersonatingId) ||
     userProfile?.role === 'broker' ||
     (broker?.is_office_admin && viewCookie === 'broker');
 

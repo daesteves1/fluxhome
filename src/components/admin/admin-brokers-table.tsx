@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -80,7 +81,11 @@ export function AdminBrokersTable({ brokers }: Props) {
             ) : (
               filtered.map((broker) => (
                 <TableRow key={broker.id}>
-                  <TableCell className="font-medium">{broker.userName}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link href={`/admin/brokers/${broker.id}`} className="hover:underline">
+                      {broker.userName}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{broker.userEmail}</TableCell>
                   <TableCell className="text-sm">{broker.officeName}</TableCell>
                   <TableCell>
