@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
-import { formatDate } from '@/lib/utils';
 import { ComparisonTable } from '@/components/propostas/comparison-table';
 import { PropostasCharts } from '@/components/propostas/propostas-charts';
 import { fmtEur, fmtPct, calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, RATE_TYPE_LABELS } from '@/types/proposta';
