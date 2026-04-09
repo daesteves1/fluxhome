@@ -14,7 +14,7 @@ export default async function AdminOfficeDetailPage({ params }: PageProps) {
 
   const { data: officeRaw } = await serviceClient
     .from('offices')
-    .select('id, name, slug, is_active, created_at, settings, white_label')
+    .select('id, name, is_active, created_at, settings, white_label')
     .eq('id', id)
     .single();
 
@@ -23,7 +23,6 @@ export default async function AdminOfficeDetailPage({ params }: PageProps) {
   const office = officeRaw as {
     id: string;
     name: string;
-    slug: string;
     is_active: boolean;
     created_at: string;
     settings: Record<string, unknown> | null;
@@ -53,7 +52,6 @@ export default async function AdminOfficeDetailPage({ params }: PageProps) {
           Escritórios
         </Link>
         <h1 className="text-2xl font-bold tracking-tight">{office.name}</h1>
-        <p className="text-sm text-muted-foreground font-mono">{office.slug}</p>
       </div>
 
       <OfficeDetailTabs

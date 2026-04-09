@@ -18,7 +18,6 @@ import { Users, FileText } from 'lucide-react';
 type Office = {
   id: string;
   name: string;
-  slug: string;
   is_active: boolean;
   created_at: string;
   settings: Record<string, unknown> | null;
@@ -114,10 +113,6 @@ export function OfficeDetailTabs({ office, brokersCount, clientsCount }: Props) 
             <div className="flex justify-between px-4 py-3">
               <span className="text-muted-foreground">Nome</span>
               <span className="font-medium">{office.name}</span>
-            </div>
-            <div className="flex justify-between px-4 py-3">
-              <span className="text-muted-foreground">Slug</span>
-              <span className="font-mono text-slate-700">{office.slug}</span>
             </div>
             <div className="flex justify-between px-4 py-3">
               <span className="text-muted-foreground">Criado em</span>

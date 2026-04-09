@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
-type Office = { id: string; name: string; slug: string; is_active: boolean; created_at: string };
+type Office = { id: string; name: string; is_active: boolean; created_at: string };
 
 interface Props {
   offices: Office[];
@@ -24,30 +24,26 @@ export function AdminOfficesTable({ offices }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState('');
 
-  const filtered = offices.filter(
-    (o) =>
-      o.name.toLowerCase().includes(search.toLowerCase()) ||
-      o.slug.toLowerCase().includes(search.toLowerCase())
+  const filtered = offices.filter((o) =>
+    o.name.toLowerCase().includes(search.toLowerCase())
   );
 
   async function handleCreate() {
-    if (!name || !slug) return;
+    if (!name) return;
     setSubmitting(true);
     const res = await fetch('/api/admin/offices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, slug }),
+      body: JSON.stringify({ name }),
     });
     setSubmitting(false);
     if (res.ok) {
       toast.success('Escritório criado');
       setOpen(false);
       setName('');
-      setSlug('');
       router.refresh();
     } else {
       const data = await res.json();
@@ -87,15 +83,15 @@ export function AdminOfficesTable({ offices }: Props) {
             <div className="space-y-4 mt-2">
               <div className="space-y-1.5">
                 <Label>Nome</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Slug</Label>
-                <Input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="ex: escritorio-lisboa" />
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Nome do escritório"
+                />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button onClick={handleCreate} disabled={submitting || !name || !slug}>
+                <Button onClick={handleCreate} disabled={submitting || !name}>
                   {submitting ? 'A criar...' : 'Criar'}
                 </Button>
               </div>
@@ -109,7 +105,6 @@ export function AdminOfficesTable({ offices }: Props) {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Slug</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Criado em</TableHead>
               <TableHead>Ativo</TableHead>
@@ -118,7 +113,7 @@ export function AdminOfficesTable({ offices }: Props) {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                   Nenhum escritório encontrado
                 </TableCell>
               </TableRow>
@@ -130,7 +125,6 @@ export function AdminOfficesTable({ offices }: Props) {
                       {office.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-muted-foreground font-mono text-sm">{office.slug}</TableCell>
                   <TableCell>
                     <Badge variant={office.is_active ? 'default' : 'secondary'}>
                       {office.is_active ? 'Ativo' : 'Inativo'}

@@ -56,11 +56,11 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div>
       {impersonatedName && (
         <ImpersonationBanner impersonatedName={impersonatedName} />
       )}
-      <div className="flex flex-1">
+      <div style={{ display: 'flex', minHeight: '100vh' }}>
         <Sidebar
           role="super_admin"
           userName={userProfile.name}
@@ -68,7 +68,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
         />
         <div className="flex flex-col flex-1 min-w-0">
           <TopBar userName={userProfile.name} />
-          <main className="flex-1 overflow-y-auto bg-slate-50">
+          <main className="flex-1 bg-slate-50">
             <div className="max-w-5xl mx-auto px-6 py-6">
               {children}
             </div>

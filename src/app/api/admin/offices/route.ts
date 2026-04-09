@@ -36,11 +36,19 @@ export async function POST(request: NextRequest) {
   if (!serviceClient) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json();
-  const { name, slug, institution_id } = body;
+  const { name, institution_id } = body;
 
-  if (!name || !slug) {
-    return NextResponse.json({ error: 'name and slug are required' }, { status: 400 });
+  if (!name) {
+    return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
+
+  // Auto-generate slug from name (unique suffix added by DB if needed)
+  const slug = name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
   const { data, error } = await serviceClient
     .from('offices')

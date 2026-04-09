@@ -36,11 +36,11 @@ export function MobileLayoutShell({
   const sidebarProps = { role, userName, userEmail, officeName, logoUrl, primaryColor, isOfficeAdmin, currentView };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div>
       {/* Impersonation banner spans full width — above sidebar */}
       {impersonatedName && <ImpersonationBanner impersonatedName={impersonatedName} />}
 
-      <div className="flex flex-1">
+      <div style={{ display: 'flex', minHeight: '100vh' }}>
         {/* Desktop sidebar — hidden below md */}
         <div className="hidden md:flex shrink-0">
           <Sidebar {...sidebarProps} />
@@ -73,7 +73,7 @@ export function MobileLayoutShell({
         {/* Main area */}
         <div className="flex flex-col flex-1 min-w-0">
           <TopBar userName={userName} onMenuToggle={() => setSidebarOpen(true)} />
-          <main className="flex-1 overflow-y-auto bg-slate-50">
+          <main className="flex-1 bg-slate-50">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
               {children}
             </div>

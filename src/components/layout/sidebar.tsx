@@ -101,7 +101,10 @@ export function Sidebar({
   const displayName = officeName || (role === 'super_admin' ? 'Super Admin' : 'HomeFlux');
 
   return (
-    <aside className="flex flex-col w-[240px] min-h-screen shrink-0 h-full" style={{ backgroundColor: '#0f172a' }}>
+    <aside
+      className="flex flex-col w-[240px] shrink-0"
+      style={{ backgroundColor: '#0f172a', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}
+    >
       {/* Brand mark — h-14 matches TopBar height so divider aligns with header border */}
       <div className="flex items-center gap-2 px-5 h-14 shrink-0">
         {logoUrl ? (

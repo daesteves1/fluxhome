@@ -6,10 +6,10 @@ export default async function AdminOfficesPage() {
 
   const { data: officesRaw } = await serviceClient
     .from('offices')
-    .select('id, name, slug, is_active, created_at')
+    .select('id, name, is_active, created_at')
     .order('name');
 
-  type Office = { id: string; name: string; slug: string; is_active: boolean; created_at: string };
+  type Office = { id: string; name: string; is_active: boolean; created_at: string };
 
   return (
     <div className="space-y-6">
