@@ -14,21 +14,32 @@ export default async function EditBankPropostaPage({ params }: PageProps) {
   if (!user) redirect('/login');
 
   const serviceClient = await createServiceClient();
-  const { data } = await serviceClient
-    .from('bank_propostas' as 'propostas')
-    .select('*')
-    .eq('id', propostaId)
-    .eq('client_id', id)
-    .single() as unknown as { data: BankProposta | null };
 
-  if (!data) notFound();
+  const [propostaResult, clientResult] = await Promise.all([
+    serviceClient
+      .from('bank_propostas' as 'propostas')
+      .select('*')
+      .eq('id', propostaId)
+      .eq('client_id', id)
+      .single() as unknown as Promise<{ data: BankProposta | null }>,
+    serviceClient
+      .from('clients')
+      .select('p2_name')
+      .eq('id', id)
+      .single(),
+  ]);
+
+  if (!propostaResult.data) notFound();
+
+  const p2Name = (clientResult.data as { p2_name: string | null } | null)?.p2_name ?? null;
 
   return (
     <div className="flex flex-col h-full">
       <BankPropostaForm
         clientId={id}
         backUrl={`/dashboard/clients/${id}?tab=propostas`}
-        initialData={data}
+        initialData={propostaResult.data}
+        p2Name={p2Name}
       />
     </div>
   );

@@ -13,8 +13,8 @@ import type { BankProposta } from '@/types/proposta';
 import {
   ONE_TIME_CHARGE_FIELDS,
   BANK_SUGGESTIONS,
-  calcSubtotalBanco,
-  calcSubtotalExterno,
+  calcTotalRecomendado,
+  getRecomendadaLabel,
   fmtEur,
 } from '@/types/proposta';
 
@@ -63,10 +63,10 @@ function CondicoesSpreadInput({ value, onChange }: { value: string[]; onChange: 
           </button>
         ))}
       </div>
-      {value.filter((v) => !SPREAD_CONDITION_OPTIONS.includes(v)).map((custom) => (
-        <span key={custom} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-[#1E3A5F] text-white rounded-full">
-          {custom}
-          <button type="button" onClick={() => onChange(value.filter((x) => x !== custom))} className="hover:text-gray-300">
+      {value.filter((v) => !SPREAD_CONDITION_OPTIONS.includes(v)).map((c) => (
+        <span key={c} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-[#1E3A5F] text-white rounded-full">
+          {c}
+          <button type="button" onClick={() => onChange(value.filter((x) => x !== c))} className="hover:text-gray-300">
             <X className="h-3 w-3" />
           </button>
         </span>
@@ -87,6 +87,43 @@ function CondicoesSpreadInput({ value, onChange }: { value: string[]; onChange: 
   );
 }
 
+function RecomendadaToggle({
+  value,
+  onChange,
+  disableExterna,
+}: {
+  value: 'banco' | 'externa';
+  onChange: (v: 'banco' | 'externa') => void;
+  disableExterna: boolean;
+}) {
+  const effectiveValue = disableExterna ? 'banco' : value;
+  return (
+    <div className="flex gap-1 justify-center">
+      {(['banco', 'externa'] as const).map((opt) => {
+        const disabled = opt === 'externa' && disableExterna;
+        const active = effectiveValue === opt;
+        return (
+          <button
+            key={opt}
+            type="button"
+            disabled={disabled}
+            onClick={() => { if (!disabled) onChange(opt); }}
+            className={`px-2.5 py-1 text-[11px] rounded-full border transition-colors ${
+              active
+                ? 'bg-blue-600 text-white border-blue-600'
+                : disabled
+                ? 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed'
+                : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            {opt === 'banco' ? 'Banco' : 'Ext.'}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 type FormData = Omit<BankProposta, 'id' | 'client_id' | 'broker_id' | 'office_id' | 'created_at' | 'updated_at'>;
 
 function emptyForm(): FormData {
@@ -101,10 +138,15 @@ function emptyForm(): FormData {
     tan: null,
     taeg: null,
     monthly_payment: null,
-    vida_banco: null,
+    vida_p1_banco: null,
+    vida_p1_externa: null,
+    vida_p2_banco: null,
+    vida_p2_externa: null,
     multiriscos_banco: null,
-    vida_externa: null,
     multiriscos_externa: null,
+    vida_p1_recomendada: 'externa',
+    vida_p2_recomendada: 'externa',
+    multiriscos_recomendada: 'banco',
     comissao_avaliacao: null,
     comissao_estudo: null,
     abertura_processo: null,
@@ -135,6 +177,7 @@ interface BankPropostaFormProps {
   clientId: string;
   backUrl: string;
   initialData?: BankProposta;
+  p2Name?: string | null;
 }
 
 type RateType = 'variavel' | 'fixa' | 'mista';
@@ -163,7 +206,7 @@ function parseNum(v: string): number | null {
   return isNaN(n) ? null : n;
 }
 
-export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropostaFormProps) {
+export function BankPropostaForm({ clientId, backUrl, initialData, p2Name }: BankPropostaFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -178,10 +221,15 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
     tan: initialData.tan,
     taeg: initialData.taeg,
     monthly_payment: initialData.monthly_payment,
-    vida_banco: initialData.vida_banco,
+    vida_p1_banco: initialData.vida_p1_banco,
+    vida_p1_externa: initialData.vida_p1_externa,
+    vida_p2_banco: initialData.vida_p2_banco,
+    vida_p2_externa: initialData.vida_p2_externa,
     multiriscos_banco: initialData.multiriscos_banco,
-    vida_externa: initialData.vida_externa,
     multiriscos_externa: initialData.multiriscos_externa,
+    vida_p1_recomendada: initialData.vida_p1_recomendada ?? 'externa',
+    vida_p2_recomendada: initialData.vida_p2_recomendada ?? 'externa',
+    multiriscos_recomendada: initialData.multiriscos_recomendada ?? 'banco',
     comissao_avaliacao: initialData.comissao_avaliacao,
     comissao_estudo: initialData.comissao_estudo,
     abertura_processo: initialData.abertura_processo,
@@ -209,7 +257,6 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
 
   const [saving, setSaving] = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState(false);
-  // For new propostas: hold the selected file in state until the record is saved
   const [pendingPdf, setPendingPdf] = useState<File | null>(null);
   const [showBankSuggestions, setShowBankSuggestions] = useState(false);
 
@@ -217,10 +264,11 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const subtotalBanco = calcSubtotalBanco({ ...form } as BankProposta);
-  const subtotalExterno = calcSubtotalExterno({ ...form } as BankProposta);
+  const hasP2 = Boolean(p2Name);
+  const asBP = { ...form } as unknown as BankProposta;
+  const totalRecomendado = calcTotalRecomendado(asBP, hasP2);
+  const recomendadaLabel = getRecomendadaLabel(asBP, hasP2);
 
-  // The displayed PDF name: uploaded path's filename, or the pending file's name
   const displayedPdfName = form.bank_pdf_path
     ? form.bank_pdf_path.split('/').pop() ?? 'bank_proposal.pdf'
     : pendingPdf?.name ?? null;
@@ -265,14 +313,12 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
       const saved = await res.json() as { id?: string };
       const propostaId = initialData?.id ?? saved.id;
 
-      // Upload any pending PDF now that we have an ID
       if (pendingPdf && propostaId) {
         setUploadingPdf(true);
         try {
           await uploadPdf(propostaId, pendingPdf);
           setPendingPdf(null);
         } catch (uploadErr) {
-          // PDF upload failed — proposta is saved, warn but don't block navigation
           toast.warning(uploadErr instanceof Error ? uploadErr.message : 'Proposta guardada, mas falhou o envio do PDF');
           setSaving(false);
           setUploadingPdf(false);
@@ -295,18 +341,15 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Reset input so same file can be re-selected after removal
     e.target.value = '';
 
     if (initialData) {
-      // Edit mode: upload immediately
       setUploadingPdf(true);
       uploadPdf(initialData.id, file)
         .then(() => toast.success('PDF enviado'))
         .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Erro ao enviar PDF'))
         .finally(() => setUploadingPdf(false));
     } else {
-      // New proposta: hold until save
       setPendingPdf(file);
     }
   }
@@ -451,27 +494,27 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
             )}
           </div>
 
-            <div>
-              <Label>Validade da proposta</Label>
-              <Input
-                type="date"
-                value={form.validade_ate ?? ''}
-                onChange={(e) => set('validade_ate', e.target.value || null)}
-              />
-            </div>
+          <div>
+            <Label>Validade da proposta</Label>
+            <Input
+              type="date"
+              value={form.validade_ate ?? ''}
+              onChange={(e) => set('validade_ate', e.target.value || null)}
+            />
+          </div>
 
-            <div>
-              <Label>Capital residual (€)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={numField(form.valor_residual)}
-                onChange={(e) => set('valor_residual', parseNum(e.target.value))}
-                placeholder="0"
-              />
-            </div>
+          <div>
+            <Label>Capital residual (€)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={numField(form.valor_residual)}
+              onChange={(e) => set('valor_residual', parseNum(e.target.value))}
+              placeholder="0"
+            />
+          </div>
 
-          {/* PDF upload — always visible */}
+          {/* PDF upload */}
           <div className="pt-2 border-t border-gray-100">
             <Label className="mb-1.5 block">Documento do banco (PDF)</Label>
             {displayedPdfName ? (
@@ -561,57 +604,103 @@ export function BankPropostaForm({ clientId, backUrl, initialData }: BankPropost
 
         {/* Card 3: Insurance */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Seguros</h2>
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-2">
-            <div className="space-y-3">
-              <p className="text-xs font-medium text-gray-500 uppercase">Seguro Banco</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Vida (€/mês)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={numField(form.vida_banco)}
-                    onChange={(e) => set('vida_banco', parseNum(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <Label>Multirriscos (€/mês)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={numField(form.multiriscos_banco)}
-                    onChange={(e) => set('multiriscos_banco', parseNum(e.target.value))}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">Subtotal: <span className="font-semibold">{fmtEur(subtotalBanco || null)}</span>/mês</p>
-            </div>
-            <div className="space-y-3">
-              <p className="text-xs font-medium text-gray-500 uppercase">Seguro Externo</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Vida (€/mês)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={numField(form.vida_externa)}
-                    onChange={(e) => set('vida_externa', parseNum(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <Label>Multirriscos (€/mês)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={numField(form.multiriscos_externa)}
-                    onChange={(e) => set('multiriscos_externa', parseNum(e.target.value))}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">Subtotal: <span className="font-semibold">{fmtEur(subtotalExterno || null)}</span>/mês</p>
-            </div>
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Seguros</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Preencha os valores mensais disponíveis. Deixe em branco se a opção não estiver disponível.</p>
           </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th className="text-left text-xs font-semibold text-gray-500 pb-2 pr-4 min-w-[160px]">Seguro</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 pb-2 px-2 min-w-[110px]">Banco (€/mês)</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 pb-2 px-2 min-w-[110px]">Externa (€/mês)</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 pb-2 px-2 min-w-[130px]">Recomendada</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {/* Vida P1 */}
+                <tr>
+                  <td className="pr-4 py-2 text-xs text-gray-700 font-medium">Seguro Vida — P1</td>
+                  <td className="px-2 py-2">
+                    <Input type="number" step="0.01" value={numField(form.vida_p1_banco)}
+                      onChange={(e) => set('vida_p1_banco', parseNum(e.target.value))}
+                      className="h-8 text-xs text-center" placeholder="0.00" />
+                  </td>
+                  <td className="px-2 py-2">
+                    <Input type="number" step="0.01" value={numField(form.vida_p1_externa)}
+                      onChange={(e) => set('vida_p1_externa', parseNum(e.target.value))}
+                      className="h-8 text-xs text-center" placeholder="0.00" />
+                  </td>
+                  <td className="px-2 py-2">
+                    <RecomendadaToggle
+                      value={form.vida_p1_recomendada ?? 'externa'}
+                      onChange={(v) => set('vida_p1_recomendada', v)}
+                      disableExterna={!form.vida_p1_externa}
+                    />
+                  </td>
+                </tr>
+
+                {/* Vida P2 — only if client has p2 */}
+                {hasP2 && (
+                  <tr>
+                    <td className="pr-4 py-2 text-xs text-gray-700 font-medium">Seguro Vida — P2</td>
+                    <td className="px-2 py-2">
+                      <Input type="number" step="0.01" value={numField(form.vida_p2_banco)}
+                        onChange={(e) => set('vida_p2_banco', parseNum(e.target.value))}
+                        className="h-8 text-xs text-center" placeholder="0.00" />
+                    </td>
+                    <td className="px-2 py-2">
+                      <Input type="number" step="0.01" value={numField(form.vida_p2_externa)}
+                        onChange={(e) => set('vida_p2_externa', parseNum(e.target.value))}
+                        className="h-8 text-xs text-center" placeholder="0.00" />
+                    </td>
+                    <td className="px-2 py-2">
+                      <RecomendadaToggle
+                        value={form.vida_p2_recomendada ?? 'externa'}
+                        onChange={(v) => set('vida_p2_recomendada', v)}
+                        disableExterna={!form.vida_p2_externa}
+                      />
+                    </td>
+                  </tr>
+                )}
+
+                {/* Multirriscos */}
+                <tr>
+                  <td className="pr-4 py-2 text-xs text-gray-700 font-medium">Seguro Multirriscos</td>
+                  <td className="px-2 py-2">
+                    <Input type="number" step="0.01" value={numField(form.multiriscos_banco)}
+                      onChange={(e) => set('multiriscos_banco', parseNum(e.target.value))}
+                      className="h-8 text-xs text-center" placeholder="0.00" />
+                  </td>
+                  <td className="px-2 py-2">
+                    <Input type="number" step="0.01" value={numField(form.multiriscos_externa)}
+                      onChange={(e) => set('multiriscos_externa', parseNum(e.target.value))}
+                      className="h-8 text-xs text-center" placeholder="0.00" />
+                  </td>
+                  <td className="px-2 py-2">
+                    <RecomendadaToggle
+                      value={form.multiriscos_recomendada ?? 'banco'}
+                      onChange={(v) => set('multiriscos_recomendada', v)}
+                      disableExterna={!form.multiriscos_externa}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {totalRecomendado > 0 && (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+              <p className="text-sm font-bold text-blue-900">
+                Prestação Total Recomendada: {fmtEur(totalRecomendado)}/mês
+              </p>
+              {recomendadaLabel && (
+                <p className="text-xs text-blue-600 mt-0.5">{recomendadaLabel}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Card 4: One-time charges */}

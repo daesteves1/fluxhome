@@ -159,7 +159,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   addSectionHeader('Prestação Mensal — Seguro Banco');
   const minSubBanco = Math.min(...propostas.map(calcSubtotalBanco).filter((v) => v > 0));
   addDataRow('Prestação', propostas.map((p) => fmtEur(p.monthly_payment)));
-  addDataRow('Seguro de vida (banco)', propostas.map((p) => fmtEur(p.vida_banco)));
+  addDataRow('Vida P1 (banco)', propostas.map((p) => fmtEur(p.vida_p1_banco)));
+  addDataRow('Vida P2 (banco)', propostas.map((p) => fmtEur(p.vida_p2_banco)));
   addDataRow('Multirriscos (banco)', propostas.map((p) => fmtEur(p.multiriscos_banco)));
   addTotalRow(
     'Total mensal (banco)',
@@ -177,8 +178,9 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   addSectionHeader('Prestação Mensal — Seguro Externo');
   const minSubExt = Math.min(...propostas.map(calcSubtotalExterno).filter((v) => v > 0));
   addDataRow('Prestação', propostas.map((p) => fmtEur(p.monthly_payment)));
-  addDataRow('Seguro de vida (externo)', propostas.map((p) => fmtEur(p.vida_externa)));
-  addDataRow('Multirriscos (externo)', propostas.map((p) => fmtEur(p.multiriscos_externa)));
+  addDataRow('Vida P1 (externa)', propostas.map((p) => fmtEur(p.vida_p1_externa)));
+  addDataRow('Vida P2 (externa)', propostas.map((p) => fmtEur(p.vida_p2_externa)));
+  addDataRow('Multirriscos (externa)', propostas.map((p) => fmtEur(p.multiriscos_externa)));
   addTotalRow(
     'Total mensal (externo)',
     propostas.map((p) => fmtEur(calcSubtotalExterno(p))),

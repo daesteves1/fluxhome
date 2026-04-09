@@ -20,7 +20,7 @@ import { HomeFluxLogoMark } from '@/components/layout/homeflux-logo';
 import { ComparisonTable } from '@/components/propostas/comparison-table';
 import { PropostasCharts } from '@/components/propostas/propostas-charts';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
-import { calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, fmtEur, fmtPct } from '@/types/proposta';
+import { calcTotalRecomendado, calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, getRecomendadaLabel, fmtEur, fmtPct } from '@/types/proposta';
 
 type DocRequest = {
   id: string;
@@ -50,16 +50,15 @@ type PropostaChoice = {
 
 // ─── Summary Cards ────────────────────────────────────────────────────────────
 
-function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[]; recommendedId: string | null }) {
-  const minMonthly = Math.min(...propostas.map((p) => calcPrestacaoTotalBanco(p)).filter((v) => v > 0));
+function SummaryCards({ propostas, recommendedId, hasP2 }: { propostas: BankProposta[]; recommendedId: string | null; hasP2: boolean }) {
+  const minMonthly = Math.min(...propostas.map((p) => calcTotalRecomendado(p, hasP2)).filter((v) => v > 0));
 
   return (
     <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
       {propostas.map((p) => {
         const isRec = p.id === recommendedId;
-        const totalBanco = calcPrestacaoTotalBanco(p);
-        const totalExt = calcPrestacaoTotalExterno(p);
-        const hasExternal = (p.vida_externa ?? 0) > 0 || (p.multiriscos_externa ?? 0) > 0;
+        const totalRec = calcTotalRecomendado(p, hasP2);
+        const recLabel = getRecomendadaLabel(p, hasP2);
         const initials = p.bank_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
 
         const now = new Date();
@@ -69,7 +68,7 @@ function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[];
           ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
           : null;
         const expiresSoon = daysUntilExpiry !== null && daysUntilExpiry <= 14;
-        const isLowestPayment = totalBanco > 0 && totalBanco === minMonthly;
+        const isLowestPayment = totalRec > 0 && totalRec === minMonthly;
 
         const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
         const fmtDate = (s: string) => {
@@ -109,31 +108,26 @@ function SummaryCards({ propostas, recommendedId }: { propostas: BankProposta[];
               )}
             </div>
 
-            {/* Prestação base */}
-            {p.monthly_payment && p.monthly_payment > 0 && (
+            {/* Total recomendado */}
+            {totalRec > 0 && (
               <div className="mb-3">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prestação base</p>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prestação recomendada</p>
                 <p className={`text-3xl font-bold ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
-                  {fmtEur(p.monthly_payment)}<span className="text-sm font-normal text-slate-400">/mês</span>
+                  {fmtEur(totalRec)}<span className="text-sm font-normal text-slate-400">/mês</span>
                 </p>
+                {recLabel && (
+                  <p className="text-[10px] text-slate-400 mt-0.5">{recLabel}</p>
+                )}
               </div>
             )}
 
-            {/* Two-column insurance totals */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {totalBanco > 0 && (
-                <div className="bg-slate-50 rounded-lg p-2">
-                  <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Com seguros banco</p>
-                  <p className="text-sm font-bold text-slate-800">{fmtEur(totalBanco)}<span className="text-[10px] font-normal text-slate-400">/mês</span></p>
-                </div>
-              )}
-              {hasExternal && totalExt > 0 && (
-                <div className="bg-slate-50 rounded-lg p-2">
-                  <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Com seguros ext.</p>
-                  <p className="text-sm font-bold text-slate-800">{fmtEur(totalExt)}<span className="text-[10px] font-normal text-slate-400">/mês</span></p>
-                </div>
-              )}
-            </div>
+            {/* Prestação base (secondary) */}
+            {p.monthly_payment && p.monthly_payment > 0 && (
+              <div className="bg-slate-50 rounded-lg p-2 mb-3">
+                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prestação base</p>
+                <p className="text-sm font-bold text-slate-800">{fmtEur(p.monthly_payment)}<span className="text-[10px] font-normal text-slate-400">/mês</span></p>
+              </div>
+            )}
 
             <div className="h-px bg-slate-100 mb-3" />
 
@@ -177,13 +171,16 @@ function PortalMapaCard({
   portalToken,
   currentChoice,
   onChoiceSaved,
+  p2Name,
 }: {
   mapa: MapaComparativo;
   propostas: BankProposta[];
   portalToken: string;
   currentChoice: PropostaChoice;
   onChoiceSaved: (c: PropostaChoice) => void;
+  p2Name: string | null;
 }) {
+  const hasP2 = Boolean(p2Name);
   const anyChoice = currentChoice !== null && propostas.some((p) => p.id === currentChoice?.proposta_id);
   const [editing, setEditing] = useState(false);
   const [selectedBankId, setSelectedBankId] = useState<string>(anyChoice ? (currentChoice?.proposta_id ?? '') : '');
@@ -222,10 +219,10 @@ function PortalMapaCard({
   return (
     <div className="space-y-5">
       {/* Summary cards */}
-      <SummaryCards propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+      <SummaryCards propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
 
       {/* Comparison table */}
-      <ComparisonTable propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+      <ComparisonTable propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
 
       {/* Charts section */}
       {hasChart && (
@@ -903,7 +900,8 @@ export function PortalView({
           </TabsContent>
 
           {/* Propostas Tab */}
-          <TabsContent value="propostas" className="px-6 space-y-6">
+          <TabsContent value="propostas">
+            <div className="max-w-[1280px] mx-auto px-4 md:px-6 space-y-6">
             {!hasVisibleMapa ? (
               <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
                 <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
@@ -916,8 +914,10 @@ export function PortalView({
                 portalToken={portalToken}
                 currentChoice={savedChoice}
                 onChoiceSaved={setSavedChoice}
+                p2Name={p2Name}
               />
             )}
+            </div>
           </TabsContent>
         </Tabs>
       </main>

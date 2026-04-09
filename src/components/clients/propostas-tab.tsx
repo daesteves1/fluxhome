@@ -9,11 +9,12 @@ import { toast } from 'sonner';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
 import { ComparisonTable } from '@/components/propostas/comparison-table';
 import { PropostasCharts } from '@/components/propostas/propostas-charts';
-import { fmtEur, fmtPct, calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, RATE_TYPE_LABELS } from '@/types/proposta';
+import { fmtEur, fmtPct, calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, calcTotalRecomendado, RATE_TYPE_LABELS } from '@/types/proposta';
 
 interface Client {
   id: string;
   p1_name: string;
+  p2_name?: string | null;
   [key: string]: unknown;
 }
 
@@ -140,7 +141,7 @@ export function PropostasTab({ client }: Props) {
         ) : (
           <div className="space-y-2">
             {bankPropostas.map((p) => {
-              const totalBanco = calcPrestacaoTotalBanco(p);
+              const totalBanco = calcTotalRecomendado(p, Boolean(client.p2_name));
               const isExpired = p.validade_ate ? new Date(p.validade_ate) < new Date() : false;
               const expiresSOon = p.validade_ate && !isExpired
                 ? (new Date(p.validade_ate).getTime() - Date.now()) < 7 * 24 * 60 * 60 * 1000
@@ -341,7 +342,7 @@ export function PropostasTab({ client }: Props) {
             <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
               {orderedMapaPropostas.map((p) => {
                 const isRec = p.id === mapaData!.mapa.recommended_proposta_id;
-                const totalBanco = calcPrestacaoTotalBanco(p);
+                const totalBanco = calcTotalRecomendado(p, Boolean(client.p2_name));
                 const initials = p.bank_name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
                 return (
                   <div key={p.id} className={`rounded-xl bg-white p-4 ${isRec ? 'border-2 border-blue-500 shadow-md' : 'border border-slate-200'}`}>
@@ -370,7 +371,7 @@ export function PropostasTab({ client }: Props) {
               })}
             </div>
             {/* Table */}
-            <ComparisonTable propostas={orderedMapaPropostas} recommendedId={mapaData!.mapa.recommended_proposta_id} />
+            <ComparisonTable propostas={orderedMapaPropostas} recommendedId={mapaData!.mapa.recommended_proposta_id} hasP2={Boolean(client.p2_name)} />
             {/* Charts */}
             {orderedMapaPropostas.some((p) => (p.monthly_payment ?? 0) > 0) && (
               <div className="border-t border-slate-200 pt-5">

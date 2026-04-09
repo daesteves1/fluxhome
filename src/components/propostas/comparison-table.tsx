@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Star, ChevronDown, ChevronRight } from 'lucide-react';
+import { Fragment, useState } from 'react';
+import { Star, ChevronDown, ChevronRight, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { BankProposta } from '@/types/proposta';
 import {
   ONE_TIME_CHARGE_FIELDS,
-  calcPrestacaoTotalBanco,
-  calcPrestacaoTotalExterno,
+  calcTotalRecomendado,
   calcTotalEncargosUnicos,
+  getRecomendadaLabel,
   fmtEur,
   fmtPct,
   RATE_TYPE_LABELS,
@@ -18,6 +18,7 @@ import {
 interface ComparisonTableProps {
   propostas: BankProposta[];
   recommendedId: string | null;
+  hasP2?: boolean;
   /** Cells to highlight: key = `${rowKey}-${propostaId}`, value = CSS color class */
   highlightedCells?: Record<string, string>;
 }
@@ -30,13 +31,13 @@ function getLowest(vals: (number | null)[]): number | null {
 
 interface SectionHeaderProps {
   label: string;
-  colCount: number;
+  totalDataCols: number;
   collapsible?: boolean;
   collapsed?: boolean;
   onToggle?: () => void;
 }
 
-function SectionHeader({ label, colCount, collapsible, collapsed, onToggle }: SectionHeaderProps) {
+function SectionHeader({ label, totalDataCols, collapsible, collapsed, onToggle }: SectionHeaderProps) {
   return (
     <tr>
       <td
@@ -55,16 +56,11 @@ function SectionHeader({ label, colCount, collapsible, collapsed, onToggle }: Se
           {label}
         </div>
       </td>
-      {Array.from({ length: colCount }).map((_, i) => (
-        <td
-          key={i}
-          className={cn(
-            'px-3 py-1.5 text-xs border border-gray-200 bg-[#E8EEF7]',
-            collapsible && 'cursor-pointer select-none'
-          )}
-          onClick={collapsible ? onToggle : undefined}
-        />
-      ))}
+      <td
+        colSpan={totalDataCols}
+        className={cn('bg-[#E8EEF7] border border-gray-200', collapsible && 'cursor-pointer select-none')}
+        onClick={collapsible ? onToggle : undefined}
+      />
     </tr>
   );
 }
@@ -97,6 +93,7 @@ function DataRow({ label, values, propostas, recommendedId, highlightedCells, ro
         return (
           <td
             key={p.id}
+            colSpan={2}
             className={cn(
               'px-3 py-1.5 text-xs text-center border border-gray-200 min-w-[150px]',
               isBold ? 'font-semibold' : '',
@@ -133,6 +130,7 @@ function TotalRow({ label, values, propostas, recommendedId, greenIndices, isPri
       {propostas.map((p, i) => (
         <td
           key={p.id}
+          colSpan={2}
           className={cn(
             'px-3 py-2 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
             isPrimary
@@ -147,19 +145,110 @@ function TotalRow({ label, values, propostas, recommendedId, greenIndices, isPri
   );
 }
 
-export function ComparisonTable({ propostas, recommendedId, highlightedCells = {} }: ComparisonTableProps) {
+function SegurosSubHeaderRow({ propostas }: { propostas: BankProposta[] }) {
+  return (
+    <tr>
+      <td className="sticky left-0 z-10 px-3 py-1 bg-[#E8EEF7] border border-gray-200 w-[220px] min-w-[200px]" />
+      {propostas.map((p) => (
+        <Fragment key={p.id}>
+          <td className="px-2 py-1 text-[10px] font-semibold text-gray-500 text-center border border-gray-200 bg-[#E8EEF7] min-w-[75px]">
+            Banco
+          </td>
+          <td className="px-2 py-1 text-[10px] font-semibold text-gray-500 text-center border border-gray-200 bg-[#E8EEF7] min-w-[75px]">
+            Ext.
+          </td>
+        </Fragment>
+      ))}
+    </tr>
+  );
+}
+
+interface SegurosDataRowProps {
+  label: string;
+  propostas: BankProposta[];
+  getBancoVal: (p: BankProposta) => number | null;
+  getExtVal: (p: BankProposta) => number | null;
+  getIsRecBanco: (p: BankProposta) => boolean;
+}
+
+function SegurosDataRow({ label, propostas, getBancoVal, getExtVal, getIsRecBanco }: SegurosDataRowProps) {
+  return (
+    <tr className="hover:bg-gray-50/50">
+      <td className="sticky left-0 z-10 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 bg-white w-[220px] min-w-[200px]">
+        {label}
+      </td>
+      {propostas.map((p) => {
+        const bancoVal = getBancoVal(p);
+        const extVal = getExtVal(p);
+        const isRecBanco = getIsRecBanco(p);
+        const bancoExists = (bancoVal ?? 0) > 0;
+        const extExists = (extVal ?? 0) > 0;
+        return (
+          <Fragment key={p.id}>
+            <td className={cn(
+              'px-2 py-1.5 text-xs text-center border border-gray-200 min-w-[75px]',
+              isRecBanco && bancoExists ? 'bg-green-50 text-green-800' : 'bg-white text-gray-600'
+            )}>
+              <div className="flex items-center justify-center gap-0.5">
+                {isRecBanco && bancoExists && <Check className="h-2.5 w-2.5 text-green-600 shrink-0" />}
+                {bancoExists ? fmtEur(bancoVal) : '—'}
+              </div>
+            </td>
+            <td className={cn(
+              'px-2 py-1.5 text-xs text-center border border-gray-200 min-w-[75px]',
+              !isRecBanco && extExists ? 'bg-green-50 text-green-800' : 'bg-white text-gray-600'
+            )}>
+              <div className="flex items-center justify-center gap-0.5">
+                {!isRecBanco && extExists && <Check className="h-2.5 w-2.5 text-green-600 shrink-0" />}
+                {extExists ? fmtEur(extVal) : '—'}
+              </div>
+            </td>
+          </Fragment>
+        );
+      })}
+    </tr>
+  );
+}
+
+function RecomendadaTotalRow({ propostas, recommendedId, hasP2 }: { propostas: BankProposta[]; recommendedId: string | null; hasP2: boolean }) {
+  const totals = propostas.map((p) => calcTotalRecomendado(p, hasP2));
+  const minTotal = getLowest(totals);
+  return (
+    <tr>
+      <td className="sticky left-0 z-10 px-3 py-2 text-xs font-bold border border-gray-200 w-[220px] min-w-[200px] text-white bg-[#1E3A5F]">
+        PRESTAÇÃO TOTAL (recomendada)
+      </td>
+      {propostas.map((p, i) => {
+        const total = totals[i] ?? 0;
+        const isGreen = total > 0 && total === minTotal;
+        const sublabel = getRecomendadaLabel(p, hasP2);
+        return (
+          <td
+            key={p.id}
+            colSpan={2}
+            className={cn(
+              'px-3 py-2 text-xs font-bold text-center border border-gray-200',
+              isGreen ? 'bg-green-700 text-white' : p.id === recommendedId ? 'bg-[#2D5BA3] text-white' : 'bg-[#1E3A5F] text-white'
+            )}
+          >
+            <div>{fmtEur(total)}</div>
+            {sublabel && <div className="text-[9px] font-normal opacity-75 mt-0.5">{sublabel}</div>}
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highlightedCells = {} }: ComparisonTableProps) {
   const [encargosCollapsed, setEncargosCollapsed] = useState(true);
 
   if (!propostas.length) return null;
 
-  const totalBancoVals = propostas.map(calcPrestacaoTotalBanco);
-  const totalExtVals = propostas.map(calcPrestacaoTotalExterno);
   const totalUnicosVals = propostas.map(calcTotalEncargosUnicos);
-
-  const minTotalBanco = getLowest(totalBancoVals);
-  const minTotalExt = getLowest(totalExtVals);
   const minTotalUnicos = getLowest(totalUnicosVals);
 
+  const totalDataCols = propostas.length * 2;
   const rowProps = { propostas, recommendedId, highlightedCells };
 
   return (
@@ -173,6 +262,7 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
             {propostas.map((p) => (
               <th
                 key={p.id}
+                colSpan={2}
                 className={cn(
                   'sticky top-16 z-20 px-3 py-3 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
                   p.id === recommendedId
@@ -190,7 +280,7 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
         </thead>
         <tbody>
           {/* ── Loan info ── */}
-          <SectionHeader label="Informação do Empréstimo" colCount={propostas.length} />
+          <SectionHeader label="Informação do Empréstimo" totalDataCols={totalDataCols} />
           <DataRow label="Montante" values={propostas.map((p) => fmtEur(p.loan_amount))} rowKey="loan_amount" {...rowProps} />
           <DataRow label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} rowKey="term_months" {...rowProps} />
           <DataRow label="Tipo de taxa" values={propostas.map((p) => p.rate_type ? (RATE_TYPE_LABELS[p.rate_type] ?? null) : null)} rowKey="rate_type" {...rowProps} />
@@ -198,6 +288,11 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
           <DataRow label="Spread" values={propostas.map((p) => fmtPct(p.spread))} rowKey="spread" {...rowProps} />
           <DataRow label="TAN" values={propostas.map((p) => fmtPct(p.tan))} rowKey="tan" {...rowProps} />
           <DataRow label="TAEG" values={propostas.map((p) => fmtPct(p.taeg))} rowKey="taeg" {...rowProps} />
+          <DataRow label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} rowKey="monthly_payment" {...rowProps} />
+          <DataRow label="Manutenção de conta" values={propostas.map((p) => fmtEur(p.manutencao_conta))} rowKey="manutencao_conta_info" {...rowProps} />
+          {propostas.some((p) => p.outras_comissoes_mensais) && (
+            <DataRow label="Outras comissões mensais" values={propostas.map((p) => fmtEur(p.outras_comissoes_mensais))} rowKey="outras_info" {...rowProps} />
+          )}
           {propostas.some((p) => p.condicoes_spread?.length) && (
             <DataRow
               label="Condições para o spread"
@@ -234,44 +329,38 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
             />
           )}
 
-          {/* ── Monthly banco ── */}
-          <SectionHeader label="Prestação Mensal — Seguro Banco" colCount={propostas.length} />
-          <DataRow label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} rowKey="monthly_payment_banco" {...rowProps} />
-          <DataRow label="Seguro de vida (banco)" values={propostas.map((p) => fmtEur(p.vida_banco))} rowKey="vida_banco" {...rowProps} />
-          <DataRow label="Multirriscos (banco)" values={propostas.map((p) => fmtEur(p.multiriscos_banco))} rowKey="multiriscos_banco" {...rowProps} />
-          <DataRow label="Manutenção de conta" values={propostas.map((p) => fmtEur(p.manutencao_conta))} rowKey="manutencao_conta_banco" {...rowProps} />
-          {propostas.some((p) => p.outras_comissoes_mensais) && (
-            <DataRow label="Outras comissões mensais" values={propostas.map((p) => fmtEur(p.outras_comissoes_mensais))} rowKey="outras_comissoes_banco" {...rowProps} />
-          )}
-          <TotalRow
-            label="PRESTAÇÃO TOTAL (banco)"
-            isPrimary
-            values={totalBancoVals.map(fmtEur)}
-            greenIndices={totalBancoVals.map((v, i) => (v === minTotalBanco && minTotalBanco !== null ? i : -1)).filter((i) => i >= 0)}
-            {...rowProps}
+          {/* ── Seguros ── */}
+          <SectionHeader label="Seguros" totalDataCols={totalDataCols} />
+          <SegurosSubHeaderRow propostas={propostas} />
+          <SegurosDataRow
+            label="Seguro Vida — P1"
+            propostas={propostas}
+            getBancoVal={(p) => p.vida_p1_banco}
+            getExtVal={(p) => p.vida_p1_externa}
+            getIsRecBanco={(p) => (p.vida_p1_recomendada ?? 'externa') === 'banco'}
           />
-
-          {/* ── Monthly externa ── */}
-          <SectionHeader label="Prestação Mensal — Seguro Externo" colCount={propostas.length} />
-          <DataRow label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} rowKey="monthly_payment_ext" {...rowProps} />
-          <DataRow label="Seguro de vida (externo)" values={propostas.map((p) => fmtEur(p.vida_externa))} rowKey="vida_externa" {...rowProps} />
-          <DataRow label="Multirriscos (externo)" values={propostas.map((p) => fmtEur(p.multiriscos_externa))} rowKey="multiriscos_externa" {...rowProps} />
-          <DataRow label="Manutenção de conta" values={propostas.map((p) => fmtEur(p.manutencao_conta))} rowKey="manutencao_conta_ext" {...rowProps} />
-          {propostas.some((p) => p.outras_comissoes_mensais) && (
-            <DataRow label="Outras comissões mensais" values={propostas.map((p) => fmtEur(p.outras_comissoes_mensais))} rowKey="outras_comissoes_ext" {...rowProps} />
+          {hasP2 && (
+            <SegurosDataRow
+              label="Seguro Vida — P2"
+              propostas={propostas}
+              getBancoVal={(p) => p.vida_p2_banco}
+              getExtVal={(p) => p.vida_p2_externa}
+              getIsRecBanco={(p) => (p.vida_p2_recomendada ?? 'externa') === 'banco'}
+            />
           )}
-          <TotalRow
-            label="PRESTAÇÃO TOTAL (externo)"
-            isPrimary
-            values={totalExtVals.map(fmtEur)}
-            greenIndices={totalExtVals.map((v, i) => (v === minTotalExt && minTotalExt !== null ? i : -1)).filter((i) => i >= 0)}
-            {...rowProps}
+          <SegurosDataRow
+            label="Seguro Multirriscos"
+            propostas={propostas}
+            getBancoVal={(p) => p.multiriscos_banco}
+            getExtVal={(p) => p.multiriscos_externa}
+            getIsRecBanco={(p) => (p.multiriscos_recomendada ?? 'banco') === 'banco'}
           />
+          <RecomendadaTotalRow propostas={propostas} recommendedId={recommendedId} hasP2={hasP2} />
 
           {/* ── One-time charges (collapsible) ── */}
           <SectionHeader
             label={`Encargos Únicos${encargosCollapsed ? ' (clique para expandir)' : ''}`}
-            colCount={propostas.length}
+            totalDataCols={totalDataCols}
             collapsible
             collapsed={encargosCollapsed}
             onToggle={() => setEncargosCollapsed((v) => !v)}
@@ -304,8 +393,8 @@ export function ComparisonTable({ propostas, recommendedId, highlightedCells = {
             {...rowProps}
           />
 
-          {/* ── Monthly fee row (just manutenção — already shown above) ── */}
-          <SectionHeader label="Encargos Mensais" colCount={propostas.length} />
+          {/* ── Encargos Mensais ── */}
+          <SectionHeader label="Encargos Mensais" totalDataCols={totalDataCols} />
           <DataRow label="Manutenção de conta" values={propostas.map((p) => fmtEur(p.manutencao_conta))} rowKey="manutencao_conta" {...rowProps} />
           <DataRow label="Faturação" values={propostas.map((p) => p.manutencao_anual ? 'Anual' : 'Mensal')} rowKey="manutencao_anual" {...rowProps} />
           {propostas.some((p) => p.outras_comissoes_mensais) && (

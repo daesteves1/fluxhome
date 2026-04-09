@@ -15,12 +15,18 @@ export type BankProposta = {
   tan: number | null;
   taeg: number | null;
   monthly_payment: number | null;
-  // Insurance — bank
-  vida_banco: number | null;
+  // Insurance — vida per proponent
+  vida_p1_banco: number | null;
+  vida_p1_externa: number | null;
+  vida_p2_banco: number | null;
+  vida_p2_externa: number | null;
+  // Insurance — multirriscos (one policy)
   multiriscos_banco: number | null;
-  // Insurance — external
-  vida_externa: number | null;
   multiriscos_externa: number | null;
+  // Recommended insurance type per line
+  vida_p1_recomendada: 'banco' | 'externa' | null;
+  vida_p2_recomendada: 'banco' | 'externa' | null;
+  multiriscos_recomendada: 'banco' | 'externa' | null;
   // One-time charges
   comissao_avaliacao: number | null;
   comissao_estudo: number | null;
@@ -108,20 +114,43 @@ export const BANK_SUGGESTIONS = [
   'Banco CTT', 'ActivoBank', 'UCI', 'ABANCA',
 ];
 
-export function calcSubtotalBanco(p: BankProposta): number {
-  return (p.monthly_payment ?? 0) + (p.vida_banco ?? 0) + (p.multiriscos_banco ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
-}
-
-export function calcSubtotalExterno(p: BankProposta): number {
-  return (p.monthly_payment ?? 0) + (p.vida_externa ?? 0) + (p.multiriscos_externa ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
-}
-
 export function calcPrestacaoTotalBanco(p: BankProposta): number {
-  return (p.monthly_payment ?? 0) + (p.vida_banco ?? 0) + (p.multiriscos_banco ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+  return (p.monthly_payment ?? 0) + (p.vida_p1_banco ?? 0) + (p.vida_p2_banco ?? 0) + (p.multiriscos_banco ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
 }
 
 export function calcPrestacaoTotalExterno(p: BankProposta): number {
-  return (p.monthly_payment ?? 0) + (p.vida_externa ?? 0) + (p.multiriscos_externa ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+  return (p.monthly_payment ?? 0) + (p.vida_p1_externa ?? 0) + (p.vida_p2_externa ?? 0) + (p.multiriscos_externa ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+}
+
+// Aliases used by excel/pdf routes
+export function calcSubtotalBanco(p: BankProposta): number {
+  return calcPrestacaoTotalBanco(p);
+}
+export function calcSubtotalExterno(p: BankProposta): number {
+  return calcPrestacaoTotalExterno(p);
+}
+
+export function calcTotalRecomendado(p: BankProposta, hasP2 = false): number {
+  const vidaP1 = p.vida_p1_recomendada === 'banco' ? (p.vida_p1_banco ?? 0) : (p.vida_p1_externa ?? 0);
+  const vidaP2 = hasP2
+    ? (p.vida_p2_recomendada === 'banco' ? (p.vida_p2_banco ?? 0) : (p.vida_p2_externa ?? 0))
+    : 0;
+  const multi = p.multiriscos_recomendada === 'banco' ? (p.multiriscos_banco ?? 0) : (p.multiriscos_externa ?? 0);
+  return (p.monthly_payment ?? 0) + vidaP1 + vidaP2 + multi + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+}
+
+export function getRecomendadaLabel(p: BankProposta, hasP2: boolean): string {
+  const parts: string[] = [];
+  if ((p.vida_p1_banco ?? 0) > 0 || (p.vida_p1_externa ?? 0) > 0) {
+    parts.push(`P1 ${p.vida_p1_recomendada === 'banco' ? 'banco' : 'ext.'}`);
+  }
+  if (hasP2 && ((p.vida_p2_banco ?? 0) > 0 || (p.vida_p2_externa ?? 0) > 0)) {
+    parts.push(`P2 ${p.vida_p2_recomendada === 'banco' ? 'banco' : 'ext.'}`);
+  }
+  if ((p.multiriscos_banco ?? 0) > 0 || (p.multiriscos_externa ?? 0) > 0) {
+    parts.push(`Multi ${p.multiriscos_recomendada === 'banco' ? 'banco' : 'ext.'}`);
+  }
+  return parts.join(' · ');
 }
 
 export function calcTotalEncargosUnicos(p: BankProposta): number {

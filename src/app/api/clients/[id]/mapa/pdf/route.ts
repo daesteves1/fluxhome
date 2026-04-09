@@ -127,7 +127,8 @@ function MapaDocument({ propostas, recId }: { propostas: BankProposta[]; recId: 
       // Monthly banco
       React.createElement(SectionHeader, { label: 'Prestação Mensal — Seguro Banco' }),
       React.createElement(DataRow, { label: 'Prestação', values: propostas.map((p) => fmtEur(p.monthly_payment)), ...props }),
-      React.createElement(DataRow, { label: 'Vida (banco)', values: propostas.map((p) => fmtEur(p.vida_banco)), ...props }),
+      React.createElement(DataRow, { label: 'Vida P1 (banco)', values: propostas.map((p) => fmtEur(p.vida_p1_banco)), ...props }),
+      React.createElement(DataRow, { label: 'Vida P2 (banco)', values: propostas.map((p) => fmtEur(p.vida_p2_banco)), ...props }),
       React.createElement(DataRow, { label: 'Multirriscos (banco)', values: propostas.map((p) => fmtEur(p.multiriscos_banco)), ...props }),
       React.createElement(TotalRow, {
         label: 'Total mensal (banco)',
@@ -139,7 +140,8 @@ function MapaDocument({ propostas, recId }: { propostas: BankProposta[]; recId: 
       // Monthly externa
       React.createElement(SectionHeader, { label: 'Prestação Mensal — Seguro Externo' }),
       React.createElement(DataRow, { label: 'Prestação', values: propostas.map((p) => fmtEur(p.monthly_payment)), ...props }),
-      React.createElement(DataRow, { label: 'Vida (externo)', values: propostas.map((p) => fmtEur(p.vida_externa)), ...props }),
+      React.createElement(DataRow, { label: 'Vida P1 (externa)', values: propostas.map((p) => fmtEur(p.vida_p1_externa)), ...props }),
+      React.createElement(DataRow, { label: 'Vida P2 (externa)', values: propostas.map((p) => fmtEur(p.vida_p2_externa)), ...props }),
       React.createElement(DataRow, { label: 'Multirriscos (externo)', values: propostas.map((p) => fmtEur(p.multiriscos_externa)), ...props }),
       React.createElement(TotalRow, {
         label: 'Total mensal (externo)',

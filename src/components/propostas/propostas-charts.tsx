@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import type { TooltipContentProps } from 'recharts';
 import type { BankProposta } from '@/types/proposta';
-import { calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, fmtEur } from '@/types/proposta';
+import { calcTotalRecomendado, fmtEur } from '@/types/proposta';
 
 interface ChartProps {
   propostas: BankProposta[];
@@ -72,9 +72,8 @@ function Chart1Tooltip(props: TooltipContentProps<number, string>) {
       ))}
       {typeof d._prestacao === 'number' && d._prestacao > 0 && (
         <div className="mt-2 pt-2 border-t border-gray-100 space-y-0.5">
-          {d._prestacao > 0 && <p className="flex justify-between text-gray-500"><span>Prestação base:</span><span>{fmtEur(d._prestacao as number)}</span></p>}
-          {(d._vida_banco as number) > 0 && <p className="flex justify-between text-gray-500"><span>Seg. vida:</span><span>{fmtEur(d._vida_banco as number)}</span></p>}
-          {(d._multiriscos_banco as number) > 0 && <p className="flex justify-between text-gray-500"><span>Multirriscos:</span><span>{fmtEur(d._multiriscos_banco as number)}</span></p>}
+          {(d._prestacao as number) > 0 && <p className="flex justify-between text-gray-500"><span>Prestação base:</span><span>{fmtEur(d._prestacao as number)}</span></p>}
+          {(d._seguros as number) > 0 && <p className="flex justify-between text-gray-500"><span>Seguros:</span><span>{fmtEur(d._seguros as number)}</span></p>}
           {(d._manutencao as number) > 0 && <p className="flex justify-between text-gray-500"><span>Manutenção:</span><span>{fmtEur(d._manutencao as number)}</span></p>}
         </div>
       )}
@@ -83,31 +82,27 @@ function Chart1Tooltip(props: TooltipContentProps<number, string>) {
 }
 
 export function MonthlyTotalBarChart({ propostas, recommendedId }: ChartProps) {
-  const hasExternal = propostas.some((p) => (p.vida_externa ?? 0) > 0 || (p.multiriscos_externa ?? 0) > 0);
-
   const data = propostas.map((p, i) => {
-    const banco = calcPrestacaoTotalBanco(p);
-    const ext = calcPrestacaoTotalExterno(p);
+    const total = calcTotalRecomendado(p);
+    const seguros = total - (p.monthly_payment ?? 0) - (p.manutencao_conta ?? 0) - (p.outras_comissoes_mensais ?? 0);
     return {
       name: p.bank_name,
-      'Com seguros banco': banco > 0 ? Math.round(banco * 100) / 100 : 0,
-      'Com seguros externos': (hasExternal && ext > 0) ? Math.round(ext * 100) / 100 : undefined,
+      'Prestação recomendada': total > 0 ? Math.round(total * 100) / 100 : 0,
       _prestacao: p.monthly_payment ?? 0,
-      _vida_banco: p.vida_banco ?? 0,
-      _multiriscos_banco: p.multiriscos_banco ?? 0,
+      _seguros: Math.max(0, seguros),
       _manutencao: (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0),
       isRec: p.id === recommendedId,
       color: getBankColor(p.bank_name, i, p.id === recommendedId),
     };
   });
 
-  const allVals = data.flatMap((d) => [d['Com seguros banco'], d['Com seguros externos']]).filter((v): v is number => typeof v === 'number' && v > 0);
+  const allVals = data.map((d) => d['Prestação recomendada']).filter((v) => v > 0);
   const yMin = allVals.length ? Math.floor(Math.min(...allVals) * 0.8) : 0;
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
       <p className="text-sm font-bold text-gray-800">Prestação Mensal Total</p>
-      <p className="text-xs text-gray-500 mt-0.5 mb-4">Valor mensal estimado a pagar incluindo seguros</p>
+      <p className="text-xs text-gray-500 mt-0.5 mb-4">Valor mensal estimado a pagar com seguros recomendados</p>
       <ResponsiveContainer width="100%" height={320}>
         <BarChart data={data} barCategoryGap="30%" syncId={undefined}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -115,17 +110,10 @@ export function MonthlyTotalBarChart({ propostas, recommendedId }: ChartProps) {
           <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={fmtAbbrev} domain={[yMin, 'auto']} />
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <Tooltip content={(p: any) => <Chart1Tooltip {...p} />} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="Com seguros banco" radius={[4, 4, 0, 0]}>
+          <Bar dataKey="Prestação recomendada" radius={[4, 4, 0, 0]}>
             {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-            <LabelList dataKey="Com seguros banco" position="top" formatter={(v: unknown) => typeof v === 'number' ? `${Math.round(v)}€` : ''} style={{ fontSize: 10, fill: '#374151', fontWeight: 600 }} />
+            <LabelList dataKey="Prestação recomendada" position="top" formatter={(v: unknown) => typeof v === 'number' && v > 0 ? `${Math.round(v)}€` : ''} style={{ fontSize: 10, fill: '#374151', fontWeight: 600 }} />
           </Bar>
-          {hasExternal && (
-            <Bar dataKey="Com seguros externos" radius={[4, 4, 0, 0]}>
-              {data.map((_, i) => <Cell key={i} fill="#94a3b8" />)}
-              <LabelList dataKey="Com seguros externos" position="top" formatter={(v: unknown) => typeof v === 'number' && v > 0 ? `${Math.round(v)}€` : ''} style={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} />
-            </Bar>
-          )}
         </BarChart>
       </ResponsiveContainer>
       <p className="text-[10px] text-gray-400 mt-1">* O eixo vertical não começa em zero para ampliar as diferenças</p>
@@ -137,7 +125,7 @@ export function MonthlyTotalBarChart({ propostas, recommendedId }: ChartProps) {
 
 export function TotalCostBarChart({ propostas, recommendedId }: ChartProps) {
   const withValues = propostas.map((p, i) => {
-    const monthly = calcPrestacaoTotalBanco(p);
+    const monthly = calcTotalRecomendado(p);
     const total = (p.term_months ?? 0) > 0 ? monthly * p.term_months! : 0;
     return { proposta: p, total, idx: i };
   }).filter((d) => d.total > 0);
@@ -159,7 +147,7 @@ export function TotalCostBarChart({ propostas, recommendedId }: ChartProps) {
       total: Math.round(total),
       color,
       years,
-      _monthly: Math.round(calcPrestacaoTotalBanco(proposta)),
+      _monthly: Math.round(calcTotalRecomendado(proposta)),
       _idx: idx,
     };
   });
