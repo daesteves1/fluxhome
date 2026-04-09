@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/utils';
 import type { BrokerSettingsOverride } from '@/lib/settings';
-import { resolveSettings, PLATFORM_DEFAULTS } from '@/lib/settings';
+import { resolveSettings } from '@/lib/settings';
 import type { PlatformSettings } from '@/lib/settings';
 
 type BrokerDetail = {

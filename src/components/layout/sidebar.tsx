@@ -9,7 +9,6 @@ import {
   Users,
   Building2,
   Shield,
-  FileText,
   UserPlus,
   UserCog,
   Settings,
