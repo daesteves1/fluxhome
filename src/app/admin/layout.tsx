@@ -1,9 +1,7 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { Sidebar } from '@/components/layout/sidebar';
-import { TopBar } from '@/components/layout/topbar';
-import { ImpersonationBanner } from '@/components/layout/impersonation-banner';
+import { MobileLayoutShell } from '@/components/layout/mobile-layout-shell';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -56,25 +54,13 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   return (
-    <div>
-      {impersonatedName && (
-        <ImpersonationBanner impersonatedName={impersonatedName} />
-      )}
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <Sidebar
-          role="super_admin"
-          userName={userProfile.name}
-          userEmail={userProfile.email}
-        />
-        <div className="flex flex-col flex-1 min-w-0">
-          <TopBar userName={userProfile.name} />
-          <main className="flex-1 bg-slate-50">
-            <div className="max-w-5xl mx-auto px-6 py-6">
-              {children}
-            </div>
-          </main>
-        </div>
-      </div>
-    </div>
+    <MobileLayoutShell
+      role="super_admin"
+      userName={userProfile.name}
+      userEmail={userProfile.email}
+      impersonatedName={impersonatedName}
+    >
+      {children}
+    </MobileLayoutShell>
   );
 }
