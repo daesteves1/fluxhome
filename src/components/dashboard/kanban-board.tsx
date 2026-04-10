@@ -56,7 +56,6 @@ const KANBAN_COLUMNS: { step: string; label: string; accent: string; defaultVisi
   { step: 'closed',          label: 'Fechado',            accent: '#64748b', defaultVisible: false },
 ];
 
-const ALL_STEPS = KANBAN_COLUMNS.map((c) => c.step);
 const DEFAULT_VISIBLE_STEPS = KANBAN_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.step);
 const LS_COLUMNS_KEY = 'homeflux_kanban_columns';
 
@@ -289,7 +288,7 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
     setActiveId(active.id as string);
   };
 
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
     setActiveId(null);
     if (!over) return;
 
@@ -304,45 +303,19 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
       prev.map((c) => (c.id === client.id ? { ...c, process_step: toStep } : c))
     );
 
-    const fromIdx = ALL_STEPS.indexOf(fromStep);
-    const toIdx = ALL_STEPS.indexOf(toStep);
-    const isSkipping = Math.abs(fromIdx - toIdx) > 1;
-    const toLabel = KANBAN_COLUMNS.find((c) => c.step === toStep)?.label ?? toStep;
-
-    const message = isSkipping
-      ? `⚠ Está a saltar etapas. Mover ${client.p1_name} para "${toLabel}"?`
-      : `Mover ${client.p1_name} para "${toLabel}"?`;
-
-    let cancelled = false;
-
-    const timer = setTimeout(async () => {
-      if (cancelled) return;
-      const res = await fetch(`/api/clients/${client.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ process_step: toStep }),
-      });
-      if (!res.ok) {
-        setLocalClients((prev) =>
-          prev.map((c) => (c.id === client.id ? { ...c, process_step: fromStep } : c))
-        );
-        toast.error('Erro ao mover cliente');
-      }
-    }, 3000);
-
-    toast(message, {
-      duration: 3500,
-      action: {
-        label: 'Cancelar',
-        onClick: () => {
-          cancelled = true;
-          clearTimeout(timer);
-          setLocalClients((prev) =>
-            prev.map((c) => (c.id === client.id ? { ...c, process_step: fromStep } : c))
-          );
-        },
-      },
+    const res = await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ process_step: toStep }),
     });
+
+    if (!res.ok) {
+      // Revert on failure
+      setLocalClients((prev) =>
+        prev.map((c) => (c.id === client.id ? { ...c, process_step: fromStep } : c))
+      );
+      toast.error('Erro ao mover cliente — tente novamente');
+    }
   };
 
   // Apply search filter for display (doesn't affect drag state)
