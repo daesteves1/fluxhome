@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -12,11 +12,17 @@ import {
   useSensor,
   useSensors,
   useDroppable,
-  useDraggable,
 } from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Settings2 } from 'lucide-react';
+import { Settings2, Loader2 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,8 +62,10 @@ const KANBAN_COLUMNS: { step: string; label: string; accent: string; defaultVisi
   { step: 'closed',          label: 'Fechado',            accent: '#64748b', defaultVisible: false },
 ];
 
+const STEP_SET = new Set(KANBAN_COLUMNS.map((c) => c.step));
 const DEFAULT_VISIBLE_STEPS = KANBAN_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.step);
 const LS_COLUMNS_KEY = 'homeflux_kanban_columns';
+const LS_ORDER_KEY   = 'homeflux_kanban_order';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -71,24 +79,35 @@ function KanbanCard({
   client,
   docCounts,
   showBrokerColumn,
+  isSaving = false,
 }: {
   client: KanbanClient;
   docCounts: DocCounts;
   showBrokerColumn: boolean;
+  isSaving?: boolean;
 }) {
   const docs = docCounts[client.id];
-  const mandatoryTotal = docs?.mandatory_total ?? 0;
+  const mandatoryTotal    = docs?.mandatory_total    ?? 0;
   const mandatoryApproved = docs?.mandatory_approved ?? 0;
-  const rejectedCount = docs?.rejected_count ?? 0;
-  const allDocsComplete = mandatoryTotal > 0 && mandatoryApproved === mandatoryTotal;
-  const docPct = mandatoryTotal > 0 ? (mandatoryApproved / mandatoryTotal) * 100 : 0;
+  const rejectedCount     = docs?.rejected_count     ?? 0;
+  const allDocsComplete   = mandatoryTotal > 0 && mandatoryApproved === mandatoryTotal;
+  const docPct            = mandatoryTotal > 0 ? (mandatoryApproved / mandatoryTotal) * 100 : 0;
 
-  const days = daysAgo(client.updated_at);
+  const days      = daysAgo(client.updated_at);
   const daysColor = days < 7 ? 'text-green-600' : days <= 14 ? 'text-amber-600' : 'text-red-600';
   const brokerName = (client.brokers?.users as { name: string } | null)?.name;
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-3 hover:shadow-md hover:border-slate-300 transition-all select-none">
+    <div className={cn(
+      'relative bg-white rounded-lg border border-slate-200 p-3 hover:shadow-md hover:border-slate-300 transition-all select-none',
+      isSaving && 'pointer-events-none'
+    )}>
+      {isSaving && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/70 z-10">
+          <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+        </div>
+      )}
+
       {/* Avatar + name */}
       <div className="flex items-center gap-2 mb-2">
         <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
@@ -143,49 +162,73 @@ function KanbanCard({
   );
 }
 
-// ─── DraggableCard ─────────────────────────────────────────────────────────────
+// ─── SortableCard ──────────────────────────────────────────────────────────────
 
-function DraggableCard({
+function SortableCard({
   client,
   docCounts,
   showBrokerColumn,
+  isSaving,
 }: {
   client: KanbanClient;
   docCounts: DocCounts;
   showBrokerColumn: boolean;
+  isSaving: boolean;
 }) {
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: client.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: client.id,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <div
       ref={setNodeRef}
+      style={style}
       {...attributes}
       {...listeners}
-      className={cn('cursor-grab active:cursor-grabbing touch-none', isDragging && 'opacity-40')}
-      onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+      className={cn(
+        'cursor-grab active:cursor-grabbing touch-none',
+        isDragging && 'opacity-30'
+      )}
+      onClick={() => {
+        if (!isDragging) router.push(`/dashboard/clients/${client.id}`);
+      }}
     >
-      <KanbanCard client={client} docCounts={docCounts} showBrokerColumn={showBrokerColumn} />
+      <KanbanCard
+        client={client}
+        docCounts={docCounts}
+        showBrokerColumn={showBrokerColumn}
+        isSaving={isSaving}
+      />
     </div>
   );
 }
 
-// ─── DroppableColumn ───────────────────────────────────────────────────────────
+// ─── SortableColumn ────────────────────────────────────────────────────────────
 
-function DroppableColumn({
+function SortableColumn({
   step,
   label,
   accent,
-  clients,
+  orderedClients,
+  allOrderedIds,
   docCounts,
   showBrokerColumn,
+  savingIds,
 }: {
   step: string;
   label: string;
   accent: string;
-  clients: KanbanClient[];
+  orderedClients: KanbanClient[];
+  allOrderedIds: string[];
   docCounts: DocCounts;
   showBrokerColumn: boolean;
+  savingIds: Set<string>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: step });
 
@@ -196,34 +239,37 @@ function DroppableColumn({
         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
         <span className="text-xs font-semibold text-slate-700 truncate">{label}</span>
         <span className="ml-auto text-[11px] font-medium bg-slate-200 text-slate-600 rounded-full px-2 py-0.5 shrink-0">
-          {clients.length}
+          {orderedClients.length}
         </span>
       </div>
 
-      {/* Cards container */}
-      <div
-        ref={setNodeRef}
-        className={cn(
-          'flex-1 rounded-xl bg-slate-100 border border-slate-200 p-2 space-y-2 overflow-y-auto transition-colors',
-          isOver && 'bg-blue-50 border-blue-300 ring-2 ring-blue-200 ring-offset-1'
-        )}
-        style={{ minHeight: 120, maxHeight: 'calc(100vh - 260px)' }}
-      >
-        {clients.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-20 text-center px-2">
-            <p className="text-[11px] text-slate-400">Nenhum processo nesta etapa</p>
-          </div>
-        ) : (
-          clients.map((client) => (
-            <DraggableCard
-              key={client.id}
-              client={client}
-              docCounts={docCounts}
-              showBrokerColumn={showBrokerColumn}
-            />
-          ))
-        )}
-      </div>
+      {/* SortableContext uses ALL ordered IDs (search-independent) so positions stay stable */}
+      <SortableContext items={allOrderedIds} strategy={verticalListSortingStrategy}>
+        <div
+          ref={setNodeRef}
+          className={cn(
+            'flex-1 rounded-xl bg-slate-100 border border-slate-200 p-2 space-y-2 overflow-y-auto transition-colors',
+            isOver && 'bg-blue-50 border-blue-300 ring-2 ring-blue-200 ring-offset-1'
+          )}
+          style={{ minHeight: 120, maxHeight: 'calc(100vh - 260px)' }}
+        >
+          {orderedClients.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-20 text-center px-2">
+              <p className="text-[11px] text-slate-400">Nenhum processo nesta etapa</p>
+            </div>
+          ) : (
+            orderedClients.map((client) => (
+              <SortableCard
+                key={client.id}
+                client={client}
+                docCounts={docCounts}
+                showBrokerColumn={showBrokerColumn}
+                isSaving={savingIds.has(client.id)}
+              />
+            ))
+          )}
+        </div>
+      </SortableContext>
     </div>
   );
 }
@@ -231,26 +277,36 @@ function DroppableColumn({
 // ─── KanbanBoard ───────────────────────────────────────────────────────────────
 
 export function KanbanBoard({ initialClients, search, docCounts, showBrokerColumn }: KanbanBoardProps) {
-  const [localClients, setLocalClients] = useState<KanbanClient[]>(initialClients);
-  const [visibleSteps, setVisibleSteps] = useState<string[]>(DEFAULT_VISIBLE_STEPS);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [colsMenuOpen, setColsMenuOpen] = useState(false);
+  const [localClients,  setLocalClients]  = useState<KanbanClient[]>(initialClients);
+  const [columnOrder,   setColumnOrder]   = useState<Record<string, string[]>>({});
+  const [savingIds,     setSavingIds]     = useState<Set<string>>(new Set());
+  const [visibleSteps,  setVisibleSteps]  = useState<string[]>(DEFAULT_VISIBLE_STEPS);
+  const [activeId,      setActiveId]      = useState<string | null>(null);
+  const [colsMenuOpen,  setColsMenuOpen]  = useState(false);
   const colsMenuRef = useRef<HTMLDivElement>(null);
 
-  // Load column visibility from localStorage on mount
+  // ── Load from localStorage on mount ─────────────────────────────────────────
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(LS_COLUMNS_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as unknown;
-        if (Array.isArray(parsed)) setVisibleSteps(parsed as string[]);
+      const cols = localStorage.getItem(LS_COLUMNS_KEY);
+      if (cols) {
+        const p = JSON.parse(cols) as unknown;
+        if (Array.isArray(p)) setVisibleSteps(p as string[]);
       }
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
+
+    try {
+      const ord = localStorage.getItem(LS_ORDER_KEY);
+      if (ord) {
+        const p = JSON.parse(ord) as unknown;
+        if (p && typeof p === 'object' && !Array.isArray(p)) {
+          setColumnOrder(p as Record<string, string[]>);
+        }
+      }
+    } catch { /* ignore */ }
   }, []);
 
-  // Close columns menu on outside click
+  // ── Close columns menu on outside click ─────────────────────────────────────
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (colsMenuRef.current && !colsMenuRef.current.contains(e.target as Node)) {
@@ -261,16 +317,13 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Grabbing cursor while dragging
+  // ── Grabbing cursor while dragging ───────────────────────────────────────────
   useEffect(() => {
-    if (activeId) {
-      document.body.style.cursor = 'grabbing';
-    } else {
-      document.body.style.cursor = '';
-    }
+    document.body.style.cursor = activeId ? 'grabbing' : '';
     return () => { document.body.style.cursor = ''; };
   }, [activeId]);
 
+  // ── Column visibility toggle ─────────────────────────────────────────────────
   const toggleColumn = (step: string) => {
     setVisibleSteps((prev) => {
       const next = prev.includes(step) ? prev.filter((s) => s !== step) : [...prev, step];
@@ -279,56 +332,118 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
     });
   };
 
+  // ── Order helpers ────────────────────────────────────────────────────────────
+  const getOrderedIds = useCallback((step: string): string[] => {
+    const allInStep = localClients.filter((c) => c.process_step === step).map((c) => c.id);
+    const saved     = columnOrder[step] ?? [];
+    return [
+      ...saved.filter((id) => allInStep.includes(id)),
+      ...allInStep.filter((id) => !saved.includes(id)),
+    ];
+  }, [localClients, columnOrder]);
+
+  const getOrderedClients = useCallback((step: string): KanbanClient[] => {
+    const ids = getOrderedIds(step);
+    return ids.map((id) => localClients.find((c) => c.id === id)).filter((c): c is KanbanClient => c !== undefined);
+  }, [getOrderedIds, localClients]);
+
+  // ── DnD sensors ─────────────────────────────────────────────────────────────
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
+    useSensor(TouchSensor,   { activationConstraint: { delay: 250, tolerance: 5 } })
   );
 
   const handleDragStart = ({ active }: DragStartEvent) => {
     setActiveId(active.id as string);
   };
 
-  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
+  // ── Drag end: cross-column save OR within-column reorder ─────────────────────
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setActiveId(null);
     if (!over) return;
 
-    const toStep = over.id as string;
-    const client = localClients.find((c) => c.id === active.id);
-    if (!client || client.process_step === toStep) return;
+    const clientId    = active.id as string;
+    const overId      = over.id  as string;
+    const activeClient = localClients.find((c) => c.id === clientId);
+    if (!activeClient) return;
 
-    const fromStep = client.process_step;
+    const fromStep = activeClient.process_step;
 
-    // Optimistic move
-    setLocalClients((prev) =>
-      prev.map((c) => (c.id === client.id ? { ...c, process_step: toStep } : c))
-    );
+    // Determine target step: over a column droppable or over another card?
+    const isColumnTarget = STEP_SET.has(overId);
+    const overClient     = !isColumnTarget ? localClients.find((c) => c.id === overId) : undefined;
+    const toStep         = isColumnTarget ? overId : (overClient?.process_step ?? fromStep);
 
-    const res = await fetch(`/api/clients/${client.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ process_step: toStep }),
-    });
-
-    if (!res.ok) {
-      // Revert on failure
-      setLocalClients((prev) =>
-        prev.map((c) => (c.id === client.id ? { ...c, process_step: fromStep } : c))
-      );
-      toast.error('Erro ao mover cliente — tente novamente');
+    // ── Within-column reorder ─────────────────────────────────────────────────
+    if (fromStep === toStep) {
+      if (!isColumnTarget && overId !== clientId) {
+        const orderedIds = getOrderedIds(fromStep);
+        const oldIdx     = orderedIds.indexOf(clientId);
+        const newIdx     = orderedIds.indexOf(overId);
+        if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
+          const newOrder = arrayMove(orderedIds, oldIdx, newIdx);
+          setColumnOrder((prev) => {
+            const next = { ...prev, [fromStep]: newOrder };
+            localStorage.setItem(LS_ORDER_KEY, JSON.stringify(next));
+            return next;
+          });
+        }
+      }
+      return;
     }
+
+    // ── Cross-column move: save to DB, then update UI ─────────────────────────
+    setSavingIds((prev) => { const s = new Set(prev); s.add(clientId); return s; });
+
+    // Fire-and-forget async — we capture the closure values we need
+    void (async () => {
+      try {
+        const res = await fetch(`/api/clients/${clientId}`, {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ process_step: toStep }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.error('[Kanban] PATCH failed:', res.status, errData);
+          toast.error('Erro ao mover cliente — tente novamente');
+        } else {
+          // Move card in UI after confirmed save
+          setLocalClients((prev) =>
+            prev.map((c) => (c.id === clientId ? { ...c, process_step: toStep } : c))
+          );
+          // Update column order: remove from source, prepend to target
+          setColumnOrder((prev) => {
+            const next = { ...prev };
+            if (next[fromStep]) next[fromStep] = next[fromStep].filter((id) => id !== clientId);
+            next[toStep] = [clientId, ...(next[toStep] ?? []).filter((id) => id !== clientId)];
+            localStorage.setItem(LS_ORDER_KEY, JSON.stringify(next));
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error('[Kanban] Error saving process_step:', err);
+        toast.error('Erro ao mover cliente — tente novamente');
+      } finally {
+        setSavingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(clientId);
+          return next;
+        });
+      }
+    })();
   };
 
-  // Apply search filter for display (doesn't affect drag state)
-  const displayClients = search.trim()
-    ? localClients.filter(
-        (c) =>
-          c.p1_name.toLowerCase().includes(search.toLowerCase()) ||
-          (c.p2_name?.toLowerCase().includes(search.toLowerCase()) ?? false)
-      )
-    : localClients;
+  // ── Build display lists ───────────────────────────────────────────────────────
+  const searchLower = search.trim().toLowerCase();
+  const matchesSearch = (c: KanbanClient) =>
+    !searchLower ||
+    c.p1_name.toLowerCase().includes(searchLower) ||
+    (c.p2_name?.toLowerCase().includes(searchLower) ?? false);
 
-  const activeClient = activeId ? localClients.find((c) => c.id === activeId) ?? null : null;
   const visibleColumns = KANBAN_COLUMNS.filter((col) => visibleSteps.includes(col.step));
+  const activeClient   = activeId ? (localClients.find((c) => c.id === activeId) ?? null) : null;
 
   return (
     <div>
@@ -370,17 +485,23 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
       {/* Board */}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-3 overflow-x-auto pb-4" style={{ scrollbarGutter: 'stable' }}>
-          {visibleColumns.map((col) => (
-            <DroppableColumn
-              key={col.step}
-              step={col.step}
-              label={col.label}
-              accent={col.accent}
-              clients={displayClients.filter((c) => c.process_step === col.step)}
-              docCounts={docCounts}
-              showBrokerColumn={showBrokerColumn}
-            />
-          ))}
+          {visibleColumns.map((col) => {
+            const allOrderedIds     = getOrderedIds(col.step);
+            const orderedClients    = getOrderedClients(col.step).filter(matchesSearch);
+            return (
+              <SortableColumn
+                key={col.step}
+                step={col.step}
+                label={col.label}
+                accent={col.accent}
+                orderedClients={orderedClients}
+                allOrderedIds={allOrderedIds}
+                docCounts={docCounts}
+                showBrokerColumn={showBrokerColumn}
+                savingIds={savingIds}
+              />
+            );
+          })}
         </div>
 
         <DragOverlay>
