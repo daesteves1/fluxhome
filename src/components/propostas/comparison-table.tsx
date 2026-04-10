@@ -417,8 +417,25 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
       <div className="relative w-full overflow-x-auto overflow-y-visible rounded-lg border border-gray-200 shadow-sm">
         <table className="text-sm w-full" style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: `${220 + propostas.length * 150}px` }}>
           <thead>
+            {/* Section header — "O Empréstimo" — sticks with bank names */}
             <tr>
-              <th className="sticky left-0 top-16 z-30 px-3 py-3 text-left text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 w-[220px] min-w-[200px]">
+              <th
+                className="sticky left-0 top-16 z-30 px-3 py-2.5 text-left text-sm font-semibold text-white border border-gray-200 w-[220px] min-w-[200px]"
+                style={{ backgroundColor: '#1E3A5F' }}
+              >
+                O Empréstimo
+              </th>
+              <th
+                colSpan={totalDataCols}
+                className="sticky top-16 z-20 px-3 py-2.5 border border-gray-200"
+                style={{ backgroundColor: '#1E3A5F' }}
+              >
+                <span className="text-xs text-white opacity-60">Detalhes do crédito e condições da taxa</span>
+              </th>
+            </tr>
+            {/* Bank names row — offset below section header (~40px) */}
+            <tr>
+              <th className="sticky left-0 top-[6.5rem] z-30 px-3 py-3 text-left text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 w-[220px] min-w-[200px]">
                 &nbsp;
               </th>
               {propostas.map((p) => (
@@ -426,7 +443,7 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
                   key={p.id}
                   colSpan={2}
                   className={cn(
-                    'sticky top-16 z-20 px-3 py-3 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
+                    'sticky top-[6.5rem] z-20 px-3 py-3 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
                     p.id === recommendedId
                       ? 'bg-[#2D5BA3] text-white border-l-2 border-l-blue-400'
                       : 'bg-[#1E3A5F] text-white'
@@ -443,11 +460,6 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
           <tbody>
 
             {/* ══ SECTION 1 — O Empréstimo ══════════════════════════════════ */}
-            <NewSectionHeader
-              title="O Empréstimo"
-              subtitle="Detalhes do crédito e condições da taxa"
-              totalDataCols={totalDataCols}
-            />
             <DataRow
               label="Montante"
               values={bv(propostas.map((p) => fmtEur(p.loan_amount)))}
