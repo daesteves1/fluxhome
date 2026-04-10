@@ -169,6 +169,8 @@ function emptyForm(): FormData {
     valor_residual: null,
     valor_avaliacao: null,
     condicoes_spread: null,
+    condicoes_pos_fixo: null,
+    mtic: null,
     bank_pdf_path: null,
     notes: null,
   };
@@ -253,6 +255,8 @@ export function BankPropostaForm({ clientId, backUrl, initialData, p2Name }: Ban
     valor_residual: initialData.valor_residual,
     valor_avaliacao: initialData.valor_avaliacao,
     condicoes_spread: initialData.condicoes_spread,
+    condicoes_pos_fixo: initialData.condicoes_pos_fixo,
+    mtic: initialData.mtic,
     bank_pdf_path: initialData.bank_pdf_path,
     notes: initialData.notes,
   } : emptyForm());
@@ -504,6 +508,16 @@ export function BankPropostaForm({ clientId, backUrl, initialData, p2Name }: Ban
                 />
               </div>
             )}
+            {form.rate_type === 'mista' && (
+              <div className="col-span-2 md:col-span-2">
+                <Label>Condições após período fixo</Label>
+                <Input
+                  value={form.condicoes_pos_fixo ?? ''}
+                  onChange={(e) => set('condicoes_pos_fixo', e.target.value || null)}
+                  placeholder="Ex: Euribor 6 meses + 0.70% spread"
+                />
+              </div>
+            )}
           </div>
 
           <div>
@@ -609,6 +623,16 @@ export function BankPropostaForm({ clientId, backUrl, initialData, p2Name }: Ban
                 value={numField(form.monthly_payment)}
                 onChange={(e) => set('monthly_payment', parseNum(e.target.value))}
                 placeholder="750.00"
+              />
+            </div>
+            <div className="col-span-2 md:col-span-2">
+              <Label>MTIC (se disponível na ficha do banco) (€)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={numField(form.mtic)}
+                onChange={(e) => set('mtic', parseNum(e.target.value))}
+                placeholder="Calculado automaticamente se vazio"
               />
             </div>
           </div>

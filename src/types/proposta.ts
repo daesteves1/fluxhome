@@ -53,6 +53,9 @@ export type BankProposta = {
   valor_avaliacao: number | null;
   // Spread conditions (array of tags)
   condicoes_spread: string[] | null;
+  condicoes_pos_fixo: string | null;
+  // MTIC
+  mtic: number | null;
   // Other
   bank_pdf_path: string | null;
   notes: string | null;

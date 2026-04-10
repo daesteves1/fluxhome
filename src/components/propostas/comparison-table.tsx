@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useState } from 'react';
-import { Star, ChevronDown, ChevronRight, Check } from 'lucide-react';
+import { Star, ChevronDown, ChevronRight, Check, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { BankProposta } from '@/types/proposta';
 import {
@@ -27,6 +27,13 @@ function getLowest(vals: (number | null)[]): number | null {
   const nums = vals.filter((v): v is number => v !== null && v > 0);
   if (!nums.length) return null;
   return Math.min(...nums);
+}
+
+function fmtMticVal(v: number): string {
+  if (v <= 0) return '—';
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M€`;
+  if (v >= 1_000) return `${Math.round(v / 1_000)}k€`;
+  return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 }
 
 interface SectionHeaderProps {
@@ -240,6 +247,45 @@ function RecomendadaTotalRow({ propostas, recommendedId, hasP2 }: { propostas: B
   );
 }
 
+function MticRow({ propostas, recommendedId, hasP2 }: { propostas: BankProposta[]; recommendedId: string | null; hasP2: boolean }) {
+  const mticVals = propostas.map((p) => {
+    if (p.mtic && p.mtic > 0) return p.mtic;
+    const prestacao = calcTotalRecomendado(p, hasP2);
+    return prestacao > 0 && (p.term_months ?? 0) > 0 ? prestacao * p.term_months! : 0;
+  });
+  const allFromDb = propostas.every((p) => (p.mtic ?? 0) > 0);
+  const rowLabel = allFromDb ? 'MTIC' : 'MTIC (estimado)';
+  const minMtic = getLowest(mticVals);
+  return (
+    <tr>
+      <td className="sticky left-0 z-10 px-3 py-1.5 text-xs font-semibold text-gray-800 bg-[#E8EEF7] border border-gray-200 w-[220px] min-w-[200px]">
+        <div className="flex items-center gap-1">
+          {rowLabel}
+          <span title="Montante total estimado a pagar ao longo do prazo incluindo seguros">
+            <Info className="h-3 w-3 text-blue-400 shrink-0" />
+          </span>
+        </div>
+      </td>
+      {propostas.map((p, i) => {
+        const v = mticVals[i] ?? 0;
+        const isGreen = v > 0 && v === minMtic;
+        return (
+          <td
+            key={p.id}
+            colSpan={2}
+            className={cn(
+              'px-3 py-1.5 text-xs font-semibold text-center border border-gray-200 min-w-[150px]',
+              isGreen ? 'bg-green-100 text-green-800' : p.id === recommendedId ? 'bg-blue-50' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+            )}
+          >
+            {v > 0 ? fmtMticVal(v) : '—'}
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
 export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highlightedCells = {} }: ComparisonTableProps) {
   const [encargosCollapsed, setEncargosCollapsed] = useState(true);
 
@@ -287,6 +333,9 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
             const greenIdx = loanAmounts.map((v, i) => (v !== null && v === minLoan ? i : -1)).filter((i) => i >= 0);
             return <DataRow label="Montante" values={propostas.map((p) => fmtEur(p.loan_amount))} rowKey="loan_amount" greenIndices={greenIdx} {...rowProps} />;
           })()}
+          {propostas.some((p) => p.valor_residual) && (
+            <DataRow label="Valor Residual" values={propostas.map((p) => fmtEur(p.valor_residual))} rowKey="valor_residual" {...rowProps} />
+          )}
           {propostas.some((p) => p.valor_avaliacao) && (
             <DataRow label="Valor de Avaliação" values={propostas.map((p) => fmtEur(p.valor_avaliacao))} rowKey="valor_avaliacao" {...rowProps} />
           )}
@@ -326,6 +375,14 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
                   : null
               )}
               rowKey="condicoes_spread"
+              {...rowProps}
+            />
+          )}
+          {propostas.some((p) => p.condicoes_pos_fixo) && (
+            <DataRow
+              label="Após período fixo"
+              values={propostas.map((p) => p.condicoes_pos_fixo ?? null)}
+              rowKey="condicoes_pos_fixo"
               {...rowProps}
             />
           )}
@@ -376,6 +433,7 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
             getIsRecBanco={(p) => (p.multiriscos_recomendada ?? 'banco') === 'banco'}
           />
           <RecomendadaTotalRow propostas={propostas} recommendedId={recommendedId} hasP2={hasP2} />
+          <MticRow propostas={propostas} recommendedId={recommendedId} hasP2={hasP2} />
 
           {/* ── One-time charges (collapsible) ── */}
           <SectionHeader
