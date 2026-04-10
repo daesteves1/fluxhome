@@ -433,15 +433,17 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
         // Insert into final column at the position of the over-card (if any)
         const existing = (next[finalStep] ?? []).filter((id) => id !== clientId);
         if (!isColumnDrop && overClient?.process_step === finalStep && overId !== clientId) {
+          // Dropped over a specific card — insert before that card
           const idx = existing.indexOf(overId);
           if (idx !== -1) {
             existing.splice(idx, 0, clientId);
           } else {
-            existing.unshift(clientId);
+            existing.push(clientId);
           }
           next[finalStep] = existing;
         } else {
-          next[finalStep] = [clientId, ...existing];
+          // Dropped on the column background (below all cards) — append to end
+          next[finalStep] = [...existing, clientId];
         }
 
         localStorage.setItem(LS_ORDER_KEY, JSON.stringify(next));
