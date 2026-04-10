@@ -281,8 +281,28 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
         <tbody>
           {/* ── Loan info ── */}
           <SectionHeader label="Informação do Empréstimo" totalDataCols={totalDataCols} />
-          <DataRow label="Montante" values={propostas.map((p) => fmtEur(p.loan_amount))} rowKey="loan_amount" {...rowProps} />
+          {(() => {
+            const loanAmounts = propostas.map((p) => p.loan_amount);
+            const minLoan = getLowest(loanAmounts);
+            const greenIdx = loanAmounts.map((v, i) => (v !== null && v === minLoan ? i : -1)).filter((i) => i >= 0);
+            return <DataRow label="Montante" values={propostas.map((p) => fmtEur(p.loan_amount))} rowKey="loan_amount" greenIndices={greenIdx} {...rowProps} />;
+          })()}
+          {propostas.some((p) => p.valor_avaliacao) && (
+            <DataRow label="Valor de Avaliação" values={propostas.map((p) => fmtEur(p.valor_avaliacao))} rowKey="valor_avaliacao" {...rowProps} />
+          )}
           <DataRow label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} rowKey="term_months" {...rowProps} />
+          {propostas.some((p) => p.rate_type === 'mista' || p.rate_type === 'fixa') && (
+            <DataRow
+              label="Período Fixo"
+              values={propostas.map((p) =>
+                (p.rate_type === 'mista' || p.rate_type === 'fixa') && p.fixed_period_years
+                  ? `${p.fixed_period_years} anos`
+                  : '—'
+              )}
+              rowKey="fixed_period_years"
+              {...rowProps}
+            />
+          )}
           <DataRow label="Tipo de taxa" values={propostas.map((p) => p.rate_type ? (RATE_TYPE_LABELS[p.rate_type] ?? null) : null)} rowKey="rate_type" {...rowProps} />
           <DataRow label="Euribor" values={propostas.map((p) => p.euribor_index ? (EURIBOR_LABELS[p.euribor_index] ?? null) : null)} rowKey="euribor_index" {...rowProps} />
           <DataRow label="Spread" values={propostas.map((p) => fmtPct(p.spread))} rowKey="spread" {...rowProps} />

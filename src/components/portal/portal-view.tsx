@@ -335,6 +335,9 @@ function PortalMapaCard({
                       </div>
                       <p className="text-[11px] text-slate-500 pl-6">{sublabel}</p>
                       {total > 0 && <p className="text-sm font-bold text-slate-900 pl-6 mt-1">{fmtEur(total)}/mês</p>}
+                      {(selectedBank.manutencao_conta ?? 0) > 0 && (
+                        <p className="text-[10px] text-slate-400 pl-6 mt-0.5">Manutenção de conta: {fmtEur(selectedBank.manutencao_conta)}/mês</p>
+                      )}
                     </button>
                   ))}
                 </div>

@@ -167,6 +167,7 @@ function emptyForm(): FormData {
     outras_comissoes_mensais: null,
     validade_ate: null,
     valor_residual: null,
+    valor_avaliacao: null,
     condicoes_spread: null,
     bank_pdf_path: null,
     notes: null,
@@ -250,6 +251,7 @@ export function BankPropostaForm({ clientId, backUrl, initialData, p2Name }: Ban
     outras_comissoes_mensais: initialData.outras_comissoes_mensais,
     validade_ate: initialData.validade_ate,
     valor_residual: initialData.valor_residual,
+    valor_avaliacao: initialData.valor_avaliacao,
     condicoes_spread: initialData.condicoes_spread,
     bank_pdf_path: initialData.bank_pdf_path,
     notes: initialData.notes,
@@ -426,6 +428,16 @@ export function BankPropostaForm({ clientId, backUrl, initialData, p2Name }: Ban
                 value={numField(form.loan_amount)}
                 onChange={(e) => set('loan_amount', parseNum(e.target.value))}
                 placeholder="150000"
+              />
+            </div>
+
+            <div>
+              <Label>Valor de avaliação (previsível) (€)</Label>
+              <Input
+                type="number"
+                value={numField(form.valor_avaliacao)}
+                onChange={(e) => set('valor_avaliacao', parseNum(e.target.value))}
+                placeholder="—"
               />
             </div>
 

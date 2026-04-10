@@ -50,6 +50,7 @@ export type BankProposta = {
   // Validity & residual
   validade_ate: string | null;  // ISO date string
   valor_residual: number | null;
+  valor_avaliacao: number | null;
   // Spread conditions (array of tags)
   condicoes_spread: string[] | null;
   // Other
@@ -115,11 +116,11 @@ export const BANK_SUGGESTIONS = [
 ];
 
 export function calcPrestacaoTotalBanco(p: BankProposta): number {
-  return (p.monthly_payment ?? 0) + (p.vida_p1_banco ?? 0) + (p.vida_p2_banco ?? 0) + (p.multiriscos_banco ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+  return (p.monthly_payment ?? 0) + (p.vida_p1_banco ?? 0) + (p.vida_p2_banco ?? 0) + (p.multiriscos_banco ?? 0);
 }
 
 export function calcPrestacaoTotalExterno(p: BankProposta): number {
-  return (p.monthly_payment ?? 0) + (p.vida_p1_externa ?? 0) + (p.vida_p2_externa ?? 0) + (p.multiriscos_externa ?? 0) + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+  return (p.monthly_payment ?? 0) + (p.vida_p1_externa ?? 0) + (p.vida_p2_externa ?? 0) + (p.multiriscos_externa ?? 0);
 }
 
 // Aliases used by excel/pdf routes
@@ -136,21 +137,32 @@ export function calcTotalRecomendado(p: BankProposta, hasP2 = false): number {
     ? (p.vida_p2_recomendada === 'banco' ? (p.vida_p2_banco ?? 0) : (p.vida_p2_externa ?? 0))
     : 0;
   const multi = p.multiriscos_recomendada === 'banco' ? (p.multiriscos_banco ?? 0) : (p.multiriscos_externa ?? 0);
-  return (p.monthly_payment ?? 0) + vidaP1 + vidaP2 + multi + (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0);
+  return (p.monthly_payment ?? 0) + vidaP1 + vidaP2 + multi;
 }
 
 export function getRecomendadaLabel(p: BankProposta, hasP2: boolean): string {
-  const parts: string[] = [];
-  if ((p.vida_p1_banco ?? 0) > 0 || (p.vida_p1_externa ?? 0) > 0) {
-    parts.push(`P1 ${p.vida_p1_recomendada === 'banco' ? 'banco' : 'ext.'}`);
+  const hasVida1 = (p.vida_p1_banco ?? 0) > 0 || (p.vida_p1_externa ?? 0) > 0;
+  const hasVida2 = hasP2 && ((p.vida_p2_banco ?? 0) > 0 || (p.vida_p2_externa ?? 0) > 0);
+  const hasMulti = (p.multiriscos_banco ?? 0) > 0 || (p.multiriscos_externa ?? 0) > 0;
+
+  if (!hasVida1 && !hasMulti) return '';
+
+  const vida1Label = p.vida_p1_recomendada === 'banco' ? 'banco' : 'ext.';
+  const vida2Label = p.vida_p2_recomendada === 'banco' ? 'banco' : 'ext.';
+  const multiLabel = p.multiriscos_recomendada === 'banco' ? 'banco' : 'ext.';
+
+  if (hasP2) {
+    const parts: string[] = [];
+    if (hasVida1) parts.push(`Vida P1: ${vida1Label}`);
+    if (hasVida2) parts.push(`Vida P2: ${vida2Label}`);
+    if (hasMulti) parts.push(`Multirriscos: ${multiLabel}`);
+    return parts.join(' · ');
+  } else {
+    const parts: string[] = [];
+    if (hasVida1) parts.push(`Vida: ${vida1Label}`);
+    if (hasMulti) parts.push(`Multirriscos: ${multiLabel}`);
+    return parts.join(' · ');
   }
-  if (hasP2 && ((p.vida_p2_banco ?? 0) > 0 || (p.vida_p2_externa ?? 0) > 0)) {
-    parts.push(`P2 ${p.vida_p2_recomendada === 'banco' ? 'banco' : 'ext.'}`);
-  }
-  if ((p.multiriscos_banco ?? 0) > 0 || (p.multiriscos_externa ?? 0) > 0) {
-    parts.push(`Multi ${p.multiriscos_recomendada === 'banco' ? 'banco' : 'ext.'}`);
-  }
-  return parts.join(' · ');
 }
 
 export function calcTotalEncargosUnicos(p: BankProposta): number {
