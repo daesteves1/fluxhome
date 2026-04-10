@@ -102,7 +102,7 @@ export function PropostasTab({ client }: Props) {
     }
   }
 
-  const orderedMapaPropostas = mapaData
+  const orderedMapaPropostas = mapaData?.mapa
     ? (mapaData.mapa.proposta_ids
         .map((pid) => mapaData.bankPropostas.find((p) => p.id === pid))
         .filter(Boolean) as BankProposta[])
@@ -294,7 +294,7 @@ export function PropostasTab({ client }: Props) {
           </div>
         </div>
 
-        {!mapaData ? (
+        {!mapaData?.mapa ? (
           <div className="text-center py-10 text-gray-400 text-sm border border-dashed border-gray-200 rounded-xl">
             {bankPropostas.length === 0
               ? 'Crie primeiro pelo menos uma proposta bancária.'
@@ -321,7 +321,7 @@ export function PropostasTab({ client }: Props) {
                 highlightedCells={mapaData.mapa.highlighted_cells as Record<string, string>}
               />
             )}
-            {mapaData?.propostaChoice != null && <ClientChoiceBanner
+            {mapaData.propostaChoice != null && <ClientChoiceBanner
               choice={mapaData.propostaChoice as { proposta_id: string; bank_name: string; insurance_choice: string; confirmed_at: string }}
               orderedPropostas={orderedMapaPropostas}
             />}
@@ -341,7 +341,7 @@ export function PropostasTab({ client }: Props) {
             {/* Summary cards */}
             <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
               {orderedMapaPropostas.map((p) => {
-                const isRec = p.id === mapaData!.mapa.recommended_proposta_id;
+                const isRec = p.id === mapaData?.mapa?.recommended_proposta_id;
                 const totalBanco = calcTotalRecomendado(p, Boolean(client.p2_name));
                 const initials = p.bank_name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
                 return (
@@ -371,20 +371,20 @@ export function PropostasTab({ client }: Props) {
               })}
             </div>
             {/* Table */}
-            <ComparisonTable propostas={orderedMapaPropostas} recommendedId={mapaData!.mapa.recommended_proposta_id} hasP2={Boolean(client.p2_name)} />
+            <ComparisonTable propostas={orderedMapaPropostas} recommendedId={mapaData?.mapa?.recommended_proposta_id ?? null} hasP2={Boolean(client.p2_name)} />
             {/* Charts */}
             {orderedMapaPropostas.some((p) => (p.monthly_payment ?? 0) > 0) && (
               <div className="border-t border-slate-200 pt-5">
                 <p className="text-base font-bold text-slate-900 mb-1">Análise Comparativa</p>
                 <p className="text-xs text-slate-500 mb-4">Visualize e compare as propostas para tomar a melhor decisão</p>
-                <PropostasCharts propostas={orderedMapaPropostas} recommendedId={mapaData!.mapa.recommended_proposta_id} />
+                <PropostasCharts propostas={orderedMapaPropostas} recommendedId={mapaData?.mapa?.recommended_proposta_id ?? null} />
               </div>
             )}
             {/* Broker notes */}
-            {mapaData!.mapa.broker_notes && (
+            {mapaData?.mapa?.broker_notes && (
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
                 <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1.5">Notas do mediador</p>
-                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{mapaData!.mapa.broker_notes}</p>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{mapaData.mapa.broker_notes}</p>
               </div>
             )}
             {/* Choice notice */}

@@ -142,7 +142,8 @@
     "docs_complete": "Docs. Completos",
     "propostas_sent": "Propostas Enviadas",
     "approved": "Aprovado",
-    "closed": "Fechado"
+    "closed": "Fechado",
+    "fechado": "Fechado"
   },
   "documents": {
     "title": "Documentos",
