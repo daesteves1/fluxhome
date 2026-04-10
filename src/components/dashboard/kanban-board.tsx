@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   DragStartEvent,
   DragOverlay,
   PointerSensor,
@@ -22,7 +23,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Settings2, Loader2 } from 'lucide-react';
+import { Settings2 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ const KANBAN_COLUMNS: { step: string; label: string; accent: string; defaultVisi
   { step: 'closed',          label: 'Fechado',            accent: '#64748b', defaultVisible: false },
 ];
 
-const STEP_SET = new Set(KANBAN_COLUMNS.map((c) => c.step));
+const STEP_SET            = new Set(KANBAN_COLUMNS.map((c) => c.step));
 const DEFAULT_VISIBLE_STEPS = KANBAN_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.step);
 const LS_COLUMNS_KEY = 'homeflux_kanban_columns';
 const LS_ORDER_KEY   = 'homeflux_kanban_order';
@@ -79,35 +80,24 @@ function KanbanCard({
   client,
   docCounts,
   showBrokerColumn,
-  isSaving = false,
 }: {
   client: KanbanClient;
   docCounts: DocCounts;
   showBrokerColumn: boolean;
-  isSaving?: boolean;
 }) {
-  const docs = docCounts[client.id];
+  const docs              = docCounts[client.id];
   const mandatoryTotal    = docs?.mandatory_total    ?? 0;
   const mandatoryApproved = docs?.mandatory_approved ?? 0;
   const rejectedCount     = docs?.rejected_count     ?? 0;
   const allDocsComplete   = mandatoryTotal > 0 && mandatoryApproved === mandatoryTotal;
   const docPct            = mandatoryTotal > 0 ? (mandatoryApproved / mandatoryTotal) * 100 : 0;
 
-  const days      = daysAgo(client.updated_at);
-  const daysColor = days < 7 ? 'text-green-600' : days <= 14 ? 'text-amber-600' : 'text-red-600';
+  const days       = daysAgo(client.updated_at);
+  const daysColor  = days < 7 ? 'text-green-600' : days <= 14 ? 'text-amber-600' : 'text-red-600';
   const brokerName = (client.brokers?.users as { name: string } | null)?.name;
 
   return (
-    <div className={cn(
-      'relative bg-white rounded-lg border border-slate-200 p-3 hover:shadow-md hover:border-slate-300 transition-all select-none',
-      isSaving && 'pointer-events-none'
-    )}>
-      {isSaving && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/70 z-10">
-          <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
-        </div>
-      )}
-
+    <div className="bg-white rounded-lg border border-slate-200 p-3 hover:shadow-md hover:border-slate-300 transition-all select-none">
       {/* Avatar + name */}
       <div className="flex items-center gap-2 mb-2">
         <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
@@ -168,21 +158,25 @@ function SortableCard({
   client,
   docCounts,
   showBrokerColumn,
-  isSaving,
 }: {
   client: KanbanClient;
   docCounts: DocCounts;
   showBrokerColumn: boolean;
-  isSaving: boolean;
 }) {
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: client.id,
-  });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: client.id });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    // Smooth 200ms ease while other cards shift; no transition on the dragged card itself
+    transition: isDragging ? undefined : (transition ?? 'transform 200ms ease'),
   };
 
   return (
@@ -191,20 +185,16 @@ function SortableCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={cn(
-        'cursor-grab active:cursor-grabbing touch-none',
-        isDragging && 'opacity-30'
-      )}
-      onClick={() => {
-        if (!isDragging) router.push(`/dashboard/clients/${client.id}`);
-      }}
+      className="cursor-grab active:cursor-grabbing touch-none relative"
+      onClick={() => { if (!isDragging) router.push(`/dashboard/clients/${client.id}`); }}
     >
-      <KanbanCard
-        client={client}
-        docCounts={docCounts}
-        showBrokerColumn={showBrokerColumn}
-        isSaving={isSaving}
-      />
+      {/* Always render the card so its height is preserved for the placeholder */}
+      <KanbanCard client={client} docCounts={docCounts} showBrokerColumn={showBrokerColumn} />
+
+      {/* Blue dashed placeholder overlay while this card is the active drag source */}
+      {isDragging && (
+        <div className="absolute inset-0 rounded-lg border-2 border-dashed border-blue-300 bg-blue-50/70" />
+      )}
     </div>
   );
 }
@@ -219,7 +209,6 @@ function SortableColumn({
   allOrderedIds,
   docCounts,
   showBrokerColumn,
-  savingIds,
 }: {
   step: string;
   label: string;
@@ -228,7 +217,6 @@ function SortableColumn({
   allOrderedIds: string[];
   docCounts: DocCounts;
   showBrokerColumn: boolean;
-  savingIds: Set<string>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: step });
 
@@ -243,7 +231,7 @@ function SortableColumn({
         </span>
       </div>
 
-      {/* SortableContext uses ALL ordered IDs (search-independent) so positions stay stable */}
+      {/* Cards container — SortableContext uses ALL IDs (search-independent) for stable positions */}
       <SortableContext items={allOrderedIds} strategy={verticalListSortingStrategy}>
         <div
           ref={setNodeRef}
@@ -264,7 +252,6 @@ function SortableColumn({
                 client={client}
                 docCounts={docCounts}
                 showBrokerColumn={showBrokerColumn}
-                isSaving={savingIds.has(client.id)}
               />
             ))
           )}
@@ -277,13 +264,16 @@ function SortableColumn({
 // ─── KanbanBoard ───────────────────────────────────────────────────────────────
 
 export function KanbanBoard({ initialClients, search, docCounts, showBrokerColumn }: KanbanBoardProps) {
-  const [localClients,  setLocalClients]  = useState<KanbanClient[]>(initialClients);
-  const [columnOrder,   setColumnOrder]   = useState<Record<string, string[]>>({});
-  const [savingIds,     setSavingIds]     = useState<Set<string>>(new Set());
-  const [visibleSteps,  setVisibleSteps]  = useState<string[]>(DEFAULT_VISIBLE_STEPS);
-  const [activeId,      setActiveId]      = useState<string | null>(null);
-  const [colsMenuOpen,  setColsMenuOpen]  = useState(false);
+  const [localClients, setLocalClients] = useState<KanbanClient[]>(initialClients);
+  const [columnOrder,  setColumnOrder]  = useState<Record<string, string[]>>({});
+  const [visibleSteps, setVisibleSteps] = useState<string[]>(DEFAULT_VISIBLE_STEPS);
+  const [activeId,     setActiveId]     = useState<string | null>(null);
+  const [colsMenuOpen, setColsMenuOpen] = useState(false);
   const colsMenuRef = useRef<HTMLDivElement>(null);
+
+  // Refs for drag lifecycle data — captured at dragStart, read at dragEnd
+  const originalStepRef       = useRef<string | null>(null);
+  const lastOverColumnRef     = useRef<string | null>(null);
 
   // ── Load from localStorage on mount ─────────────────────────────────────────
   useEffect(() => {
@@ -342,10 +332,11 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
     ];
   }, [localClients, columnOrder]);
 
-  const getOrderedClients = useCallback((step: string): KanbanClient[] => {
-    const ids = getOrderedIds(step);
-    return ids.map((id) => localClients.find((c) => c.id === id)).filter((c): c is KanbanClient => c !== undefined);
-  }, [getOrderedIds, localClients]);
+  const getOrderedClients = useCallback((step: string): KanbanClient[] =>
+    getOrderedIds(step)
+      .map((id) => localClients.find((c) => c.id === id))
+      .filter((c): c is KanbanClient => c !== undefined),
+  [getOrderedIds, localClients]);
 
   // ── DnD sensors ─────────────────────────────────────────────────────────────
   const sensors = useSensors(
@@ -353,90 +344,133 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
     useSensor(TouchSensor,   { activationConstraint: { delay: 250, tolerance: 5 } })
   );
 
+  // ── Drag start ───────────────────────────────────────────────────────────────
   const handleDragStart = ({ active }: DragStartEvent) => {
+    const client = localClients.find((c) => c.id === (active.id as string));
+    originalStepRef.current   = client?.process_step ?? null;
+    lastOverColumnRef.current = client?.process_step ?? null;
     setActiveId(active.id as string);
   };
 
-  // ── Drag end: cross-column save OR within-column reorder ─────────────────────
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    setActiveId(null);
+  // ── Drag over: move card between columns in real-time ────────────────────────
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
     if (!over) return;
 
-    const clientId    = active.id as string;
-    const overId      = over.id  as string;
+    const clientId   = active.id as string;
+    const overId     = over.id   as string;
+
     const activeClient = localClients.find((c) => c.id === clientId);
     if (!activeClient) return;
 
-    const fromStep = activeClient.process_step;
+    const fromStep     = activeClient.process_step;
+    const isColumnDrop = STEP_SET.has(overId);
+    const overClient   = !isColumnDrop ? localClients.find((c) => c.id === overId) : undefined;
+    const toStep       = isColumnDrop ? overId : (overClient?.process_step ?? fromStep);
 
-    // Determine target step: over a column droppable or over another card?
-    const isColumnTarget = STEP_SET.has(overId);
-    const overClient     = !isColumnTarget ? localClients.find((c) => c.id === overId) : undefined;
-    const toStep         = isColumnTarget ? overId : (overClient?.process_step ?? fromStep);
+    // Only act when crossing a column boundary
+    if (toStep === fromStep) return;
+    if (lastOverColumnRef.current === toStep) return;
+    lastOverColumnRef.current = toStep;
 
-    // ── Within-column reorder ─────────────────────────────────────────────────
-    if (fromStep === toStep) {
-      if (!isColumnTarget && overId !== clientId) {
-        const orderedIds = getOrderedIds(fromStep);
+    // Immediately move card to new column — optimistic, no API yet
+    setLocalClients((prev) =>
+      prev.map((c) => (c.id === clientId ? { ...c, process_step: toStep } : c))
+    );
+  };
+
+  // ── Drag end: finalise position + fire API ───────────────────────────────────
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    setActiveId(null);
+    lastOverColumnRef.current = null;
+
+    const clientId     = active.id as string;
+    const originalStep = originalStepRef.current;
+
+    // Drag cancelled (dropped outside / Escape) — revert
+    if (!over) {
+      if (originalStep) {
+        setLocalClients((prev) =>
+          prev.map((c) => (c.id === clientId ? { ...c, process_step: originalStep } : c))
+        );
+      }
+      return;
+    }
+
+    const overId       = over.id as string;
+    const activeClient = localClients.find((c) => c.id === clientId);
+    if (!activeClient) return;
+
+    const finalStep    = activeClient.process_step; // may have changed in onDragOver
+    const isColumnDrop = STEP_SET.has(overId);
+    const overClient   = !isColumnDrop ? localClients.find((c) => c.id === overId) : undefined;
+
+    if (finalStep === originalStep) {
+      // ── Within-column reorder ───────────────────────────────────────────────
+      if (!isColumnDrop && overId !== clientId && overClient?.process_step === finalStep) {
+        const orderedIds = getOrderedIds(finalStep);
         const oldIdx     = orderedIds.indexOf(clientId);
         const newIdx     = orderedIds.indexOf(overId);
         if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
           const newOrder = arrayMove(orderedIds, oldIdx, newIdx);
           setColumnOrder((prev) => {
-            const next = { ...prev, [fromStep]: newOrder };
+            const next = { ...prev, [finalStep]: newOrder };
             localStorage.setItem(LS_ORDER_KEY, JSON.stringify(next));
             return next;
           });
         }
       }
-      return;
-    }
+      // No API call — step didn't change
+    } else {
+      // ── Cross-column: card already moved via onDragOver, finalise order ─────
+      setColumnOrder((prev) => {
+        const next = { ...prev };
 
-    // ── Cross-column move: save to DB, then update UI ─────────────────────────
-    setSavingIds((prev) => { const s = new Set(prev); s.add(clientId); return s; });
+        // Remove from original column order
+        if (originalStep && next[originalStep]) {
+          next[originalStep] = next[originalStep].filter((id) => id !== clientId);
+        }
 
-    // Fire-and-forget async — we capture the closure values we need
-    void (async () => {
-      try {
-        const res = await fetch(`/api/clients/${clientId}`, {
-          method:  'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ process_step: toStep }),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          console.error('[Kanban] PATCH failed:', res.status, errData);
-          toast.error('Erro ao mover cliente — tente novamente');
+        // Insert into final column at the position of the over-card (if any)
+        const existing = (next[finalStep] ?? []).filter((id) => id !== clientId);
+        if (!isColumnDrop && overClient?.process_step === finalStep && overId !== clientId) {
+          const idx = existing.indexOf(overId);
+          if (idx !== -1) {
+            existing.splice(idx, 0, clientId);
+          } else {
+            existing.unshift(clientId);
+          }
+          next[finalStep] = existing;
         } else {
-          // Move card in UI after confirmed save
-          setLocalClients((prev) =>
-            prev.map((c) => (c.id === clientId ? { ...c, process_step: toStep } : c))
-          );
-          // Update column order: remove from source, prepend to target
-          setColumnOrder((prev) => {
-            const next = { ...prev };
-            if (next[fromStep]) next[fromStep] = next[fromStep].filter((id) => id !== clientId);
-            next[toStep] = [clientId, ...(next[toStep] ?? []).filter((id) => id !== clientId)];
-            localStorage.setItem(LS_ORDER_KEY, JSON.stringify(next));
-            return next;
-          });
+          next[finalStep] = [clientId, ...existing];
         }
-      } catch (err) {
-        console.error('[Kanban] Error saving process_step:', err);
-        toast.error('Erro ao mover cliente — tente novamente');
-      } finally {
-        setSavingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(clientId);
-          return next;
-        });
-      }
-    })();
+
+        localStorage.setItem(LS_ORDER_KEY, JSON.stringify(next));
+        return next;
+      });
+
+      // Fire API call in background — optimistic: UI already reflects new state
+      void (async () => {
+        try {
+          const res = await fetch(`/api/clients/${clientId}`, {
+            method:  'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ process_step: finalStep }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            console.error('[Kanban] PATCH failed:', res.status, errData);
+            toast.error('Não foi possível guardar a alteração');
+          }
+        } catch (err) {
+          console.error('[Kanban] Error saving process_step:', err);
+          toast.error('Não foi possível guardar a alteração');
+        }
+      })();
+    }
   };
 
   // ── Build display lists ───────────────────────────────────────────────────────
-  const searchLower = search.trim().toLowerCase();
+  const searchLower   = search.trim().toLowerCase();
   const matchesSearch = (c: KanbanClient) =>
     !searchLower ||
     c.p1_name.toLowerCase().includes(searchLower) ||
@@ -483,30 +517,31 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
       <p className="text-[11px] text-slate-400 text-center mb-2 md:hidden">← Deslize para ver mais →</p>
 
       {/* Board */}
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
         <div className="flex gap-3 overflow-x-auto pb-4" style={{ scrollbarGutter: 'stable' }}>
-          {visibleColumns.map((col) => {
-            const allOrderedIds     = getOrderedIds(col.step);
-            const orderedClients    = getOrderedClients(col.step).filter(matchesSearch);
-            return (
-              <SortableColumn
-                key={col.step}
-                step={col.step}
-                label={col.label}
-                accent={col.accent}
-                orderedClients={orderedClients}
-                allOrderedIds={allOrderedIds}
-                docCounts={docCounts}
-                showBrokerColumn={showBrokerColumn}
-                savingIds={savingIds}
-              />
-            );
-          })}
+          {visibleColumns.map((col) => (
+            <SortableColumn
+              key={col.step}
+              step={col.step}
+              label={col.label}
+              accent={col.accent}
+              orderedClients={getOrderedClients(col.step).filter(matchesSearch)}
+              allOrderedIds={getOrderedIds(col.step)}
+              docCounts={docCounts}
+              showBrokerColumn={showBrokerColumn}
+            />
+          ))}
         </div>
 
-        <DragOverlay>
+        {/* Ghost card following the cursor — no drop animation (card is already placed) */}
+        <DragOverlay dropAnimation={null}>
           {activeClient && (
-            <div className="rotate-1 shadow-2xl opacity-95 w-[260px] sm:w-[280px]">
+            <div className="rotate-1 scale-[1.03] shadow-2xl w-[260px] sm:w-[280px]">
               <KanbanCard
                 client={activeClient}
                 docCounts={docCounts}
