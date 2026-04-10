@@ -319,6 +319,8 @@ export function PropostasTab({ client }: Props) {
                 propostas={orderedMapaPropostas}
                 recommendedId={mapaData.mapa.recommended_proposta_id}
                 highlightedCells={mapaData.mapa.highlighted_cells as Record<string, string>}
+                mode="broker"
+                clientId={client.id}
               />
             )}
             {mapaData.propostaChoice != null && <ClientChoiceBanner
@@ -371,7 +373,7 @@ export function PropostasTab({ client }: Props) {
               })}
             </div>
             {/* Table */}
-            <ComparisonTable propostas={orderedMapaPropostas} recommendedId={mapaData?.mapa?.recommended_proposta_id ?? null} hasP2={Boolean(client.p2_name)} />
+            <ComparisonTable propostas={orderedMapaPropostas} recommendedId={mapaData?.mapa?.recommended_proposta_id ?? null} hasP2={Boolean(client.p2_name)} mode="broker" clientId={client.id} />
             {/* Charts */}
             {orderedMapaPropostas.some((p) => (p.monthly_payment ?? 0) > 0) && (
               <div className="border-t border-slate-200 pt-5">

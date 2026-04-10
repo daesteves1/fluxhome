@@ -226,7 +226,7 @@ function PortalMapaCard({
       <SummaryCards propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
 
       {/* Comparison table */}
-      <ComparisonTable propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
+      <ComparisonTable propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} mode="client" />
 
       {/* Charts section */}
       {hasChart && (
