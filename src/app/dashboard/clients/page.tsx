@@ -73,6 +73,30 @@ export default async function ClientsPage() {
     clients = (data ?? []) as unknown as ClientRow[];
   }
 
+  // Fetch doc counts for all clients (for kanban cards)
+  type DocCountRow = { client_id: string; is_mandatory: boolean; status: string };
+  type DocCounts = Record<string, { mandatory_total: number; mandatory_approved: number; rejected_count: number }>;
+  const docCounts: DocCounts = {};
+
+  if (clients.length > 0) {
+    const clientIds = clients.map((c) => c.id);
+    const { data: docData } = await serviceClient
+      .from('document_requests')
+      .select('client_id, is_mandatory, status')
+      .in('client_id', clientIds);
+
+    for (const doc of (docData ?? []) as DocCountRow[]) {
+      if (!docCounts[doc.client_id]) {
+        docCounts[doc.client_id] = { mandatory_total: 0, mandatory_approved: 0, rejected_count: 0 };
+      }
+      if (doc.is_mandatory) {
+        docCounts[doc.client_id].mandatory_total++;
+        if (doc.status === 'approved') docCounts[doc.client_id].mandatory_approved++;
+      }
+      if (doc.status === 'rejected') docCounts[doc.client_id].rejected_count++;
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -90,7 +114,7 @@ export default async function ClientsPage() {
         </Link>
       </div>
 
-      <ClientsTable clients={clients} showBrokerColumn={!showOwnOnly} />
+      <ClientsTable clients={clients} showBrokerColumn={!showOwnOnly} docCounts={docCounts} />
     </div>
   );
 }
