@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react';
 import {
-  Star, Check, Info, Pencil, CreditCard, FileText, BarChart3, Calendar,
+  Star, Check, Info, Pencil,
   ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -87,44 +87,6 @@ function RowLabel({ label }: { label: string }) {
         </span>
       )}
     </span>
-  );
-}
-
-// ─── SummaryBadges (client mode only) ────────────────────────────────────────
-
-function SummaryBadges({ propostas, recommendedId, hasP2 }: { propostas: BankProposta[]; recommendedId: string | null; hasP2: boolean }) {
-  const rec = propostas.find((p) => p.id === recommendedId);
-  if (!rec) return null;
-
-  const totalMensal = calcTotalRecomendado(rec, hasP2) + (rec.manutencao_conta ?? 0);
-  const totalUnicos = calcTotalEncargosUnicos(rec);
-  const mticVal = rec.mtic && rec.mtic > 0 ? rec.mtic : 0;
-
-  let validadeLabel: string | null = null;
-  if (rec.validade_ate) {
-    const [yr, mo, dy] = rec.validade_ate.split('-').map(Number);
-    validadeLabel = `${dy} ${PT_MONTHS[mo - 1]} ${yr}`;
-  }
-
-  const badges = [
-    { Icon: CreditCard, label: 'Prestação recomendada', value: totalMensal > 0 ? `${fmtEur(totalMensal)}/mês` : null },
-    { Icon: FileText,   label: 'Encargos de entrada',   value: totalUnicos > 0 ? fmtEur(totalUnicos) : null },
-    { Icon: BarChart3,  label: 'Custo total (MTIC)',     value: mticVal > 0 ? fmtMticVal(mticVal) : null },
-    { Icon: Calendar,   label: 'Válida até',             value: validadeLabel },
-  ].filter((b): b is { Icon: typeof CreditCard; label: string; value: string } => b.value !== null);
-
-  if (!badges.length) return null;
-
-  return (
-    <div className="flex flex-wrap gap-2 mb-4">
-      {badges.map(({ Icon, label, value }) => (
-        <div key={label} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs shadow-sm">
-          <Icon className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-          <span className="text-slate-500">{label}:</span>
-          <span className="font-semibold text-slate-800">{value}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -254,11 +216,12 @@ function StickyBankHeader({
 // ─── Section card wrapper ─────────────────────────────────────────────────────
 
 function SectionCard({
-  title, titleSlot, rightSlot, children, mode, propostas, hasSeguros = false,
+  title, titleSlot, rightSlot, headerColor = '#1E3A5F', children, mode, propostas, hasSeguros = false,
 }: {
   title: string;
   titleSlot?: React.ReactNode;
   rightSlot?: React.ReactNode;
+  headerColor?: string;
   children: React.ReactNode;
   mode?: 'broker' | 'client';
   propostas: BankProposta[];
@@ -269,7 +232,7 @@ function SectionCard({
     <div className="rounded-xl border border-slate-200 overflow-hidden" style={{ boxShadow: shadow }}>
       <div
         className="flex items-center justify-between px-4 py-2.5"
-        style={{ backgroundColor: '#1E3A5F', borderRadius: '12px 12px 0 0' }}
+        style={{ backgroundColor: headerColor, borderRadius: '12px 12px 0 0' }}
       >
         <span className="inline-flex items-center gap-2 text-sm font-semibold text-white">
           {title}
@@ -512,10 +475,6 @@ export function ComparisonTable({
 
   return (
     <div>
-      {mode === 'client' && (
-        <SummaryBadges propostas={propostas} recommendedId={recommendedId} hasP2={hasP2} />
-      )}
-
       {/* Horizontal scroll wrapper; vertical sticky works via page scroll */}
       <div className="relative w-full overflow-x-auto overflow-y-visible">
         <div style={{ minWidth: totalWidth }}>
@@ -533,7 +492,7 @@ export function ComparisonTable({
 
             {/* CARD 1 — Informação do Empréstimo */}
             <div style={{ scrollMarginTop: '120px' }}>
-            <SectionCard title="Informação do Empréstimo" mode={mode} propostas={propostas}>
+            <SectionCard title="Detalhes do Financiamento" headerColor="#1E40AF" mode={mode} propostas={propostas}>
               <CardRow label="Montante de Financiamento" values={propostas.map((p) => fmtEur(p.loan_amount))} greenIndices={loanGreenIdx} compact={compact} propostas={propostas} recommendedId={recommendedId} />
               <CardRow label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
               <CardRow label="Tipo de Taxa" values={propostas.map((p) => p.rate_type ? (RATE_TYPE_LABELS[p.rate_type] ?? null) : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
@@ -613,8 +572,8 @@ export function ComparisonTable({
             <SectionCard title="Prestação Total" mode={mode} propostas={propostas}>
               <tr>
                 <td
-                  className="sticky left-0 z-10 px-4 py-3 text-base font-bold text-white"
-                  style={{ width: LABEL_W, backgroundColor: '#1E3A5F', borderBottom: '1px solid rgba(255,255,255,0.15)' }}
+                  className="sticky left-0 z-10 px-4 py-3 text-base font-bold text-white bg-slate-800"
+                  style={{ width: LABEL_W, borderTop: '2px solid #e2e8f0' }}
                 >
                   PRESTAÇÃO TOTAL
                 </td>
@@ -626,10 +585,12 @@ export function ComparisonTable({
                     <td
                       key={p.id}
                       className={cn(
-                        'px-3 py-3 text-base font-bold text-center text-white',
-                        isGreen ? 'bg-green-700' : isRec ? 'bg-blue-700' : 'bg-slate-700'
+                        'px-3 py-3 text-base font-bold text-center',
+                        isGreen ? 'bg-green-600 text-white' :
+                        isRec   ? 'bg-blue-600 text-white' :
+                                  'bg-white text-slate-900'
                       )}
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', borderLeft: '1px solid rgba(255,255,255,0.1)' }}
+                      style={{ borderTop: '2px solid #e2e8f0', borderLeft: '1px solid #e2e8f0' }}
                     >
                       {val > 0 ? fmtEur(val) : '—'}
                     </td>

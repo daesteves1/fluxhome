@@ -20,7 +20,7 @@ import { HomeFluxLogoMark } from '@/components/layout/homeflux-logo';
 import { ComparisonTable } from '@/components/propostas/comparison-table';
 import { PropostasCharts } from '@/components/propostas/propostas-charts';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
-import { calcTotalRecomendado, calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, getRecomendadaLabel, fmtEur, fmtPct } from '@/types/proposta';
+import { calcTotalRecomendado, calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, fmtEur, fmtPct } from '@/types/proposta';
 import type { PlatformSettings } from '@/lib/settings';
 import { PLATFORM_DEFAULTS } from '@/lib/settings';
 
@@ -53,15 +53,19 @@ type PropostaChoice = {
 // ─── Summary Cards ────────────────────────────────────────────────────────────
 
 function SummaryCards({ propostas, recommendedId, hasP2 }: { propostas: BankProposta[]; recommendedId: string | null; hasP2: boolean }) {
-  const minMonthly = Math.min(...propostas.map((p) => calcTotalRecomendado(p, hasP2)).filter((v) => v > 0));
+  const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const fmtDate = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return `${d} ${MONTHS_PT[m-1]} ${y}`;
+  };
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
       {propostas.map((p) => {
         const isRec = p.id === recommendedId;
-        const totalRec = calcTotalRecomendado(p, hasP2);
-        const recLabel = getRecomendadaLabel(p, hasP2);
+        const totalRec = calcTotalRecomendado(p, hasP2) + (p.manutencao_conta ?? 0);
         const initials = p.bank_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+        const rateLabel = p.rate_type === 'variavel' ? 'Variável' : p.rate_type === 'fixa' ? 'Fixa' : p.rate_type === 'mista' ? 'Mista' : null;
 
         const now = new Date();
         const expiryDate = p.validade_ate ? new Date(p.validade_ate) : null;
@@ -70,91 +74,53 @@ function SummaryCards({ propostas, recommendedId, hasP2 }: { propostas: BankProp
           ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
           : null;
         const expiresSoon = daysUntilExpiry !== null && daysUntilExpiry <= 14;
-        const isLowestPayment = totalRec > 0 && totalRec === minMonthly;
-
-        const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-        const fmtDate = (s: string) => {
-          const [y, m, d] = s.split('-').map(Number);
-          return `${d} ${MONTHS_PT[m-1]} ${y}`;
-        };
-
-        let borderClass = 'border border-slate-200';
-        if (isRec) borderClass = 'border-2 border-blue-500 shadow-md';
-        else if (isExpired) borderClass = 'border border-slate-200 border-l-4 border-l-red-400';
-        else if (isLowestPayment) borderClass = 'border border-slate-200 border-l-4 border-l-green-500';
 
         return (
-          <div key={p.id} className={`rounded-xl bg-white p-4 ${borderClass}`}>
-            {/* Recommended badge */}
-            {isRec && (
-              <div className="mb-3">
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-blue-600 rounded-full px-2.5 py-1 w-full justify-center">
-                  <Star className="h-3 w-3 fill-current" />
+          <div
+            key={p.id}
+            className="bg-white"
+            style={{
+              padding: '12px',
+              borderRadius: '12px',
+              border: isRec ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+            }}
+          >
+            {/* Row 1: initials + name + rate type + recommended badge */}
+            <div className="flex items-center gap-2">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 ${isRec ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                {initials}
+              </div>
+              <span className="text-sm font-semibold text-slate-900 truncate flex-1">{p.bank_name}</span>
+              {rateLabel && (
+                <span className="text-[10px] font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">{rateLabel}</span>
+              )}
+              {isRec && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-white bg-blue-600 px-2 py-0.5 rounded-full shrink-0">
+                  <Star className="h-2.5 w-2.5 fill-current" />
                   Recomendado
-                </span>
-              </div>
-            )}
-
-            {/* Header: logo + name + rate type */}
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 text-white ${isRec ? 'bg-blue-600' : 'bg-[#1E3A5F]'}`}>
-                  {initials}
-                </div>
-                <p className="font-bold text-base text-slate-900 leading-tight">{p.bank_name}</p>
-              </div>
-              {p.rate_type && (
-                <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">
-                  {p.rate_type === 'variavel' ? 'Variável' : p.rate_type === 'fixa' ? 'Fixa' : 'Mista'}
                 </span>
               )}
             </div>
 
-            {/* Total recomendado */}
-            {totalRec > 0 && (
-              <div className="mb-3">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prestação recomendada</p>
-                <p className={`text-3xl font-bold ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>
-                  {fmtEur(totalRec)}<span className="text-sm font-normal text-slate-400">/mês</span>
-                </p>
-                {recLabel && (
-                  <p className="text-[10px] text-slate-400 mt-0.5">{recLabel}</p>
-                )}
-              </div>
-            )}
+            {/* Row 2: label */}
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-2">Prestação recomendada</p>
 
-            {/* Prestação base (secondary) */}
-            {p.monthly_payment && p.monthly_payment > 0 && (
-              <div className="bg-slate-50 rounded-lg p-2 mb-3">
-                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Prestação base</p>
-                <p className="text-sm font-bold text-slate-800">{fmtEur(p.monthly_payment)}<span className="text-[10px] font-normal text-slate-400">/mês</span></p>
-              </div>
-            )}
+            {/* Row 3: value */}
+            <p className="text-xl font-bold text-slate-900 leading-tight">
+              {totalRec > 0 ? fmtEur(totalRec) : '—'}
+            </p>
 
-            <div className="h-px bg-slate-100 mb-3" />
+            {/* Row 4: TAN + Spread */}
+            <p className="text-xs text-slate-500 mt-1">
+              {[
+                p.tan ? `TAN: ${fmtPct(p.tan)}` : null,
+                p.spread ? `Spread: ${fmtPct(p.spread)}` : null,
+              ].filter(Boolean).join(' · ')}
+            </p>
 
-            {/* Rate metrics */}
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 mb-2">
-              {p.tan && <span>TAN: <strong className="text-slate-700">{fmtPct(p.tan)}</strong></span>}
-              {p.taeg && <span>TAEG: <strong className="text-slate-700">{fmtPct(p.taeg)}</strong></span>}
-              {p.spread && <span>Spread: <strong className="text-slate-700">{fmtPct(p.spread)}</strong></span>}
-            </div>
-
-            {/* Conditions */}
-            {p.condicoes_spread && p.condicoes_spread.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-2">
-                {p.condicoes_spread.slice(0, 3).map((c: string) => (
-                  <span key={c} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{c}</span>
-                ))}
-                {p.condicoes_spread.length > 3 && (
-                  <span className="text-[10px] text-slate-400">+{p.condicoes_spread.length - 3} mais</span>
-                )}
-              </div>
-            )}
-
-            {/* Validity */}
+            {/* Row 5: validity */}
             {p.validade_ate && (
-              <p className={`text-[11px] ${isExpired ? 'text-red-600 font-medium' : expiresSoon ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+              <p className={`text-xs mt-1 ${isExpired ? 'text-red-600 font-medium' : expiresSoon ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
                 {isExpired ? '⚠ Expirada' : expiresSoon ? `⚠ Expira em ${daysUntilExpiry} dias` : `Válida até ${fmtDate(p.validade_ate)}`}
               </p>
             )}
