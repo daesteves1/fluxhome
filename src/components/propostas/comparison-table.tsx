@@ -123,7 +123,7 @@ function StickyBankHeader({
   const hasValidate = propostas.some((p) => p.validade_ate);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden" style={{ marginBottom: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden" style={{ marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
         <TableColgroup propostas={propostas} />
         <tbody>
@@ -180,7 +180,7 @@ function StickyBankHeader({
           {hasValidate && (
             <tr className="border-t border-slate-100">
               <td className="px-4 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 border-r border-slate-100" style={{ width: LABEL_W }}>
-                Válida até
+                Proposta válida até
               </td>
               {propostas.map((p) => {
                 if (!p.validade_ate) {
@@ -475,6 +475,15 @@ export function ComparisonTable({
 
   return (
     <div>
+      {/* Section divider + title */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-px flex-1 bg-slate-200" />
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+          Mapa Comparativo de Propostas
+        </span>
+        <div className="h-px flex-1 bg-slate-200" />
+      </div>
+
       {/* Horizontal scroll wrapper; vertical sticky works via page scroll */}
       <div className="relative w-full overflow-x-auto overflow-y-visible">
         <div style={{ minWidth: totalWidth }}>
@@ -491,7 +500,7 @@ export function ComparisonTable({
           <div className="space-y-4">
 
             {/* CARD 1 — Detalhes do Financiamento */}
-            <SectionCard title="Detalhes do Financiamento" headerColor="#1E40AF" mode={mode} propostas={propostas}>
+            <SectionCard title="Detalhes do Financiamento" mode={mode} propostas={propostas}>
               <CardRow label="Montante de Financiamento" values={propostas.map((p) => fmtEur(p.loan_amount))} greenIndices={loanGreenIdx} compact={compact} propostas={propostas} recommendedId={recommendedId} />
               <CardRow label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
               <CardRow label="Tipo de Taxa" values={propostas.map((p) => p.rate_type ? (RATE_TYPE_LABELS[p.rate_type] ?? null) : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
