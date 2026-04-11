@@ -264,6 +264,7 @@ function SortableColumn({
 // ─── KanbanBoard ───────────────────────────────────────────────────────────────
 
 export function KanbanBoard({ initialClients, search, docCounts, showBrokerColumn }: KanbanBoardProps) {
+  const router = useRouter();
   const [localClients, setLocalClients] = useState<KanbanClient[]>(initialClients);
   const [columnOrder,  setColumnOrder]  = useState<Record<string, string[]>>({});
   const [visibleSteps, setVisibleSteps] = useState<string[]>(DEFAULT_VISIBLE_STEPS);
@@ -274,6 +275,13 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
   // Refs for drag lifecycle data — captured at dragStart, read at dragEnd
   const originalStepRef       = useRef<string | null>(null);
   const lastOverColumnRef     = useRef<string | null>(null);
+
+  // ── Sync localClients when server re-fetches (e.g. after router.refresh()) ───
+  useEffect(() => {
+    if (!activeId) {
+      setLocalClients(initialClients);
+    }
+  }, [initialClients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load from localStorage on mount ─────────────────────────────────────────
   useEffect(() => {
@@ -462,6 +470,8 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
             const errData = await res.json().catch(() => ({}));
             console.error('[Kanban] PATCH failed:', res.status, errData);
             toast.error('Não foi possível guardar a alteração');
+          } else {
+            router.refresh();
           }
         } catch (err) {
           console.error('[Kanban] Error saving process_step:', err);
