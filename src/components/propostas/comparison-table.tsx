@@ -123,7 +123,7 @@ function StickyBankHeader({
   const hasValidate = propostas.some((p) => p.validade_ate);
 
   return (
-    <div className="sticky top-16 z-30 bg-white border border-slate-200 rounded-xl overflow-hidden" style={{ marginBottom: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden" style={{ marginBottom: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
         <TableColgroup propostas={propostas} />
         <tbody>
