@@ -123,7 +123,10 @@ function StickyBankHeader({
   const hasValidate = propostas.some((p) => p.validade_ate);
 
   return (
-    <div className="sticky top-16 z-30 bg-white border border-slate-200 rounded-xl shadow-sm mb-4 overflow-hidden">
+    <div
+      className="sticky top-16 z-30"
+      style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '16px', marginBottom: '24px' }}
+    >
       <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
         <TableColgroup propostas={propostas} />
         <tbody>
@@ -490,8 +493,7 @@ export function ComparisonTable({
           {/* ── Section cards ──────────────────────────────────────────────── */}
           <div className="space-y-4">
 
-            {/* CARD 1 — Informação do Empréstimo */}
-            <div style={{ scrollMarginTop: '120px' }}>
+            {/* CARD 1 — Detalhes do Financiamento */}
             <SectionCard title="Detalhes do Financiamento" headerColor="#1E40AF" mode={mode} propostas={propostas}>
               <CardRow label="Montante de Financiamento" values={propostas.map((p) => fmtEur(p.loan_amount))} greenIndices={loanGreenIdx} compact={compact} propostas={propostas} recommendedId={recommendedId} />
               <CardRow label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
@@ -519,7 +521,6 @@ export function ComparisonTable({
               )}
               <CardRow label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} greenIndices={monthlyGreenIdx} isBold compact={compact} propostas={propostas} recommendedId={recommendedId} />
             </SectionCard>
-            </div>
 
             {/* CARD 2 — Seguros */}
             <SectionCard title="Seguros" mode={mode} propostas={propostas} hasSeguros>
