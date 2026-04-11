@@ -254,9 +254,10 @@ function StickyBankHeader({
 // ─── Section card wrapper ─────────────────────────────────────────────────────
 
 function SectionCard({
-  title, rightSlot, children, mode, propostas, hasSeguros = false,
+  title, titleSlot, rightSlot, children, mode, propostas, hasSeguros = false,
 }: {
   title: string;
+  titleSlot?: React.ReactNode;
   rightSlot?: React.ReactNode;
   children: React.ReactNode;
   mode?: 'broker' | 'client';
@@ -270,7 +271,10 @@ function SectionCard({
         className="flex items-center justify-between px-4 py-2.5"
         style={{ backgroundColor: '#1E3A5F', borderRadius: '12px 12px 0 0' }}
       >
-        <span className="text-sm font-semibold text-white">{title}</span>
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-white">
+          {title}
+          {titleSlot}
+        </span>
         {rightSlot}
       </div>
       <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
@@ -528,6 +532,7 @@ export function ComparisonTable({
           <div className="space-y-4">
 
             {/* CARD 1 — Informação do Empréstimo */}
+            <div style={{ scrollMarginTop: '120px' }}>
             <SectionCard title="Informação do Empréstimo" mode={mode} propostas={propostas}>
               <CardRow label="Montante de Financiamento" values={propostas.map((p) => fmtEur(p.loan_amount))} greenIndices={loanGreenIdx} compact={compact} propostas={propostas} recommendedId={recommendedId} />
               <CardRow label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
@@ -555,6 +560,7 @@ export function ComparisonTable({
               )}
               <CardRow label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} greenIndices={monthlyGreenIdx} isBold compact={compact} propostas={propostas} recommendedId={recommendedId} />
             </SectionCard>
+            </div>
 
             {/* CARD 2 — Seguros */}
             <SectionCard title="Seguros" mode={mode} propostas={propostas} hasSeguros>
@@ -583,18 +589,23 @@ export function ComparisonTable({
                 getIsRecBanco={(p) => (p.multiriscos_recomendada ?? 'banco') === 'banco'}
               />
               <SegurosWideRow
-                label="Manutenção de conta"
-                values={propostas.map((p) => fmtEur(p.manutencao_conta))}
-                propostas={propostas}
-                recommendedId={recommendedId}
-              />
-              <SegurosWideRow
                 label="Total Seguros (recomendado)"
                 values={totalSegurosVals.map((v) => v > 0 ? fmtEur(v) : '—')}
                 propostas={propostas}
                 recommendedId={recommendedId}
                 greenIndices={totalSegurosGreenIdx}
                 isBold
+              />
+            </SectionCard>
+
+            {/* CARD 2b — Encargos Mensais da Conta */}
+            <SectionCard title="Encargos Mensais da Conta" mode={mode} propostas={propostas}>
+              <CardRow
+                label="Manutenção de conta"
+                values={propostas.map((p) => fmtEur(p.manutencao_conta))}
+                compact={compact}
+                propostas={propostas}
+                recommendedId={recommendedId}
               />
             </SectionCard>
 
@@ -638,7 +649,7 @@ export function ComparisonTable({
             </SectionCard>
 
             {/* CARD 4 — Encargos Únicos */}
-            <SectionCard title="Encargos Únicos" rightSlot={encargosToggle} mode={mode} propostas={propostas}>
+            <SectionCard title="Encargos Únicos" titleSlot={encargosToggle} mode={mode} propostas={propostas}>
               {!encargosCollapsed && ONE_TIME_CHARGE_FIELDS.map(({ key, label }) => {
                 const vals = propostas.map((p) => p[key] as number | null);
                 if (!vals.some((v) => v !== null && v > 0)) return null;
@@ -738,11 +749,11 @@ export function ComparisonTable({
                       )}
                     >
                       {p.condicoes_spread?.length ? (
-                        <span className="flex flex-wrap gap-0.5 justify-center">
+                        <div className="flex flex-col gap-1 items-center">
                           {p.condicoes_spread.map((c) => (
-                            <span key={c} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px]">{c}</span>
+                            <span key={c} className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-sm w-full text-left">{c}</span>
                           ))}
-                        </span>
+                        </div>
                       ) : '—'}
                     </td>
                   ))}
