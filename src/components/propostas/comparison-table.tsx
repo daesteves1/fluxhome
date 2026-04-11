@@ -130,14 +130,14 @@ function StickyBankHeader({
           {/* Row 1 — bank names, rate type badge, recommended pill */}
           <tr>
             <td className="px-4 py-3 bg-slate-50 border-r border-slate-200" style={{ width: LABEL_W }} />
-            {propostas.map((p) => {
+            {propostas.map((p, i) => {
               const isRec = p.id === recommendedId;
               return (
                 <td
                   key={p.id}
                   className={cn(
                     'relative px-3 py-3 text-center border-r border-slate-200 group/bankCol',
-                    isRec ? 'bg-blue-50' : 'bg-white'
+                    isRec ? 'bg-blue-50' : i % 2 === 1 ? 'bg-slate-50' : 'bg-white'
                   )}
                 >
                   <div className="flex flex-col items-center gap-1">
@@ -182,9 +182,10 @@ function StickyBankHeader({
               <td className="px-4 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 border-r border-slate-100" style={{ width: LABEL_W }}>
                 Proposta válida até
               </td>
-              {propostas.map((p) => {
+              {propostas.map((p, i) => {
+                const colBg = p.id === recommendedId ? 'bg-blue-50/60' : i % 2 === 1 ? 'bg-slate-50' : 'bg-white';
                 if (!p.validade_ate) {
-                  return <td key={p.id} className="px-3 py-1.5 text-xs text-center text-slate-400 border-r border-slate-100">—</td>;
+                  return <td key={p.id} className={cn('px-3 py-1.5 text-xs text-center text-slate-400 border-r border-slate-200', colBg)}>—</td>;
                 }
                 const expiry = new Date(p.validade_ate);
                 const now = new Date();
@@ -197,7 +198,8 @@ function StickyBankHeader({
                   <td
                     key={p.id}
                     className={cn(
-                      'px-3 py-1.5 text-xs text-center border-r border-slate-100',
+                      'px-3 py-1.5 text-xs text-center border-r border-slate-200',
+                      colBg,
                       isExpired ? 'text-red-600 font-medium' : isWarn ? 'text-amber-600 font-medium' : 'text-slate-500'
                     )}
                   >
@@ -280,12 +282,13 @@ function CardRow({
           <td
             key={p.id}
             className={cn(
-              'px-3 text-sm text-center border-b border-l border-slate-100',
+              'px-3 text-sm text-center border-b border-l border-slate-200',
               py,
               isBold ? 'font-semibold' : '',
               isGreen ? 'text-green-700' :
-              isRec   ? 'bg-blue-50/30 text-slate-800' :
-                        'text-slate-800'
+              isRec   ? 'bg-blue-50/40 text-slate-800' :
+              i % 2 === 1 ? 'bg-slate-50 text-slate-800' :
+                            'text-slate-800'
             )}
           >
             {values[i] ?? '—'}
@@ -302,12 +305,12 @@ function SegurosSubHeaderRow({ propostas }: { propostas: BankProposta[] }) {
   return (
     <tr>
       <td className="sticky left-0 z-10 px-3 py-1 bg-[#E8EEF7] border border-gray-200 w-[220px] min-w-[200px]" />
-      {propostas.map((p) => (
+      {propostas.map((p, i) => (
         <Fragment key={p.id}>
-          <td className="px-2 py-1 text-[10px] font-semibold text-gray-500 text-center border border-gray-200 bg-[#E8EEF7] min-w-[75px]">
+          <td className={cn('px-2 py-1 text-[10px] font-semibold text-gray-500 text-center border border-gray-200 min-w-[75px]', i % 2 === 1 ? 'bg-slate-100' : 'bg-[#E8EEF7]')}>
             Banco
           </td>
-          <td className="px-2 py-1 text-[10px] font-semibold text-gray-500 text-center border border-gray-200 bg-[#E8EEF7] min-w-[75px]">
+          <td className={cn('px-2 py-1 text-[10px] font-semibold text-gray-500 text-center border border-gray-200 min-w-[75px]', i % 2 === 1 ? 'bg-slate-100' : 'bg-[#E8EEF7]')}>
             Ext.
           </td>
         </Fragment>
@@ -332,17 +335,18 @@ function SegurosDataRow({ label, propostas, getBancoVal, getExtVal, getIsRecBanc
       <td className="sticky left-0 z-10 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 bg-white w-[220px] min-w-[200px]">
         {label}
       </td>
-      {propostas.map((p) => {
+      {propostas.map((p, i) => {
         const bancoVal = getBancoVal(p);
         const extVal = getExtVal(p);
         const isRecBanco = getIsRecBanco(p);
         const bancoExists = (bancoVal ?? 0) > 0;
         const extExists = (extVal ?? 0) > 0;
+        const altBg = i % 2 === 1 ? 'bg-slate-50' : 'bg-white';
         return (
           <Fragment key={p.id}>
             <td className={cn(
               'px-2 py-1.5 text-xs text-center border border-gray-200 min-w-[75px]',
-              isRecBanco && bancoExists ? 'bg-green-50 text-green-800' : 'bg-white text-gray-600'
+              isRecBanco && bancoExists ? 'bg-green-50 text-green-800' : `${altBg} text-gray-600`
             )}>
               <div className="flex items-center justify-center gap-0.5">
                 {isRecBanco && bancoExists && <Check className="h-2.5 w-2.5 text-green-600 shrink-0" />}
@@ -351,7 +355,7 @@ function SegurosDataRow({ label, propostas, getBancoVal, getExtVal, getIsRecBanc
             </td>
             <td className={cn(
               'px-2 py-1.5 text-xs text-center border border-gray-200 min-w-[75px]',
-              !isRecBanco && extExists ? 'bg-green-50 text-green-800' : 'bg-white text-gray-600'
+              !isRecBanco && extExists ? 'bg-green-50 text-green-800' : `${altBg} text-gray-600`
             )}>
               <div className="flex items-center justify-center gap-0.5">
                 {!isRecBanco && extExists && <Check className="h-2.5 w-2.5 text-green-600 shrink-0" />}
@@ -399,7 +403,8 @@ function SegurosWideRow({
               isBold ? 'font-semibold' : '',
               isGreen ? 'bg-green-100 text-green-800' :
               isRec   ? 'bg-blue-50 text-slate-800' :
-                        'bg-white text-slate-800'
+              i % 2 === 1 ? 'bg-slate-50 text-slate-800' :
+                            'bg-white text-slate-800'
             )}
           >
             {values[i] ?? '—'}
