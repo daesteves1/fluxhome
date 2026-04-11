@@ -446,7 +446,7 @@ function SegurosWideRow({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ComparisonTable({
-  propostas, recommendedId, hasP2 = false, highlightedCells: _highlightedCells = {}, mode, clientId,
+  propostas, recommendedId, hasP2 = false, mode, clientId,
 }: ComparisonTableProps) {
   const [encargosCollapsed, setEncargosCollapsed] = useState(true);
 
