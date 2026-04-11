@@ -1,7 +1,10 @@
 'use client';
 
 import { Fragment, useState } from 'react';
-import { Star, ChevronDown, ChevronRight, Check, Info, Pencil, CreditCard, FileText, BarChart3, Calendar } from 'lucide-react';
+import {
+  Star, Check, Info, Pencil, CreditCard, FileText, BarChart3, Calendar,
+  ChevronDown, ChevronUp,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { BankProposta } from '@/types/proposta';
 import {
@@ -15,23 +18,53 @@ import {
   EURIBOR_LABELS,
 } from '@/types/proposta';
 
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
 interface ComparisonTableProps {
   propostas: BankProposta[];
   recommendedId: string | null;
   hasP2?: boolean;
-  /** Cells to highlight: key = `${rowKey}-${propostaId}`, value = CSS color class */
+  /** Cells to highlight: kept for API compatibility, currently unused in card layout */
   highlightedCells?: Record<string, string>;
   mode?: 'broker' | 'client';
   /** Required in broker mode for edit links */
   clientId?: string;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Layout constants ─────────────────────────────────────────────────────────
+
+const LABEL_W = 220;
+const BANK_W  = 150;
+const SUB_W   = 75; // each Banco | Ext. sub-column in the Seguros card = BANK_W / 2
+
+// ─── Misc ─────────────────────────────────────────────────────────────────────
+
+const PT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+const TOOLTIPS: Record<string, string> = {
+  'Montante de Financiamento':             'Valor total do empréstimo solicitado ao banco',
+  'Prazo':                                 'Duração total do empréstimo em meses',
+  'Tipo de Taxa':                          'Taxa fixa não muda. Taxa variável acompanha a Euribor. Mista começa fixa e depois passa a variável',
+  'Período Fixo':                          'Número de anos em que a taxa se mantém fixa',
+  'Euribor':                               'Índice de referência usado para calcular a taxa variável',
+  'Spread':                                'Margem do banco adicionada à Euribor',
+  'TAN':                                   'Taxa Anual Nominal — custo efetivo do empréstimo sem outros encargos',
+  'TAEG':                                  'Taxa Anual Efetiva Global — custo total incluindo comissões e seguros',
+  'Prestação base':                        'Valor mensal de capital e juros, sem seguros nem comissões',
+  'Seguro Vida — P1':                      'Seguro obrigatório que cobre o capital em dívida em caso de morte ou invalidez',
+  'Seguro Vida — P2':                      'Seguro obrigatório que cobre o capital em dívida em caso de morte ou invalidez',
+  'Seguro Multirriscos':                   'Seguro obrigatório do imóvel contra incêndio e outros riscos',
+  'Manutenção de conta':                   'Custo mensal da conta bancária exigida pelo banco',
+  'Total Seguros (recomendado)':           'Soma dos seguros selecionados (vida + multirriscos)',
+  'Condições para o spread':               'Produtos e serviços que o banco exige para manter o spread proposto',
+  'Montante Total Imputado ao Consumidor': 'Valor total a pagar ao longo de todo o prazo, fornecido pelo banco na ficha oficial (FINE)',
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getLowest(vals: (number | null)[]): number | null {
   const nums = vals.filter((v): v is number => v !== null && v > 0);
-  if (!nums.length) return null;
-  return Math.min(...nums);
+  return nums.length ? Math.min(...nums) : null;
 }
 
 function fmtMticVal(v: number): string {
@@ -41,58 +74,251 @@ function fmtMticVal(v: number): string {
   return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 }
 
-function withEditLink(val: string | null | React.ReactNode, propostaId: string, clientId: string): React.ReactNode {
+// ─── RowLabel with hover tooltip ────────────────────────────────────────────
+
+function RowLabel({ label }: { label: string }) {
+  const tip = TOOLTIPS[label];
   return (
-    <span className="relative group/ec inline-flex items-center justify-center w-full gap-1">
-      <span>{val ?? '—'}</span>
-      <a
-        href={`/dashboard/clients/${clientId}/bank-propostas/${propostaId}/edit`}
-        className="opacity-0 group-hover/ec:opacity-100 transition-opacity shrink-0"
-        onClick={(e) => e.stopPropagation()}
-        title="Editar proposta"
-      >
-        <Pencil className="h-2.5 w-2.5 text-slate-400 hover:text-blue-500" />
-      </a>
+    <span className="inline-flex items-center gap-1 group/lbl">
+      {label}
+      {tip && (
+        <span title={tip} className="opacity-0 group-hover/lbl:opacity-100 transition-opacity cursor-help">
+          <Info className="h-3 w-3 text-blue-400 shrink-0" />
+        </span>
+      )}
     </span>
   );
 }
 
-// ─── Row components (DO NOT CHANGE) ──────────────────────────────────────────
+// ─── SummaryBadges (client mode only) ────────────────────────────────────────
 
-interface DataRowProps {
+function SummaryBadges({ propostas, recommendedId, hasP2 }: { propostas: BankProposta[]; recommendedId: string | null; hasP2: boolean }) {
+  const rec = propostas.find((p) => p.id === recommendedId);
+  if (!rec) return null;
+
+  const totalMensal = calcTotalRecomendado(rec, hasP2) + (rec.manutencao_conta ?? 0);
+  const totalUnicos = calcTotalEncargosUnicos(rec);
+  const mticVal = rec.mtic && rec.mtic > 0 ? rec.mtic : 0;
+
+  let validadeLabel: string | null = null;
+  if (rec.validade_ate) {
+    const [yr, mo, dy] = rec.validade_ate.split('-').map(Number);
+    validadeLabel = `${dy} ${PT_MONTHS[mo - 1]} ${yr}`;
+  }
+
+  const badges = [
+    { Icon: CreditCard, label: 'Prestação recomendada', value: totalMensal > 0 ? `${fmtEur(totalMensal)}/mês` : null },
+    { Icon: FileText,   label: 'Encargos de entrada',   value: totalUnicos > 0 ? fmtEur(totalUnicos) : null },
+    { Icon: BarChart3,  label: 'Custo total (MTIC)',     value: mticVal > 0 ? fmtMticVal(mticVal) : null },
+    { Icon: Calendar,   label: 'Válida até',             value: validadeLabel },
+  ].filter((b): b is { Icon: typeof CreditCard; label: string; value: string } => b.value !== null);
+
+  if (!badges.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-4">
+      {badges.map(({ Icon, label, value }) => (
+        <div key={label} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs shadow-sm">
+          <Icon className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+          <span className="text-slate-500">{label}:</span>
+          <span className="font-semibold text-slate-800">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Shared colgroup (keeps all tables in sync) ───────────────────────────────
+
+function TableColgroup({ propostas, hasSeguros = false }: { propostas: BankProposta[]; hasSeguros?: boolean }) {
+  return (
+    <colgroup>
+      <col style={{ width: LABEL_W }} />
+      {propostas.map((_, i) =>
+        hasSeguros ? (
+          <Fragment key={i}>
+            <col style={{ width: SUB_W }} />
+            <col style={{ width: SUB_W }} />
+          </Fragment>
+        ) : (
+          <col key={i} style={{ width: BANK_W }} />
+        )
+      )}
+    </colgroup>
+  );
+}
+
+// ─── Sticky bank header ───────────────────────────────────────────────────────
+
+function StickyBankHeader({
+  propostas, recommendedId, mode, clientId,
+}: {
+  propostas: BankProposta[];
+  recommendedId: string | null;
+  mode?: 'broker' | 'client';
+  clientId?: string;
+}) {
+  const hasValidate = propostas.some((p) => p.validade_ate);
+
+  return (
+    <div className="sticky top-16 z-30 bg-white border border-slate-200 rounded-xl shadow-sm mb-4 overflow-hidden">
+      <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
+        <TableColgroup propostas={propostas} />
+        <tbody>
+          {/* Row 1 — bank names, rate type badge, recommended pill */}
+          <tr>
+            <td className="px-4 py-3 bg-slate-50 border-r border-slate-200" style={{ width: LABEL_W }} />
+            {propostas.map((p) => {
+              const isRec = p.id === recommendedId;
+              return (
+                <td
+                  key={p.id}
+                  className={cn(
+                    'relative px-3 py-3 text-center border-r border-slate-200 group/bankCol',
+                    isRec ? 'bg-blue-50' : 'bg-white'
+                  )}
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    {isRec && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-medium">
+                        <Star className="h-2.5 w-2.5 fill-blue-500 text-blue-500" />
+                        Recomendado
+                      </span>
+                    )}
+                    <span className={cn('text-sm font-bold', isRec ? 'text-blue-900' : 'text-slate-800')}>
+                      {p.bank_name}
+                    </span>
+                    {p.rate_type && (
+                      <span className={cn(
+                        'text-[10px] px-2 py-0.5 rounded-full font-medium',
+                        p.rate_type === 'variavel' ? 'bg-amber-100 text-amber-700' :
+                        p.rate_type === 'fixa'     ? 'bg-blue-100 text-blue-700'   :
+                                                     'bg-purple-100 text-purple-700'
+                      )}>
+                        {RATE_TYPE_LABELS[p.rate_type] ?? p.rate_type}
+                      </span>
+                    )}
+                  </div>
+                  {mode === 'broker' && clientId && (
+                    <a
+                      href={`/dashboard/clients/${clientId}/bank-propostas/${p.id}/edit`}
+                      className="absolute top-2 right-2 opacity-0 group-hover/bankCol:opacity-100 transition-opacity"
+                      title="Editar proposta"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Pencil className="h-3 w-3 text-slate-400 hover:text-blue-500" />
+                    </a>
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+
+          {/* Row 2 — Válida até */}
+          {hasValidate && (
+            <tr className="border-t border-slate-100">
+              <td className="px-4 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 border-r border-slate-100" style={{ width: LABEL_W }}>
+                Válida até
+              </td>
+              {propostas.map((p) => {
+                if (!p.validade_ate) {
+                  return <td key={p.id} className="px-3 py-1.5 text-xs text-center text-slate-400 border-r border-slate-100">—</td>;
+                }
+                const expiry = new Date(p.validade_ate);
+                const now = new Date();
+                const days = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                const [yr, mo, dy2] = p.validade_ate.split('-').map(Number);
+                const fmt = `${dy2} ${PT_MONTHS[mo - 1]} ${yr}`;
+                const isExpired = days < 0;
+                const isWarn = !isExpired && days <= 14;
+                return (
+                  <td
+                    key={p.id}
+                    className={cn(
+                      'px-3 py-1.5 text-xs text-center border-r border-slate-100',
+                      isExpired ? 'text-red-600 font-medium' : isWarn ? 'text-amber-600 font-medium' : 'text-slate-500'
+                    )}
+                  >
+                    {isExpired ? '⚠ Expirada' : isWarn ? `⚠ ${fmt}` : fmt}
+                  </td>
+                );
+              })}
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Section card wrapper ─────────────────────────────────────────────────────
+
+function SectionCard({
+  title, rightSlot, children, mode, propostas, hasSeguros = false,
+}: {
+  title: string;
+  rightSlot?: React.ReactNode;
+  children: React.ReactNode;
+  mode?: 'broker' | 'client';
+  propostas: BankProposta[];
+  hasSeguros?: boolean;
+}) {
+  const shadow = mode === 'client' ? '0 2px 8px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.06)';
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden" style={{ boxShadow: shadow }}>
+      <div
+        className="flex items-center justify-between px-4 py-2.5"
+        style={{ backgroundColor: '#1E3A5F', borderRadius: '12px 12px 0 0' }}
+      >
+        <span className="text-sm font-semibold text-white">{title}</span>
+        {rightSlot}
+      </div>
+      <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
+        <TableColgroup propostas={propostas} hasSeguros={hasSeguros} />
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── CardRow — standard single-value-per-bank row ─────────────────────────────
+
+function CardRow({
+  label, values, propostas, recommendedId, greenIndices = [], isBold = false, compact = false,
+}: {
   label: string;
   values: (string | null | React.ReactNode)[];
   propostas: BankProposta[];
   recommendedId: string | null;
-  highlightedCells?: Record<string, string>;
-  rowKey: string;
-  isBold?: boolean;
   greenIndices?: number[];
-}
-
-function DataRow({ label, values, propostas, recommendedId, highlightedCells, rowKey, isBold, greenIndices = [] }: DataRowProps) {
+  isBold?: boolean;
+  compact?: boolean;
+}) {
+  const py = compact ? 'py-2' : 'py-2.5';
   return (
-    <tr className="hover:bg-gray-50/50">
-      <td className={cn(
-        'sticky left-0 z-10 px-3 py-1.5 text-xs border border-gray-200 bg-white w-[220px] min-w-[200px]',
-        isBold ? 'font-semibold text-gray-800 bg-[#E8EEF7]' : 'text-gray-600'
-      )}>
-        {label}
+    <tr className="hover:bg-slate-50 transition-colors">
+      <td
+        className={cn(
+          'sticky left-0 z-10 px-4 text-sm border-b border-slate-100 bg-white',
+          py,
+          isBold ? 'font-semibold text-slate-800' : 'font-medium text-slate-700'
+        )}
+      >
+        <RowLabel label={label} />
       </td>
       {propostas.map((p, i) => {
-        const cellKey = `${rowKey}-${p.id}`;
-        const customClass = highlightedCells?.[cellKey];
-        const isRec = p.id === recommendedId;
         const isGreen = greenIndices.includes(i);
+        const isRec = p.id === recommendedId;
         return (
           <td
             key={p.id}
-            colSpan={2}
             className={cn(
-              'px-3 py-1.5 text-xs text-center border border-gray-200 min-w-[150px]',
+              'px-3 text-sm text-center border-b border-l border-slate-100',
+              py,
               isBold ? 'font-semibold' : '',
-              isGreen ? 'bg-green-100 text-green-800' :
-              customClass ?? (isRec ? 'bg-blue-50' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30')
+              isGreen ? 'text-green-700' :
+              isRec   ? 'bg-blue-50/30 text-slate-800' :
+                        'text-slate-800'
             )}
           >
             {values[i] ?? '—'}
@@ -103,41 +329,7 @@ function DataRow({ label, values, propostas, recommendedId, highlightedCells, ro
   );
 }
 
-interface TotalRowProps {
-  label: string;
-  values: string[];
-  propostas: BankProposta[];
-  recommendedId: string | null;
-  greenIndices: number[];
-  isPrimary?: boolean;
-}
-
-function TotalRow({ label, values, propostas, recommendedId, greenIndices, isPrimary }: TotalRowProps) {
-  return (
-    <tr>
-      <td className={cn(
-        'sticky left-0 z-10 px-3 py-2 text-xs font-bold border border-gray-200 w-[220px] min-w-[200px]',
-        isPrimary ? 'text-white bg-[#1E3A5F]' : 'text-gray-800 bg-[#E8EEF7]'
-      )}>
-        {label}
-      </td>
-      {propostas.map((p, i) => (
-        <td
-          key={p.id}
-          colSpan={2}
-          className={cn(
-            'px-3 py-2 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
-            isPrimary
-              ? greenIndices.includes(i) ? 'bg-green-700 text-white' : p.id === recommendedId ? 'bg-[#2D5BA3] text-white' : 'bg-[#1E3A5F] text-white'
-              : greenIndices.includes(i) ? 'bg-green-100 text-green-800' : p.id === recommendedId ? 'bg-blue-100' : 'bg-[#E8EEF7]'
-          )}
-        >
-          {values[i]}
-        </td>
-      ))}
-    </tr>
-  );
-}
+// ─── SegurosSubHeaderRow (exact current implementation) ──────────────────────
 
 function SegurosSubHeaderRow({ propostas }: { propostas: BankProposta[] }) {
   return (
@@ -156,6 +348,8 @@ function SegurosSubHeaderRow({ propostas }: { propostas: BankProposta[] }) {
     </tr>
   );
 }
+
+// ─── SegurosDataRow (exact current implementation) ────────────────────────────
 
 interface SegurosDataRowProps {
   label: string;
@@ -204,29 +398,44 @@ function SegurosDataRow({ label, propostas, getBancoVal, getExtVal, getIsRecBanc
   );
 }
 
-function RecomendadaTotalRow({ propostas, recommendedId, hasP2 }: { propostas: BankProposta[]; recommendedId: string | null; hasP2: boolean }) {
-  const totals = propostas.map((p) => calcTotalRecomendado(p, hasP2));
-  const minTotal = getLowest(totals);
+// ─── SegurosWideRow — single value spanning both sub-cols per bank ─────────────
+
+function SegurosWideRow({
+  label, values, propostas, recommendedId, greenIndices = [], isBold = false,
+}: {
+  label: string;
+  values: (string | null)[];
+  propostas: BankProposta[];
+  recommendedId: string | null;
+  greenIndices?: number[];
+  isBold?: boolean;
+}) {
   return (
-    <tr>
-      <td className="sticky left-0 z-10 px-3 py-2 text-xs font-bold border border-gray-200 w-[220px] min-w-[200px] text-white bg-[#1E3A5F]">
-        PRESTAÇÃO TOTAL (recomendada)
+    <tr className="hover:bg-slate-50 transition-colors">
+      <td
+        className={cn(
+          'sticky left-0 z-10 px-3 py-1.5 text-xs border border-gray-200 w-[220px] min-w-[200px]',
+          isBold ? 'font-semibold text-gray-800 bg-[#E8EEF7]' : 'text-gray-600 bg-white'
+        )}
+      >
+        <RowLabel label={label} />
       </td>
       {propostas.map((p, i) => {
-        const total = totals[i] ?? 0;
-        const isGreen = total > 0 && total === minTotal;
-        const sublabel = getRecomendadaLabel(p, hasP2);
+        const isGreen = greenIndices.includes(i);
+        const isRec = p.id === recommendedId;
         return (
           <td
             key={p.id}
             colSpan={2}
             className={cn(
-              'px-3 py-2 text-xs font-bold text-center border border-gray-200',
-              isGreen ? 'bg-green-700 text-white' : p.id === recommendedId ? 'bg-[#2D5BA3] text-white' : 'bg-[#1E3A5F] text-white'
+              'px-3 py-1.5 text-xs text-center border border-gray-200',
+              isBold ? 'font-semibold' : '',
+              isGreen ? 'bg-green-100 text-green-800' :
+              isRec   ? 'bg-blue-50 text-slate-800' :
+                        'bg-white text-slate-800'
             )}
           >
-            <div>{fmtEur(total)}</div>
-            {sublabel && <div className="text-[9px] font-normal opacity-75 mt-0.5">{sublabel}</div>}
+            {values[i] ?? '—'}
           </td>
         );
       })}
@@ -234,179 +443,68 @@ function RecomendadaTotalRow({ propostas, recommendedId, hasP2 }: { propostas: B
   );
 }
 
-// ─── New section layout components ───────────────────────────────────────────
-
-interface NewSectionHeaderProps {
-  title: string;
-  subtitle: string;
-  totalDataCols: number;
-  bgColor?: string;
-  collapsible?: boolean;
-  collapsed?: boolean;
-  onToggle?: () => void;
-}
-
-function NewSectionHeader({ title, subtitle, totalDataCols, bgColor = '#1E3A5F', collapsible, collapsed, onToggle }: NewSectionHeaderProps) {
-  return (
-    <tr onClick={collapsible ? onToggle : undefined} className={collapsible ? 'cursor-pointer select-none' : ''}>
-      <td
-        className="sticky left-0 z-10 px-3 py-2.5 text-sm font-semibold text-white border border-gray-200 w-[220px] min-w-[200px]"
-        style={{ backgroundColor: bgColor }}
-      >
-        {title}
-      </td>
-      <td
-        colSpan={totalDataCols}
-        className="px-3 py-2.5 border border-gray-200"
-        style={{ backgroundColor: bgColor }}
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white opacity-60">{subtitle}</span>
-          {collapsible && (
-            collapsed
-              ? <ChevronRight className="h-3.5 w-3.5 text-white opacity-60 shrink-0" />
-              : <ChevronDown className="h-3.5 w-3.5 text-white opacity-60 shrink-0" />
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function GapRow({ totalCols }: { totalCols: number }) {
-  return (
-    <tr aria-hidden="true">
-      <td colSpan={totalCols} style={{ height: '12px', background: 'transparent', border: 'none', padding: 0 }} />
-    </tr>
-  );
-}
-
-function SubSectionLabel({ label, totalDataCols }: { label: string; totalDataCols: number }) {
-  return (
-    <tr>
-      <td className="sticky left-0 z-10 pl-8 pr-3 py-1.5 text-xs font-medium text-slate-500 bg-[#f1f5f9] border border-gray-200 w-[220px] min-w-[200px]">
-        {label}
-      </td>
-      <td colSpan={totalDataCols} className="bg-[#f1f5f9] border border-gray-200" />
-    </tr>
-  );
-}
-
-function ReferenceRow({ label, values, propostas, recommendedId }: { label: string; values: string[]; propostas: BankProposta[]; recommendedId: string | null }) {
-  return (
-    <tr>
-      <td className="sticky left-0 z-10 px-3 py-1 text-xs italic text-slate-400 bg-slate-50 border border-gray-200 w-[220px] min-w-[200px]">
-        {label}
-      </td>
-      {propostas.map((p, i) => (
-        <td
-          key={p.id}
-          colSpan={2}
-          className={cn(
-            'px-3 py-1 text-xs italic text-slate-400 text-center border border-gray-200 min-w-[150px]',
-            p.id === recommendedId ? 'bg-blue-50/50' : 'bg-slate-50'
-          )}
-        >
-          {values[i] ?? '—'}
-        </td>
-      ))}
-    </tr>
-  );
-}
-
-// ─── Client portal summary badges ────────────────────────────────────────────
-
-function SummaryBadges({ propostas, recommendedId, hasP2 }: { propostas: BankProposta[]; recommendedId: string | null; hasP2: boolean }) {
-  const rec = propostas.find((p) => p.id === recommendedId);
-  if (!rec) return null;
-
-  const totalMensal = calcTotalRecomendado(rec, hasP2);
-  const totalUnicos = calcTotalEncargosUnicos(rec);
-  const mticVal = (rec.mtic && rec.mtic > 0)
-    ? rec.mtic
-    : (totalMensal > 0 && (rec.term_months ?? 0) > 0 ? totalMensal * rec.term_months! : 0);
-
-  let validadeLabel: string | null = null;
-  if (rec.validade_ate) {
-    const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const [yr, mo, dy] = rec.validade_ate.split('-').map(Number);
-    validadeLabel = `${dy} ${MONTHS[mo - 1]} ${yr}`;
-  }
-
-  const badges = [
-    { Icon: CreditCard, label: 'Prestação recomendada', value: totalMensal > 0 ? `${fmtEur(totalMensal)}/mês` : null },
-    { Icon: FileText,   label: 'Encargos de entrada',  value: totalUnicos > 0 ? fmtEur(totalUnicos) : null },
-    { Icon: BarChart3,  label: 'Custo total estimado', value: mticVal > 0 ? fmtMticVal(mticVal) : null },
-    { Icon: Calendar,   label: 'Válida até',            value: validadeLabel },
-  ].filter((b): b is { Icon: typeof CreditCard; label: string; value: string } => b.value !== null);
-
-  if (!badges.length) return null;
-
-  return (
-    <div className="flex flex-wrap gap-2 mb-3">
-      {badges.map(({ Icon, label, value }) => (
-        <div key={label} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs shadow-sm">
-          <Icon className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-          <span className="text-slate-500">{label}:</span>
-          <span className="font-semibold text-slate-800">{value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highlightedCells = {}, mode, clientId }: ComparisonTableProps) {
+export function ComparisonTable({
+  propostas, recommendedId, hasP2 = false, highlightedCells: _highlightedCells = {}, mode, clientId,
+}: ComparisonTableProps) {
   const [encargosCollapsed, setEncargosCollapsed] = useState(true);
 
   if (!propostas.length) return null;
 
-  const totalDataCols = propostas.length * 2;
-  const totalCols = 1 + totalDataCols;
-  const rowProps = { propostas, recommendedId, highlightedCells };
+  const compact = mode === 'broker';
+  const totalWidth = LABEL_W + propostas.length * BANK_W;
 
-  // Wraps values with a subtle edit-link icon in broker mode
-  const bv = (vals: (string | null | React.ReactNode)[]): (string | null | React.ReactNode)[] => {
-    if (mode !== 'broker' || !clientId) return vals;
-    return propostas.map((p, i) => withEditLink(vals[i], p.id, clientId));
-  };
-
-  // ── Section 1 ───────────────────────────────────────────────────────────
+  // ── Card 1 ───────────────────────────────────────────────────────────────
   const loanAmounts = propostas.map((p) => p.loan_amount);
   const minLoan = getLowest(loanAmounts);
-  const loanGreenIdx = loanAmounts.map((v, i) => (v !== null && v === minLoan ? i : -1)).filter((i) => i >= 0);
+  const loanGreenIdx = loanAmounts.map((v, i) => v !== null && v === minLoan ? i : -1).filter((i) => i >= 0);
+
+  const monthlyVals = propostas.map((p) => p.monthly_payment);
+  const minMonthly = getLowest(monthlyVals);
+  const monthlyGreenIdx = monthlyVals.map((v, i) => v !== null && v === minMonthly ? i : -1).filter((i) => i >= 0);
 
   const allFixa = propostas.every((p) => p.rate_type === 'fixa');
   const hasAnyMistaOrFixa = propostas.some((p) => p.rate_type === 'mista' || p.rate_type === 'fixa');
 
-  // ── Section 2 ───────────────────────────────────────────────────────────
-  const prestacaoVals = propostas.map((p) => p.monthly_payment);
-  const minPrestacao = getLowest(prestacaoVals);
-  const prestacaoGreenIdx = prestacaoVals.map((v, i) => (v !== null && v === minPrestacao ? i : -1)).filter((i) => i >= 0);
+  // ── Card 2 ───────────────────────────────────────────────────────────────
+  const totalSegurosVals = propostas.map((p) => {
+    const vida1 = (p.vida_p1_recomendada ?? 'externa') === 'banco' ? (p.vida_p1_banco ?? 0) : (p.vida_p1_externa ?? 0);
+    const vida2 = hasP2 ? ((p.vida_p2_recomendada ?? 'externa') === 'banco' ? (p.vida_p2_banco ?? 0) : (p.vida_p2_externa ?? 0)) : 0;
+    const multi = (p.multiriscos_recomendada ?? 'banco') === 'banco' ? (p.multiriscos_banco ?? 0) : (p.multiriscos_externa ?? 0);
+    return vida1 + vida2 + multi;
+  });
+  const minTotalSeguros = getLowest(totalSegurosVals);
+  const totalSegurosGreenIdx = totalSegurosVals.map((v, i) => v > 0 && v === minTotalSeguros ? i : -1).filter((i) => i >= 0);
 
-  const hasExternalInsurance = propostas.some(
-    (p) => (p.vida_p1_externa ?? 0) > 0 || (p.vida_p2_externa ?? 0) > 0 || (p.multiriscos_externa ?? 0) > 0
-  );
-  const totalBancoVals = propostas.map((p) =>
-    (p.monthly_payment ?? 0) + (p.vida_p1_banco ?? 0) + (hasP2 ? (p.vida_p2_banco ?? 0) : 0) + (p.multiriscos_banco ?? 0) + (p.manutencao_conta ?? 0)
-  );
-  const totalExternoVals = propostas.map((p) =>
-    (p.monthly_payment ?? 0) + (p.vida_p1_externa ?? 0) + (hasP2 ? (p.vida_p2_externa ?? 0) : 0) + (p.multiriscos_externa ?? 0) + (p.manutencao_conta ?? 0)
-  );
+  // ── Card 3 ───────────────────────────────────────────────────────────────
+  const prestacaoTotalVals = propostas.map((p) => calcTotalRecomendado(p, hasP2) + (p.manutencao_conta ?? 0));
+  const minPrestacaoTotal = getLowest(prestacaoTotalVals);
+  const prestacaoTotalGreenIdx = prestacaoTotalVals.map((v, i) => v > 0 && v === minPrestacaoTotal ? i : -1).filter((i) => i >= 0);
 
-  // ── Section 3 ───────────────────────────────────────────────────────────
+  // ── Card 4 ───────────────────────────────────────────────────────────────
   const totalUnicosVals = propostas.map(calcTotalEncargosUnicos);
   const minTotalUnicos = getLowest(totalUnicosVals);
+  const totalUnicosGreenIdx = totalUnicosVals.map((v, i) => v > 0 && v === minTotalUnicos ? i : -1).filter((i) => i >= 0);
 
-  // ── Section 4 ───────────────────────────────────────────────────────────
-  const mticVals = propostas.map((p) => {
-    if (p.mtic && p.mtic > 0) return p.mtic;
-    const prestacao = calcTotalRecomendado(p, hasP2);
-    return prestacao > 0 && (p.term_months ?? 0) > 0 ? prestacao * p.term_months! : 0;
-  });
-  const allMticFromDb = propostas.every((p) => (p.mtic ?? 0) > 0);
-  const minMtic = getLowest(mticVals);
+  // ── Card 5 ───────────────────────────────────────────────────────────────
+  const mticVals = propostas.map((p) => (p.mtic && p.mtic > 0) ? p.mtic : null);
+  const mticNums = mticVals.filter((v): v is number => v !== null);
+  const minMtic = mticNums.length ? Math.min(...mticNums) : null;
+  const mticGreenIdx = mticVals.map((v, i) => v !== null && v === minMtic ? i : -1).filter((i) => i >= 0);
+
+  const hasCondicoes = propostas.some((p) => p.condicoes_spread?.length);
+
+  const encargosToggle = (
+    <button
+      onClick={() => setEncargosCollapsed((v) => !v)}
+      className="inline-flex items-center gap-1 text-xs text-white/70 hover:text-white transition-colors"
+    >
+      {encargosCollapsed
+        ? <><ChevronDown className="h-3.5 w-3.5" /> Ver detalhe</>
+        : <><ChevronUp   className="h-3.5 w-3.5" /> Fechar</>}
+    </button>
+  );
 
   return (
     <div>
@@ -414,332 +512,246 @@ export function ComparisonTable({ propostas, recommendedId, hasP2 = false, highl
         <SummaryBadges propostas={propostas} recommendedId={recommendedId} hasP2={hasP2} />
       )}
 
-      <div className="relative w-full overflow-x-auto overflow-y-visible rounded-lg border border-gray-200 shadow-sm">
-        <table className="text-sm w-full" style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: `${220 + propostas.length * 150}px` }}>
-          <thead>
-            {/* Section header — "O Empréstimo" — sticks with bank names */}
-            <tr>
-              <th
-                className="sticky left-0 top-16 z-30 px-3 py-2.5 text-left text-sm font-semibold text-white border border-gray-200 w-[220px] min-w-[200px]"
-                style={{ backgroundColor: '#1E3A5F' }}
-              >
-                O Empréstimo
-              </th>
-              <th
-                colSpan={totalDataCols}
-                className="sticky top-16 z-20 px-3 py-2.5 border border-gray-200"
-                style={{ backgroundColor: '#1E3A5F' }}
-              >
-                <span className="text-xs text-white opacity-60">Detalhes do crédito e condições da taxa</span>
-              </th>
-            </tr>
-            {/* Bank names row — offset below section header (~40px) */}
-            <tr>
-              <th className="sticky left-0 top-[6.5rem] z-30 px-3 py-3 text-left text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 w-[220px] min-w-[200px]">
-                &nbsp;
-              </th>
-              {propostas.map((p) => (
-                <th
-                  key={p.id}
-                  colSpan={2}
-                  className={cn(
-                    'sticky top-[6.5rem] z-20 px-3 py-3 text-xs font-bold text-center border border-gray-200 min-w-[150px]',
-                    p.id === recommendedId
-                      ? 'bg-[#2D5BA3] text-white border-l-2 border-l-blue-400'
-                      : 'bg-[#1E3A5F] text-white'
+      {/* Horizontal scroll wrapper; vertical sticky works via page scroll */}
+      <div className="relative w-full overflow-x-auto overflow-y-visible">
+        <div style={{ minWidth: totalWidth }}>
+
+          {/* ── Sticky bank header ─────────────────────────────────────────── */}
+          <StickyBankHeader
+            propostas={propostas}
+            recommendedId={recommendedId}
+            mode={mode}
+            clientId={clientId}
+          />
+
+          {/* ── Section cards ──────────────────────────────────────────────── */}
+          <div className="space-y-4">
+
+            {/* CARD 1 — Informação do Empréstimo */}
+            <SectionCard title="Informação do Empréstimo" mode={mode} propostas={propostas}>
+              <CardRow label="Montante de Financiamento" values={propostas.map((p) => fmtEur(p.loan_amount))} greenIndices={loanGreenIdx} compact={compact} propostas={propostas} recommendedId={recommendedId} />
+              <CardRow label="Prazo" values={propostas.map((p) => p.term_months ? `${p.term_months} meses` : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
+              <CardRow label="Tipo de Taxa" values={propostas.map((p) => p.rate_type ? (RATE_TYPE_LABELS[p.rate_type] ?? null) : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
+              {hasAnyMistaOrFixa && (
+                <CardRow
+                  label="Período Fixo"
+                  values={propostas.map((p) =>
+                    (p.rate_type === 'mista' || p.rate_type === 'fixa') && p.fixed_period_years
+                      ? `${p.fixed_period_years} anos` : '—'
                   )}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    {p.id === recommendedId && <Star className="h-3 w-3 fill-yellow-300 text-yellow-300" />}
-                    {p.bank_name}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
+                  compact={compact} propostas={propostas} recommendedId={recommendedId}
+                />
+              )}
+              {propostas.some((p) => p.condicoes_pos_fixo) && (
+                <CardRow label="Após período fixo" values={propostas.map((p) => p.condicoes_pos_fixo ?? null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
+              )}
+              {!allFixa && (
+                <CardRow label="Euribor" values={propostas.map((p) => p.euribor_index ? (EURIBOR_LABELS[p.euribor_index] ?? null) : null)} compact={compact} propostas={propostas} recommendedId={recommendedId} />
+              )}
+              <CardRow label="Spread" values={propostas.map((p) => fmtPct(p.spread))} compact={compact} propostas={propostas} recommendedId={recommendedId} />
+              <CardRow label="TAN"    values={propostas.map((p) => fmtPct(p.tan))}    compact={compact} propostas={propostas} recommendedId={recommendedId} />
+              {propostas.some((p) => p.taeg) && (
+                <CardRow label="TAEG" values={propostas.map((p) => fmtPct(p.taeg))} compact={compact} propostas={propostas} recommendedId={recommendedId} />
+              )}
+              <CardRow label="Prestação base" values={propostas.map((p) => fmtEur(p.monthly_payment))} greenIndices={monthlyGreenIdx} isBold compact={compact} propostas={propostas} recommendedId={recommendedId} />
+            </SectionCard>
 
-            {/* ══ SECTION 1 — O Empréstimo ══════════════════════════════════ */}
-            <DataRow
-              label="Montante"
-              values={bv(propostas.map((p) => fmtEur(p.loan_amount)))}
-              rowKey="loan_amount"
-              greenIndices={loanGreenIdx}
-              {...rowProps}
-            />
-            {propostas.some((p) => p.valor_avaliacao) && (
-              <DataRow
-                label="Valor de Avaliação"
-                values={bv(propostas.map((p) => fmtEur(p.valor_avaliacao)))}
-                rowKey="valor_avaliacao"
-                {...rowProps}
-              />
-            )}
-            <DataRow
-              label="Prazo"
-              values={bv(propostas.map((p) => p.term_months ? `${p.term_months} meses` : null))}
-              rowKey="term_months"
-              {...rowProps}
-            />
-            <DataRow
-              label="Tipo de Taxa"
-              values={bv(propostas.map((p) => p.rate_type ? (RATE_TYPE_LABELS[p.rate_type] ?? null) : null))}
-              rowKey="rate_type"
-              {...rowProps}
-            />
-            {hasAnyMistaOrFixa && (
-              <DataRow
-                label="Período Fixo"
-                values={bv(propostas.map((p) =>
-                  (p.rate_type === 'mista' || p.rate_type === 'fixa') && p.fixed_period_years
-                    ? `${p.fixed_period_years} anos`
-                    : '—'
-                ))}
-                rowKey="fixed_period_years"
-                {...rowProps}
-              />
-            )}
-            {propostas.some((p) => p.condicoes_pos_fixo) && (
-              <DataRow
-                label="Após período fixo"
-                values={bv(propostas.map((p) => p.condicoes_pos_fixo ?? null))}
-                rowKey="condicoes_pos_fixo"
-                {...rowProps}
-              />
-            )}
-            {!allFixa && (
-              <DataRow
-                label="Euribor"
-                values={bv(propostas.map((p) => p.euribor_index ? (EURIBOR_LABELS[p.euribor_index] ?? null) : null))}
-                rowKey="euribor_index"
-                {...rowProps}
-              />
-            )}
-            <DataRow
-              label="Spread"
-              values={bv(propostas.map((p) => fmtPct(p.spread)))}
-              rowKey="spread"
-              {...rowProps}
-            />
-            <DataRow
-              label="TAN"
-              values={bv(propostas.map((p) => fmtPct(p.tan)))}
-              rowKey="tan"
-              {...rowProps}
-            />
-            {propostas.some((p) => p.taeg) && (
-              <DataRow
-                label="TAEG"
-                values={bv(propostas.map((p) => fmtPct(p.taeg)))}
-                rowKey="taeg"
-                {...rowProps}
-              />
-            )}
-            {propostas.some((p) => p.validade_ate) && (
-              <DataRow
-                label="Válida até"
-                values={propostas.map((p) => {
-                  if (!p.validade_ate) return null;
-                  const expiry = new Date(p.validade_ate);
-                  const now = new Date();
-                  const days = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                  const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                  const [yr, mo, dy] = p.validade_ate.split('-').map(Number);
-                  const formatted = `${dy} ${MONTHS[mo - 1]} ${yr}`;
-                  if (days < 0) return <span key={p.id} className="text-red-600 font-medium">⚠ Expirada</span>;
-                  if (days <= 14) return <span key={p.id} className="text-amber-600 font-medium">⚠ Expira em {days} dias</span>;
-                  return <span key={p.id} className="text-slate-600">{formatted}</span>;
-                })}
-                rowKey="validade_ate"
-                {...rowProps}
-              />
-            )}
-
-            <GapRow totalCols={totalCols} />
-
-            {/* ══ SECTION 2 — O Pagamento Mensal ═══════════════════════════ */}
-            <NewSectionHeader
-              title="O Pagamento Mensal"
-              subtitle="O que sai da sua conta todos os meses"
-              totalDataCols={totalDataCols}
-            />
-            <DataRow
-              label="Prestação (capital + juros)"
-              values={bv(propostas.map((p) => fmtEur(p.monthly_payment)))}
-              rowKey="monthly_payment"
-              greenIndices={prestacaoGreenIdx}
-              {...rowProps}
-            />
-            <SubSectionLabel label="Seguros" totalDataCols={totalDataCols} />
-            <SegurosSubHeaderRow propostas={propostas} />
-            <SegurosDataRow
-              label="Seguro Vida — P1"
-              propostas={propostas}
-              getBancoVal={(p) => p.vida_p1_banco}
-              getExtVal={(p) => p.vida_p1_externa}
-              getIsRecBanco={(p) => (p.vida_p1_recomendada ?? 'externa') === 'banco'}
-            />
-            {hasP2 && (
+            {/* CARD 2 — Seguros */}
+            <SectionCard title="Seguros" mode={mode} propostas={propostas} hasSeguros>
+              <SegurosSubHeaderRow propostas={propostas} />
               <SegurosDataRow
-                label="Seguro Vida — P2"
+                label="Seguro Vida — P1"
                 propostas={propostas}
-                getBancoVal={(p) => p.vida_p2_banco}
-                getExtVal={(p) => p.vida_p2_externa}
-                getIsRecBanco={(p) => (p.vida_p2_recomendada ?? 'externa') === 'banco'}
+                getBancoVal={(p) => p.vida_p1_banco}
+                getExtVal={(p) => p.vida_p1_externa}
+                getIsRecBanco={(p) => (p.vida_p1_recomendada ?? 'externa') === 'banco'}
               />
-            )}
-            <SegurosDataRow
-              label="Seguro Multirriscos"
-              propostas={propostas}
-              getBancoVal={(p) => p.multiriscos_banco}
-              getExtVal={(p) => p.multiriscos_externa}
-              getIsRecBanco={(p) => (p.multiriscos_recomendada ?? 'banco') === 'banco'}
-            />
-            <SubSectionLabel label="Encargos mensais da conta" totalDataCols={totalDataCols} />
-            <DataRow
-              label="Manutenção de conta"
-              values={bv(propostas.map((p) => fmtEur(p.manutencao_conta)))}
-              rowKey="manutencao_conta"
-              {...rowProps}
-            />
-            {propostas.some((p) => p.outras_comissoes_mensais) && (
-              <DataRow
-                label="Outras comissões mensais"
-                values={bv(propostas.map((p) => fmtEur(p.outras_comissoes_mensais)))}
-                rowKey="outras_comissoes_mensais"
-                {...rowProps}
+              {hasP2 && (
+                <SegurosDataRow
+                  label="Seguro Vida — P2"
+                  propostas={propostas}
+                  getBancoVal={(p) => p.vida_p2_banco}
+                  getExtVal={(p) => p.vida_p2_externa}
+                  getIsRecBanco={(p) => (p.vida_p2_recomendada ?? 'externa') === 'banco'}
+                />
+              )}
+              <SegurosDataRow
+                label="Seguro Multirriscos"
+                propostas={propostas}
+                getBancoVal={(p) => p.multiriscos_banco}
+                getExtVal={(p) => p.multiriscos_externa}
+                getIsRecBanco={(p) => (p.multiriscos_recomendada ?? 'banco') === 'banco'}
               />
-            )}
-            <RecomendadaTotalRow propostas={propostas} recommendedId={recommendedId} hasP2={hasP2} />
-            {hasExternalInsurance && (
-              <>
-                <ReferenceRow
-                  label="Total mensal (seguros banco)"
-                  values={totalBancoVals.map((v) => v > 0 ? fmtEur(v) : '—')}
-                  propostas={propostas}
-                  recommendedId={recommendedId}
-                />
-                <ReferenceRow
-                  label="Total mensal (seguros externos)"
-                  values={totalExternoVals.map((v) => v > 0 ? fmtEur(v) : '—')}
-                  propostas={propostas}
-                  recommendedId={recommendedId}
-                />
-              </>
-            )}
+              <SegurosWideRow
+                label="Manutenção de conta"
+                values={propostas.map((p) => fmtEur(p.manutencao_conta))}
+                propostas={propostas}
+                recommendedId={recommendedId}
+              />
+              <SegurosWideRow
+                label="Total Seguros (recomendado)"
+                values={totalSegurosVals.map((v) => v > 0 ? fmtEur(v) : '—')}
+                propostas={propostas}
+                recommendedId={recommendedId}
+                greenIndices={totalSegurosGreenIdx}
+                isBold
+              />
+            </SectionCard>
 
-            <GapRow totalCols={totalCols} />
-
-            {/* ══ SECTION 3 — O Custo de Entrada ═══════════════════════════ */}
-            <NewSectionHeader
-              title="O Custo de Entrada"
-              subtitle="Valores a pagar uma única vez no momento da escritura"
-              totalDataCols={totalDataCols}
-              collapsible
-              collapsed={encargosCollapsed}
-              onToggle={() => setEncargosCollapsed((v) => !v)}
-            />
-            {!encargosCollapsed && ONE_TIME_CHARGE_FIELDS.map(({ key, label }) => {
-              const vals = propostas.map((p) => p[key] as number | null);
-              const min = getLowest(vals);
-              const customHighlight: Record<string, string> = {};
-              if (min !== null) {
-                propostas.forEach((p, i) => {
-                  if (vals[i] === min) customHighlight[`${key}-${p.id}`] = 'bg-green-100';
-                });
-              }
-              return (
-                <DataRow
-                  key={key}
-                  label={label}
-                  values={bv(vals.map(fmtEur))}
-                  rowKey={key}
-                  propostas={propostas}
-                  recommendedId={recommendedId}
-                  highlightedCells={{ ...highlightedCells, ...customHighlight }}
-                />
-              );
-            })}
-            <TotalRow
-              label="TOTAL ENCARGOS ÚNICOS"
-              values={totalUnicosVals.map(fmtEur)}
-              greenIndices={totalUnicosVals.map((v, i) => (v === minTotalUnicos && minTotalUnicos !== null ? i : -1)).filter((i) => i >= 0)}
-              {...rowProps}
-            />
-
-            <GapRow totalCols={totalCols} />
-
-            {/* ══ SECTION 4 — O Custo Total do Crédito ═════════════════════ */}
-            <NewSectionHeader
-              title="O Custo Total do Crédito"
-              subtitle="O montante total estimado a pagar ao longo de todo o prazo"
-              totalDataCols={totalDataCols}
-              bgColor="#0F2037"
-            />
-            <tr>
-              <td className="sticky left-0 z-10 px-3 py-2 text-sm font-bold text-gray-800 bg-white border border-gray-200 w-[220px] min-w-[200px]">
-                <div className="flex items-center gap-1">
-                  {allMticFromDb ? 'MTIC' : 'MTIC (estimado)'}
-                  <span title="Montante Total Imputado ao Consumidor — valor total estimado a pagar incluindo capital, juros e seguros ao longo de todo o prazo.">
-                    <Info className="h-3 w-3 text-blue-400 shrink-0" />
-                  </span>
-                </div>
-              </td>
-              {propostas.map((p, i) => {
-                const v = mticVals[i] ?? 0;
-                const isGreen = v > 0 && v === minMtic;
-                return (
-                  <td
-                    key={p.id}
-                    colSpan={2}
-                    className={cn(
-                      'px-3 py-2 text-sm font-bold text-center border border-gray-200 min-w-[150px]',
-                      isGreen ? 'bg-green-100 text-green-800' : p.id === recommendedId ? 'bg-blue-50' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
-                    )}
-                  >
-                    {v > 0 ? fmtMticVal(v) : '—'}
+            {/* CARD 3 — Prestação Total */}
+            <SectionCard title="Prestação Total" mode={mode} propostas={propostas}>
+              <tr>
+                <td
+                  className="sticky left-0 z-10 px-4 py-3 text-base font-bold text-white"
+                  style={{ width: LABEL_W, backgroundColor: '#1E3A5F', borderBottom: '1px solid rgba(255,255,255,0.15)' }}
+                >
+                  PRESTAÇÃO TOTAL
+                </td>
+                {propostas.map((p, i) => {
+                  const val = prestacaoTotalVals[i] ?? 0;
+                  const isGreen = prestacaoTotalGreenIdx.includes(i);
+                  const isRec = p.id === recommendedId;
+                  return (
+                    <td
+                      key={p.id}
+                      className={cn(
+                        'px-3 py-3 text-base font-bold text-center text-white',
+                        isGreen ? 'bg-green-700' : isRec ? 'bg-blue-700' : 'bg-slate-700'
+                      )}
+                      style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', borderLeft: '1px solid rgba(255,255,255,0.1)' }}
+                    >
+                      {val > 0 ? fmtEur(val) : '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="sticky left-0 z-10 px-4 py-2 text-xs text-slate-400 bg-white" style={{ width: LABEL_W }}>
+                  Prestação + seguros + conta
+                </td>
+                {propostas.map((p) => (
+                  <td key={p.id} className="px-3 py-2 text-xs text-slate-400 text-center border-l border-slate-100 bg-white">
+                    {getRecomendadaLabel(p, hasP2) || '—'}
                   </td>
+                ))}
+              </tr>
+            </SectionCard>
+
+            {/* CARD 4 — Encargos Únicos */}
+            <SectionCard title="Encargos Únicos" rightSlot={encargosToggle} mode={mode} propostas={propostas}>
+              {!encargosCollapsed && ONE_TIME_CHARGE_FIELDS.map(({ key, label }) => {
+                const vals = propostas.map((p) => p[key] as number | null);
+                if (!vals.some((v) => v !== null && v > 0)) return null;
+                const min = getLowest(vals);
+                const greenIdx = vals.map((v, i) => v !== null && v === min && min !== null ? i : -1).filter((i) => i >= 0);
+                return (
+                  <CardRow
+                    key={key}
+                    label={label}
+                    values={vals.map(fmtEur)}
+                    greenIndices={greenIdx}
+                    compact={compact}
+                    propostas={propostas}
+                    recommendedId={recommendedId}
+                  />
                 );
               })}
-            </tr>
-            <ReferenceRow
-              label="Calculado com seguros recomendados"
-              values={propostas.map((p) => p.term_months ? `prazo: ${p.term_months} meses` : '—')}
-              propostas={propostas}
-              recommendedId={recommendedId}
-            />
+              <tr className="hover:bg-slate-50">
+                <td
+                  className="sticky left-0 z-10 px-4 py-2.5 text-sm font-bold text-slate-800 bg-slate-50 border-t border-slate-200"
+                  style={{ width: LABEL_W }}
+                >
+                  Total Encargos Únicos
+                </td>
+                {propostas.map((p, i) => {
+                  const isGreen = totalUnicosGreenIdx.includes(i);
+                  const isRec = p.id === recommendedId;
+                  return (
+                    <td
+                      key={p.id}
+                      className={cn(
+                        'px-3 py-2.5 text-sm font-bold text-center border-t border-l border-slate-200 bg-slate-50',
+                        isGreen ? 'text-green-700' : isRec ? 'bg-blue-50/40 text-slate-800' : 'text-slate-800'
+                      )}
+                    >
+                      {totalUnicosVals[i] > 0 ? fmtEur(totalUnicosVals[i]) : '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+            </SectionCard>
 
-            <GapRow totalCols={totalCols} />
+            {/* CARD 5 — MTIC */}
+            <SectionCard title="MTIC" mode={mode} propostas={propostas}>
+              <tr className="hover:bg-slate-50">
+                <td
+                  className="sticky left-0 z-10 px-4 py-3 text-sm font-bold text-slate-800 bg-white border-b border-slate-100"
+                  style={{ width: LABEL_W }}
+                >
+                  <RowLabel label="Montante Total Imputado ao Consumidor" />
+                </td>
+                {propostas.map((p, i) => {
+                  const v = mticVals[i];
+                  const isGreen = mticGreenIdx.includes(i);
+                  const isRec = p.id === recommendedId;
+                  return (
+                    <td
+                      key={p.id}
+                      className={cn(
+                        'px-3 py-3 text-sm font-bold text-center border-b border-l border-slate-100',
+                        isGreen ? 'text-green-700' :
+                        isRec   ? 'bg-blue-50/30 text-slate-800' :
+                                  'text-slate-800'
+                      )}
+                    >
+                      {v !== null && v > 0 ? fmtMticVal(v) : '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td
+                  colSpan={1 + propostas.length}
+                  className="px-4 py-2 text-xs text-slate-400 text-center bg-slate-50/50"
+                >
+                  Valor fornecido pelo banco na Ficha de Informação Normalizada Europeia (FINE)
+                </td>
+              </tr>
+            </SectionCard>
 
-            {/* ══ SECTION 5 — Condições do Produto ════════════════════════ */}
-            {propostas.some((p) => p.condicoes_spread?.length) && (
-              <>
-                <NewSectionHeader
-                  title="Condições do Produto"
-                  subtitle="Requisitos do banco para beneficiar do spread proposto"
-                  totalDataCols={totalDataCols}
-                />
-                <DataRow
-                  label="Condições para o spread"
-                  values={propostas.map((p) =>
-                    p.condicoes_spread?.length
-                      ? (
-                        <span key={p.id} className="flex flex-wrap gap-0.5 justify-center">
+            {/* CARD 6 — Condições */}
+            {hasCondicoes && (
+              <SectionCard title="Condições" mode={mode} propostas={propostas}>
+                <tr className="hover:bg-slate-50">
+                  <td
+                    className="sticky left-0 z-10 px-4 py-3 text-sm font-medium text-slate-700 bg-white border-b border-slate-100"
+                    style={{ width: LABEL_W }}
+                  >
+                    <RowLabel label="Condições para o spread" />
+                  </td>
+                  {propostas.map((p) => (
+                    <td
+                      key={p.id}
+                      className={cn(
+                        'px-3 py-3 text-sm text-center border-b border-l border-slate-100',
+                        p.id === recommendedId ? 'bg-blue-50/30' : ''
+                      )}
+                    >
+                      {p.condicoes_spread?.length ? (
+                        <span className="flex flex-wrap gap-0.5 justify-center">
                           {p.condicoes_spread.map((c) => (
                             <span key={c} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px]">{c}</span>
                           ))}
                         </span>
-                      )
-                      : null
-                  )}
-                  rowKey="condicoes_spread"
-                  {...rowProps}
-                />
-              </>
+                      ) : '—'}
+                    </td>
+                  ))}
+                </tr>
+              </SectionCard>
             )}
 
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
     </div>
   );
