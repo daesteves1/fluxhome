@@ -27,7 +27,7 @@ export async function PATCH(
   if (!serviceClient) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json();
-  const allowed = ['name', 'slug', 'is_active', 'institution_id', 'white_label', 'settings'];
+  const allowed = ['name', 'slug', 'is_active', 'institution_id', 'white_label', 'settings', 'document_template'];
   const update: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) update[key] = body[key];

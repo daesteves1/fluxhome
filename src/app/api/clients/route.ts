@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import {
-  PER_PROPONENTE_TEMPLATES,
-  ALL_OPTIONAL_TEMPLATES,
-} from '@/lib/document-templates';
+  getOfficeDocumentTemplate,
+  TRANSFER_MORTGAGE_TYPES,
+  TRANSFER_AUTO_DOC_TYPES,
+  TRANSFER_ONLY_DOC_TYPES,
+  type OfficeDocTemplate,
+} from '@/lib/document-defaults';
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,7 +55,29 @@ export async function POST(request: NextRequest) {
 
     const clientId = (data as { id: string }).id;
 
-    // Build document requests to insert
+    // Fetch office document template
+    const { data: officeRaw } = await serviceClient
+      .from('offices')
+      .select('document_template')
+      .eq('id', office_id)
+      .single();
+
+    const rawTemplate = (officeRaw as { document_template: OfficeDocTemplate[] | null } | null)?.document_template;
+    const template = getOfficeDocumentTemplate(rawTemplate ?? null);
+
+    // Build set of doc_types to force-enable based on mortgage type
+    const forceEnabled = new Set<string>();
+    if (mortgage_type && TRANSFER_MORTGAGE_TYPES.includes(mortgage_type)) {
+      for (const dt of TRANSFER_AUTO_DOC_TYPES) forceEnabled.add(dt);
+    }
+    if (mortgage_type === 'Transferência') {
+      for (const dt of TRANSFER_ONLY_DOC_TYPES) forceEnabled.add(dt);
+    }
+
+    // Also include any explicitly passed enabled_extra_docs (backward compat)
+    const extraDocSet = new Set<string>(enabled_extra_docs as string[]);
+
+    // Build document request rows
     const docRows: {
       client_id: string;
       doc_type: string;
@@ -61,55 +86,49 @@ export async function POST(request: NextRequest) {
       is_mandatory: boolean;
       max_files: number;
       sort_order: number;
-      status: 'pending' | 'em_analise' | 'approved' | 'rejected';
+      status: 'pending';
     }[] = [];
 
-    // Per-proponente docs for p1
-    for (const tpl of PER_PROPONENTE_TEMPLATES) {
-      docRows.push({
-        client_id: clientId,
-        doc_type: `p1_${tpl.key}`,
-        label: tpl.label,
-        proponente: 'p1',
-        is_mandatory: tpl.is_mandatory,
-        max_files: tpl.max_files,
-        sort_order: tpl.sort_order,
-        status: 'pending',
-      });
-    }
+    template.forEach((doc, idx) => {
+      const shouldCreate = doc.enabled || forceEnabled.has(doc.doc_type) || extraDocSet.has(doc.doc_type);
+      if (!shouldCreate) return;
 
-    // Per-proponente docs for p2
-    if (hasP2) {
-      for (const tpl of PER_PROPONENTE_TEMPLATES) {
+      if (doc.proponente === 'per_proponente') {
         docRows.push({
           client_id: clientId,
-          doc_type: `p2_${tpl.key}`,
-          label: tpl.label,
-          proponente: 'p2',
-          is_mandatory: tpl.is_mandatory,
-          max_files: tpl.max_files,
-          sort_order: tpl.sort_order,
+          doc_type: `p1_${doc.doc_type}`,
+          label: doc.label,
+          proponente: 'p1',
+          is_mandatory: doc.is_mandatory,
+          max_files: doc.max_files,
+          sort_order: idx,
           status: 'pending',
         });
-      }
-    }
-
-    // Enabled optional docs chosen in the form
-    const enabledKeys = new Set<string>(enabled_extra_docs as string[]);
-    for (const tpl of ALL_OPTIONAL_TEMPLATES) {
-      if (enabledKeys.has(tpl.key)) {
+        if (hasP2) {
+          docRows.push({
+            client_id: clientId,
+            doc_type: `p2_${doc.doc_type}`,
+            label: doc.label,
+            proponente: 'p2',
+            is_mandatory: doc.is_mandatory,
+            max_files: doc.max_files,
+            sort_order: idx,
+            status: 'pending',
+          });
+        }
+      } else {
         docRows.push({
           client_id: clientId,
-          doc_type: tpl.key,
-          label: tpl.label,
+          doc_type: doc.doc_type,
+          label: doc.label,
           proponente: 'shared',
-          is_mandatory: tpl.is_mandatory,
-          max_files: tpl.max_files,
-          sort_order: tpl.sort_order,
+          is_mandatory: doc.is_mandatory,
+          max_files: doc.max_files,
+          sort_order: idx,
           status: 'pending',
         });
       }
-    }
+    });
 
     if (docRows.length > 0) {
       await serviceClient.from('document_requests').insert(docRows);

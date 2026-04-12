@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { ClientDetailHeader } from '@/components/clients/client-detail-header';
 import { ClientDetailTabs } from '@/components/clients/client-detail-tabs';
 import type { ProcessStep } from '@/types/database';
+import { getOfficeDocumentTemplate, type OfficeDocTemplate } from '@/lib/document-defaults';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -90,12 +91,16 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
 
   const broker = brokerRaw as { id: string; is_office_admin: boolean } | null;
 
-  // Get office for white-label
+  // Get office for white-label and document template
   const { data: officeRaw } = await serviceClient
     .from('offices')
-    .select('name, white_label')
+    .select('name, white_label, document_template')
     .eq('id', client.office_id)
     .single();
+
+  const officeDocTemplate = getOfficeDocumentTemplate(
+    (officeRaw as { document_template?: OfficeDocTemplate[] | null } | null)?.document_template ?? null
+  );
 
   return (
     <div className="space-y-4">
@@ -111,6 +116,7 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
         currentBrokerId={broker?.id ?? null}
         officeId={client.office_id}
         officeName={(officeRaw as { name: string } | null)?.name ?? ''}
+        officeDocTemplate={officeDocTemplate}
         defaultTab={tab}
       />
     </div>

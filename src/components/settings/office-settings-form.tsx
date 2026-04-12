@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { DocumentTemplateEditor } from './document-template-editor';
+import { getOfficeDocumentTemplate, type OfficeDocTemplate } from '@/lib/document-defaults';
 
 interface OfficeData {
   id: string;
@@ -15,6 +17,7 @@ interface OfficeData {
   slug: string;
   white_label: Record<string, unknown>;
   settings: Record<string, unknown>;
+  document_template: OfficeDocTemplate[] | null;
 }
 
 interface Props {
@@ -29,6 +32,7 @@ export function OfficeSettingsForm({ office, isAdmin }: Props) {
   const [primaryColor, setPrimaryColor] = useState((office.white_label?.primary_color as string) ?? '#2563eb');
   const [portalEnabled, setPortalEnabled] = useState((office.settings?.portal_enabled as boolean) ?? true);
   const [saving, setSaving] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   async function handleSave() {
     setSaving(true);
@@ -47,6 +51,22 @@ export function OfficeSettingsForm({ office, isAdmin }: Props) {
       router.refresh();
     } else {
       toast.error('Erro ao guardar');
+    }
+  }
+
+  async function handleSaveTemplate(template: OfficeDocTemplate[]) {
+    setSavingTemplate(true);
+    const res = await fetch(`/api/settings/office`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_template: template }),
+    });
+    setSavingTemplate(false);
+    if (res.ok) {
+      toast.success('Template de documentos guardado');
+      router.refresh();
+    } else {
+      toast.error('Erro ao guardar template');
     }
   }
 
@@ -129,6 +149,29 @@ export function OfficeSettingsForm({ office, isAdmin }: Props) {
           </Button>
         </div>
       )}
+
+      {/* Document template editor */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Template de Documentos</CardTitle>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Documentos solicitados por defeito ao criar um novo processo neste escritório
+          </p>
+        </CardHeader>
+        <CardContent>
+          {isAdmin ? (
+            <DocumentTemplateEditor
+              initialTemplate={getOfficeDocumentTemplate(office.document_template)}
+              saving={savingTemplate}
+              onSave={handleSaveTemplate}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Apenas administradores do escritório podem editar o template de documentos.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

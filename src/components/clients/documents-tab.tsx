@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import type { DocumentRequest, DocumentUpload } from './client-detail-tabs';
+import type { OfficeDocTemplate } from '@/lib/document-defaults';
 import { ManageDocumentsPanel } from './manage-documents-panel';
 import { DownloadDocumentsModal } from './download-documents-modal';
 import { DocumentViewer } from '@/components/documents/document-viewer';
@@ -30,6 +31,7 @@ interface Props {
   documentRequests: DocumentRequest[];
   uploads: DocumentUpload[];
   officeId: string;
+  officeDocTemplate: OfficeDocTemplate[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -53,7 +55,7 @@ const STATUS_SORT: Record<string, number> = {
   approved: 3,
 };
 
-export function DocumentsTab({ client, documentRequests, uploads, officeId }: Props) {
+export function DocumentsTab({ client, documentRequests, uploads, officeId, officeDocTemplate }: Props) {
   const t = useTranslations('documents');
   const router = useRouter();
 
@@ -397,8 +399,10 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId }: Pr
             <ManageDocumentsPanel
               clientId={client.id}
               mortgageType={(client.mortgage_type as string | null) ?? null}
+              hasP2={Boolean(client.p2_name)}
               documentRequests={documentRequests}
               uploads={uploads}
+              officeDocTemplate={officeDocTemplate}
             />
 
             <Dialog open={addOpen} onOpenChange={setAddOpen}>

@@ -8,6 +8,7 @@ import { DocumentsTab } from './documents-tab';
 import { PropostasTab } from './propostas-tab';
 import { NotesTab } from './notes-tab';
 import type { ProcessStep } from '@/types/database';
+import type { OfficeDocTemplate } from '@/lib/document-defaults';
 
 export interface DocumentRequest {
   id: string;
@@ -60,6 +61,7 @@ interface Props {
   currentBrokerId: string | null;
   officeId: string;
   officeName: string;
+  officeDocTemplate: OfficeDocTemplate[];
   defaultTab?: string;
 }
 
@@ -72,6 +74,7 @@ export function ClientDetailTabs({
   brokerNotes,
   currentBrokerId,
   officeId,
+  officeDocTemplate,
   defaultTab,
 }: Props) {
   const t = useTranslations();
@@ -137,6 +140,7 @@ export function ClientDetailTabs({
             documentRequests={documentRequests}
             uploads={uploads}
             officeId={officeId}
+            officeDocTemplate={officeDocTemplate}
           />
         )}
         {activeTab === 'propostas' && (

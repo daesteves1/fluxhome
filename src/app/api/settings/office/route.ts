@@ -20,7 +20,7 @@ export async function PATCH(request: NextRequest) {
   if (!broker.is_office_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json();
-  const allowed = ['name', 'white_label', 'settings'];
+  const allowed = ['name', 'white_label', 'settings', 'document_template'];
   const update: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) update[key] = body[key];

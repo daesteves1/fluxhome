@@ -14,6 +14,8 @@ import { PLATFORM_DEFAULTS } from '@/lib/settings';
 import type { PlatformSettings } from '@/lib/settings';
 import { formatDate } from '@/lib/utils';
 import { Users, FileText } from 'lucide-react';
+import { DocumentTemplateEditor } from '@/components/settings/document-template-editor';
+import { getOfficeDocumentTemplate, type OfficeDocTemplate } from '@/lib/document-defaults';
 
 type Office = {
   id: string;
@@ -22,6 +24,7 @@ type Office = {
   created_at: string;
   settings: Record<string, unknown> | null;
   white_label: { logo_url?: string | null; primary_color?: string } | null;
+  document_template: OfficeDocTemplate[] | null;
 };
 
 interface Props {
@@ -44,6 +47,7 @@ export function OfficeDetailTabs({ office, brokersCount, clientsCount }: Props) 
   const existingSettings = (office.settings ?? {}) as Partial<PlatformSettings>;
   const [settings, setSettings] = useState<Partial<PlatformSettings>>(existingSettings);
   const [saving, setSaving] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   function getEffectiveBool(key: keyof PlatformSettings): boolean {
     if (key in settings) return settings[key] as boolean;
@@ -75,11 +79,28 @@ export function OfficeDetailTabs({ office, brokersCount, clientsCount }: Props) 
     }
   }
 
+  async function saveTemplate(template: OfficeDocTemplate[]) {
+    setSavingTemplate(true);
+    const res = await fetch(`/api/admin/offices/${office.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_template: template }),
+    });
+    setSavingTemplate(false);
+    if (res.ok) {
+      toast.success('Template de documentos guardado');
+      router.refresh();
+    } else {
+      toast.error('Erro ao guardar template');
+    }
+  }
+
   return (
     <Tabs defaultValue="overview">
       <TabsList>
         <TabsTrigger value="overview">Visão Geral</TabsTrigger>
         <TabsTrigger value="settings">Configurações</TabsTrigger>
+        <TabsTrigger value="documents">Documentos</TabsTrigger>
       </TabsList>
 
       {/* ── Overview ─────────────────────────────────────────────────────── */}
@@ -231,6 +252,25 @@ export function OfficeDetailTabs({ office, brokersCount, clientsCount }: Props) 
           <Button onClick={saveSettings} disabled={saving}>
             {saving ? 'A guardar...' : 'Guardar Configurações'}
           </Button>
+        </div>
+      </TabsContent>
+
+      {/* ── Documents ────────────────────────────────────────────────────── */}
+      <TabsContent value="documents" className="mt-6">
+        <div className="rounded-lg border bg-white">
+          <div className="px-4 py-3 border-b bg-slate-50">
+            <h3 className="text-sm font-semibold">Template de Documentos</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Documentos solicitados por defeito ao criar um novo processo neste escritório
+            </p>
+          </div>
+          <div className="p-4">
+            <DocumentTemplateEditor
+              initialTemplate={getOfficeDocumentTemplate(office.document_template)}
+              saving={savingTemplate}
+              onSave={saveTemplate}
+            />
+          </div>
         </div>
       </TabsContent>
     </Tabs>

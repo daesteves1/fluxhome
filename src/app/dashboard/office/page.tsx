@@ -21,7 +21,7 @@ export default async function OfficeSettingsPage() {
 
   const { data: officeRaw } = await serviceClient
     .from('offices')
-    .select('id, name, slug, white_label, settings')
+    .select('id, name, slug, white_label, settings, document_template')
     .eq('id', broker.office_id)
     .single();
 
@@ -31,6 +31,7 @@ export default async function OfficeSettingsPage() {
     slug: string;
     white_label: Record<string, unknown>;
     settings: Record<string, unknown>;
+    document_template: import('@/lib/document-defaults').OfficeDocTemplate[] | null;
   } | null;
 
   if (!office) redirect('/dashboard');

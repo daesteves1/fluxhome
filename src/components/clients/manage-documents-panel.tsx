@@ -2,82 +2,120 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings2 } from 'lucide-react';
+import { Settings2, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import {
-  SHARED_TEMPLATES,
-  getApplicableSpecific,
-  type DocTemplate,
-} from '@/lib/document-templates';
+import { TRANSFER_MORTGAGE_TYPES } from '@/lib/document-defaults';
+import type { OfficeDocTemplate } from '@/lib/document-defaults';
 import type { DocumentRequest, DocumentUpload } from './client-detail-tabs';
 
 interface Props {
   clientId: string;
   mortgageType: string | null;
+  hasP2: boolean;
   documentRequests: DocumentRequest[];
   uploads: DocumentUpload[];
-}
-
-function findExistingRequest(
-  tpl: DocTemplate,
-  documentRequests: DocumentRequest[]
-): DocumentRequest | undefined {
-  return documentRequests.find((r) => r.doc_type === tpl.key);
+  officeDocTemplate: OfficeDocTemplate[];
 }
 
 function hasUploads(req: DocumentRequest, uploads: DocumentUpload[]): boolean {
   return uploads.some((u) => u.document_request_id === req.id);
 }
 
-export function ManageDocumentsPanel({ clientId, mortgageType, documentRequests, uploads }: Props) {
+/** Find existing document_request(s) for a template doc */
+function findExisting(doc: OfficeDocTemplate, documentRequests: DocumentRequest[]): DocumentRequest[] {
+  if (doc.proponente === 'per_proponente') {
+    return documentRequests.filter(
+      (r) => r.doc_type === `p1_${doc.doc_type}` || r.doc_type === `p2_${doc.doc_type}`
+    );
+  }
+  return documentRequests.filter((r) => r.doc_type === doc.doc_type);
+}
+
+export function ManageDocumentsPanel({
+  clientId, mortgageType, hasP2, documentRequests, uploads, officeDocTemplate,
+}: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
 
-  const specificTemplates = getApplicableSpecific(mortgageType);
-  const allTemplates = [...SHARED_TEMPLATES, ...specificTemplates];
+  const isTransferProcess = mortgageType !== null && TRANSFER_MORTGAGE_TYPES.includes(mortgageType);
 
-  async function toggleOn(tpl: DocTemplate) {
-    setLoadingKey(tpl.key);
+  const perProponenteDocs = officeDocTemplate.filter((d) => d.proponente === 'per_proponente');
+  const sharedDocs = officeDocTemplate.filter((d) => d.proponente === 'shared');
+
+  async function toggleOn(doc: OfficeDocTemplate) {
+    setLoadingKey(doc.doc_type);
     try {
-      const res = await fetch(`/api/clients/${clientId}/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          doc_type: tpl.key,
-          label: tpl.label,
-          proponente: 'shared',
-          is_mandatory: tpl.is_mandatory,
-          max_files: tpl.max_files,
-          sort_order: tpl.sort_order,
-        }),
-      });
-      if (res.ok) {
-        router.refresh();
-      } else {
-        toast.error('Erro ao adicionar documento');
+      const proponentes: Array<{ proponente: 'p1' | 'p2' | 'shared'; doc_type: string }> =
+        doc.proponente === 'per_proponente'
+          ? [
+              { proponente: 'p1', doc_type: `p1_${doc.doc_type}` },
+              ...(hasP2 ? [{ proponente: 'p2' as const, doc_type: `p2_${doc.doc_type}` }] : []),
+            ]
+          : [{ proponente: 'shared', doc_type: doc.doc_type }];
+
+      for (const { proponente, doc_type } of proponentes) {
+        const res = await fetch(`/api/clients/${clientId}/documents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            doc_type,
+            label: doc.label,
+            proponente,
+            is_mandatory: doc.is_mandatory,
+            max_files: doc.max_files,
+            sort_order: officeDocTemplate.indexOf(doc),
+          }),
+        });
+        if (!res.ok) {
+          toast.error('Erro ao adicionar documento');
+          return;
+        }
       }
+      router.refresh();
     } finally {
       setLoadingKey(null);
     }
   }
 
-  async function toggleOff(req: DocumentRequest) {
-    setLoadingKey(req.doc_type ?? req.id);
+  async function toggleOff(doc: OfficeDocTemplate, existing: DocumentRequest[]) {
+    setLoadingKey(doc.doc_type);
     try {
-      const res = await fetch(`/api/clients/${clientId}/documents/${req.id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        router.refresh();
-      } else {
-        const data = await res.json();
-        toast.error(data.error ?? 'Erro ao remover documento');
+      for (const req of existing) {
+        const res = await fetch(`/api/clients/${clientId}/documents/${req.id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json();
+          toast.error(data.error ?? 'Erro ao remover documento');
+          return;
+        }
       }
+      router.refresh();
     } finally {
       setLoadingKey(null);
     }
+  }
+
+  function renderDocList(docs: OfficeDocTemplate[]) {
+    return docs.map((doc) => {
+      const existing = findExisting(doc, documentRequests);
+      const enabled = existing.length > 0;
+      const blocked = enabled && existing.some((r) => hasUploads(r, uploads));
+      const loading = loadingKey === doc.doc_type;
+
+      return (
+        <ToggleRow
+          key={doc.doc_type}
+          label={doc.label}
+          mandatory={doc.is_mandatory}
+          enabled={enabled}
+          blocked={blocked}
+          loading={loading}
+          onEnable={() => toggleOn(doc)}
+          onDisable={() => toggleOff(doc, existing)}
+        />
+      );
+    });
   }
 
   return (
@@ -88,73 +126,45 @@ export function ManageDocumentsPanel({ clientId, mortgageType, documentRequests,
           Gerir documentos
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Gerir documentos do processo</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          {/* Shared docs */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-              Documentos do imóvel
-            </p>
-            <div className="space-y-2">
-              {SHARED_TEMPLATES.map((tpl) => {
-                const existing = findExistingRequest(tpl, documentRequests);
-                const enabled = Boolean(existing);
-                const blocked = enabled && existing ? hasUploads(existing, uploads) : false;
-                const loading = loadingKey === tpl.key;
-
-                return (
-                  <ToggleRow
-                    key={tpl.key}
-                    label={tpl.label}
-                    mandatory={tpl.is_mandatory}
-                    enabled={enabled}
-                    blocked={blocked}
-                    loading={loading}
-                    onEnable={() => toggleOn(tpl)}
-                    onDisable={() => existing && toggleOff(existing)}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Specific docs (only shown if applicable) */}
-          {specificTemplates.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                Documentos específicos do processo
+          {/* Mortgage type auto-docs note */}
+          {isTransferProcess && (
+            <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+              <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700">
+                Documentos adicionados automaticamente para processo de <strong>{mortgageType}</strong>
               </p>
-              <div className="space-y-2">
-                {specificTemplates.map((tpl) => {
-                  const existing = findExistingRequest(tpl, documentRequests);
-                  const enabled = Boolean(existing);
-                  const blocked = enabled && existing ? hasUploads(existing, uploads) : false;
-                  const loading = loadingKey === tpl.key;
-
-                  return (
-                    <ToggleRow
-                      key={tpl.key}
-                      label={tpl.label}
-                      mandatory={tpl.is_mandatory}
-                      enabled={enabled}
-                      blocked={blocked}
-                      loading={loading}
-                      onEnable={() => toggleOn(tpl)}
-                      onDisable={() => existing && toggleOff(existing)}
-                    />
-                  );
-                })}
-              </div>
             </div>
           )}
 
-          {allTemplates.length === 0 && (
+          {/* Per-proponente docs */}
+          {perProponenteDocs.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                Documentos pessoais {hasP2 ? '(P1 + P2)' : '(P1)'}
+              </p>
+              <div className="space-y-2">{renderDocList(perProponenteDocs)}</div>
+            </div>
+          )}
+
+          {/* Shared docs */}
+          {sharedDocs.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                Documentos do processo
+              </p>
+              <div className="space-y-2">{renderDocList(sharedDocs)}</div>
+            </div>
+          )}
+
+          {officeDocTemplate.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-4">
-              Nenhum documento opcional disponível para este tipo de crédito.
+              Nenhum documento configurado para este escritório.
             </p>
           )}
         </div>

@@ -14,19 +14,20 @@ export default async function AdminOfficeDetailPage({ params }: PageProps) {
 
   const { data: officeRaw } = await serviceClient
     .from('offices')
-    .select('id, name, is_active, created_at, settings, white_label')
+    .select('id, name, is_active, created_at, settings, white_label, document_template')
     .eq('id', id)
     .single();
 
   if (!officeRaw) notFound();
 
-  const office = officeRaw as {
+  const office = officeRaw as unknown as {
     id: string;
     name: string;
     is_active: boolean;
     created_at: string;
     settings: Record<string, unknown> | null;
     white_label: { logo_url?: string | null; primary_color?: string } | null;
+    document_template: import('@/lib/document-defaults').OfficeDocTemplate[] | null;
   };
 
   const [{ count: brokersCount }, { count: clientsCount }] = await Promise.all([
