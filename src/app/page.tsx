@@ -4,7 +4,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Home, Menu, X, Check, ArrowRight, Lock, PenLine, ClipboardList,
-  Building2, Bell, MessageSquare, AlertCircle,
+  Building2, MessageSquare, AlertCircle,
   FileText, Bot, Sparkles,
 } from 'lucide-react';
 
