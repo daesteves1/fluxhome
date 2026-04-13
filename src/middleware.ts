@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isPublicPath(pathname)) {
+  if (pathname === '/' || isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
