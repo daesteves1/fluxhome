@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Settings2, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -22,14 +22,14 @@ function hasUploads(req: DocumentRequest, uploads: DocumentUpload[]): boolean {
   return uploads.some((u) => u.document_request_id === req.id);
 }
 
-/** Find existing document_request(s) for a template doc */
-function findExisting(doc: OfficeDocTemplate, documentRequests: DocumentRequest[]): DocumentRequest[] {
+/** Find existing document_request(s) for a template doc from a given list */
+function findExisting(doc: OfficeDocTemplate, requests: DocumentRequest[]): DocumentRequest[] {
   if (doc.proponente === 'per_proponente') {
-    return documentRequests.filter(
+    return requests.filter(
       (r) => r.doc_type === `p1_${doc.doc_type}` || r.doc_type === `p2_${doc.doc_type}`
     );
   }
-  return documentRequests.filter((r) => r.doc_type === doc.doc_type);
+  return requests.filter((r) => r.doc_type === doc.doc_type);
 }
 
 export function ManageDocumentsPanel({
@@ -37,15 +37,83 @@ export function ManageDocumentsPanel({
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Optimistic local state — mirrors documentRequests but updated instantly on toggle
+  const [localRequests, setLocalRequests] = useState<DocumentRequest[]>(documentRequests);
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
 
   const isTransferProcess = mortgageType !== null && TRANSFER_MORTGAGE_TYPES.includes(mortgageType);
 
   const perProponenteDocs = officeDocTemplate.filter((d) => d.proponente === 'per_proponente');
   const sharedDocs = officeDocTemplate.filter((d) => d.proponente === 'shared');
 
+  // Reset local state when dialog opens to pick up any server-side changes
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    if (nextOpen) {
+      setLocalRequests(documentRequests);
+      setDirty(false);
+    } else if (dirty) {
+      // Only refresh when we actually made changes
+      router.refresh();
+    }
+    setOpen(nextOpen);
+  }, [documentRequests, dirty, router]);
+
   async function toggleOn(doc: OfficeDocTemplate) {
+    if (loadingKey) return;
     setLoadingKey(doc.doc_type);
+
+    // Build the new requests optimistically
+    const newRequests: DocumentRequest[] = doc.proponente === 'per_proponente'
+      ? [
+          {
+            id: `optimistic_p1_${doc.doc_type}`,
+            client_id: clientId,
+            proponente: 'p1',
+            doc_type: `p1_${doc.doc_type}`,
+            label: doc.label,
+            description: null,
+            is_mandatory: doc.is_mandatory,
+            max_files: doc.max_files,
+            sort_order: officeDocTemplate.indexOf(doc),
+            status: 'pending',
+            broker_notes: null,
+            created_at: new Date().toISOString(),
+          },
+          ...(hasP2 ? [{
+            id: `optimistic_p2_${doc.doc_type}`,
+            client_id: clientId,
+            proponente: 'p2' as const,
+            doc_type: `p2_${doc.doc_type}`,
+            label: doc.label,
+            description: null,
+            is_mandatory: doc.is_mandatory,
+            max_files: doc.max_files,
+            sort_order: officeDocTemplate.indexOf(doc),
+            status: 'pending' as const,
+            broker_notes: null,
+            created_at: new Date().toISOString(),
+          }] : []),
+        ]
+      : [{
+          id: `optimistic_${doc.doc_type}`,
+          client_id: clientId,
+          proponente: 'shared' as const,
+          doc_type: doc.doc_type,
+          label: doc.label,
+          description: null,
+          is_mandatory: doc.is_mandatory,
+          max_files: doc.max_files,
+          sort_order: officeDocTemplate.indexOf(doc),
+          status: 'pending' as const,
+          broker_notes: null,
+          created_at: new Date().toISOString(),
+        }];
+
+    // Optimistic update
+    setLocalRequests((prev) => [...prev, ...newRequests]);
+    setDirty(true);
+
     try {
       const proponentes: Array<{ proponente: 'p1' | 'p2' | 'shared'; doc_type: string }> =
         doc.proponente === 'per_proponente'
@@ -55,6 +123,7 @@ export function ManageDocumentsPanel({
             ]
           : [{ proponente: 'shared', doc_type: doc.doc_type }];
 
+      const createdIds: { optimisticId: string; realId: string }[] = [];
       for (const { proponente, doc_type } of proponentes) {
         const res = await fetch(`/api/clients/${clientId}/documents`, {
           method: 'POST',
@@ -70,27 +139,47 @@ export function ManageDocumentsPanel({
         });
         if (!res.ok) {
           toast.error('Erro ao adicionar documento');
+          // Rollback
+          setLocalRequests((prev) => prev.filter((r) => !r.id.startsWith('optimistic_')));
           return;
         }
+        const created = await res.json() as { id: string; doc_type: string };
+        createdIds.push({ optimisticId: `optimistic_${doc_type}`, realId: created.id });
       }
-      router.refresh();
+
+      // Replace optimistic IDs with real IDs
+      setLocalRequests((prev) =>
+        prev.map((r) => {
+          const match = createdIds.find((c) => c.optimisticId === r.id);
+          return match ? { ...r, id: match.realId } : r;
+        })
+      );
     } finally {
       setLoadingKey(null);
     }
   }
 
   async function toggleOff(doc: OfficeDocTemplate, existing: DocumentRequest[]) {
+    if (loadingKey) return;
     setLoadingKey(doc.doc_type);
+
+    const idsToRemove = existing.map((r) => r.id);
+
+    // Optimistic update
+    setLocalRequests((prev) => prev.filter((r) => !idsToRemove.includes(r.id)));
+    setDirty(true);
+
     try {
       for (const req of existing) {
         const res = await fetch(`/api/clients/${clientId}/documents/${req.id}`, { method: 'DELETE' });
         if (!res.ok) {
-          const data = await res.json();
+          const data = await res.json() as { error?: string };
           toast.error(data.error ?? 'Erro ao remover documento');
+          // Rollback
+          setLocalRequests((prev) => [...prev, ...existing]);
           return;
         }
       }
-      router.refresh();
     } finally {
       setLoadingKey(null);
     }
@@ -98,7 +187,7 @@ export function ManageDocumentsPanel({
 
   function renderDocList(docs: OfficeDocTemplate[]) {
     return docs.map((doc) => {
-      const existing = findExisting(doc, documentRequests);
+      const existing = findExisting(doc, localRequests);
       const enabled = existing.length > 0;
       const blocked = enabled && existing.some((r) => hasUploads(r, uploads));
       const loading = loadingKey === doc.doc_type;
@@ -119,7 +208,7 @@ export function ManageDocumentsPanel({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <button className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors">
           <Settings2 className="h-3.5 w-3.5" />
