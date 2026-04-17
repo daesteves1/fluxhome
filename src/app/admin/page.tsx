@@ -24,9 +24,9 @@ export default async function AdminDashboardPage() {
   ] = await Promise.all([
     serviceClient.from('offices').select('*', { count: 'exact', head: true }).eq('is_active', true),
     serviceClient.from('brokers').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    serviceClient.from('clients').select('*', { count: 'exact', head: true }).not('process_step', 'in', '("closed","approved")'),
+    serviceClient.from('processes').select('*', { count: 'exact', head: true }).not('process_step', 'in', '("closed","approved")'),
     serviceClient.from('propostas').select('*', { count: 'exact', head: true }),
-    serviceClient.from('clients').select('*', { count: 'exact', head: true }).eq('process_step', 'closed').gte('updated_at', startOfMonth),
+    serviceClient.from('processes').select('*', { count: 'exact', head: true }).eq('process_step', 'closed').gte('updated_at', startOfMonth),
     serviceClient.from('brokers').select('*', { count: 'exact', head: true }).gte('activated_at', startOfMonth),
     serviceClient.from('document_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     serviceClient.from('document_uploads').select('*', { count: 'exact', head: true }).gte('uploaded_at', last7),
@@ -42,15 +42,21 @@ export default async function AdminDashboardPage() {
   type OfficeRow = { id: string; name: string; slug: string; is_active: boolean; created_at: string };
   const recentOffices = (recentOfficesRaw ?? []) as OfficeRow[];
 
-  // Recent clients (activity)
-  const { data: recentClientsRaw } = await serviceClient
-    .from('clients')
-    .select('id, p1_name, p2_name, process_step, updated_at')
+  // Recent processes (activity)
+  const { data: recentProcessesRaw } = await serviceClient
+    .from('processes')
+    .select('id, process_step, updated_at, clients(p1_name, p2_name)')
     .order('updated_at', { ascending: false })
     .limit(8);
 
   type ClientRow = { id: string; p1_name: string; p2_name: string | null; process_step: string; updated_at: string };
-  const recentClients = (recentClientsRaw ?? []) as ClientRow[];
+  const recentClients = ((recentProcessesRaw ?? []) as unknown as { id: string; process_step: string; updated_at: string; clients: { p1_name: string; p2_name: string | null } | null }[]).map((p): ClientRow => ({
+    id: p.id,
+    p1_name: p.clients?.p1_name ?? '',
+    p2_name: p.clients?.p2_name ?? null,
+    process_step: p.process_step,
+    updated_at: p.updated_at,
+  }));
 
   const STEP_LABELS: Record<string, string> = {
     lead: 'Lead',

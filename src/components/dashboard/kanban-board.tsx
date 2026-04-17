@@ -186,7 +186,7 @@ function SortableCard({
       {...attributes}
       {...listeners}
       className="cursor-grab active:cursor-grabbing touch-none relative"
-      onClick={() => { if (!isDragging) router.push(`/dashboard/clients/${client.id}`); }}
+      onClick={() => { if (!isDragging) router.push(`/dashboard/processes/${client.id}`); }}
     >
       {/* Always render the card so its height is preserved for the placeholder */}
       <KanbanCard client={client} docCounts={docCounts} showBrokerColumn={showBrokerColumn} />
@@ -461,7 +461,7 @@ export function KanbanBoard({ initialClients, search, docCounts, showBrokerColum
       // Fire API call in background — optimistic: UI already reflects new state
       void (async () => {
         try {
-          const res = await fetch(`/api/clients/${clientId}`, {
+          const res = await fetch(`/api/processes/${clientId}`, {
             method:  'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ process_step: finalStep }),

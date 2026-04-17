@@ -20,6 +20,8 @@ interface Client {
 
 interface Props {
   client: Client;
+  apiBase?: string;
+  pageBase?: string;
 }
 
 interface MapaWithPropostas {
@@ -55,7 +57,9 @@ function ClientChoiceBanner({
   );
 }
 
-export function PropostasTab({ client }: Props) {
+export function PropostasTab({ client, apiBase, pageBase }: Props) {
+  const base = apiBase ?? `/api/clients/${client.id}`;
+  const pg = pageBase ?? `/dashboard/clients/${client.id}`;
   const router = useRouter();
   const [bankPropostas, setBankPropostas] = useState<BankProposta[]>([]);
   const [mapaData, setMapaData] = useState<MapaWithPropostas | null>(null);
@@ -67,8 +71,8 @@ export function PropostasTab({ client }: Props) {
     setLoading(true);
     try {
       const [bpRes, mapaRes] = await Promise.all([
-        fetch(`/api/clients/${client.id}/bank-propostas`),
-        fetch(`/api/clients/${client.id}/mapa`),
+        fetch(`${base}/bank-propostas`),
+        fetch(`${base}/mapa`),
       ]);
       if (bpRes.ok) {
         const data = await bpRes.json() as BankProposta[];
@@ -91,7 +95,7 @@ export function PropostasTab({ client }: Props) {
     if (!confirm(`Eliminar proposta "${bankName}"? Esta ação não pode ser desfeita.`)) return;
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/clients/${client.id}/bank-propostas/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${base}/bank-propostas/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Erro ao eliminar');
       toast.success('Proposta eliminada');
       setBankPropostas((prev) => prev.filter((p) => p.id !== id));
@@ -127,7 +131,7 @@ export function PropostasTab({ client }: Props) {
           </h3>
           <Button
             size="sm"
-            onClick={() => router.push(`/dashboard/clients/${client.id}/bank-propostas/new`)}
+            onClick={() => router.push(`${pg}/bank-propostas/new`)}
           >
             <Plus className="h-4 w-4 mr-1.5" />
             Nova proposta
@@ -216,7 +220,7 @@ export function PropostasTab({ client }: Props) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => router.push(`/dashboard/clients/${client.id}/bank-propostas/${p.id}/edit`)}
+                        onClick={() => router.push(`${pg}/bank-propostas/${p.id}/edit`)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -285,7 +289,7 @@ export function PropostasTab({ client }: Props) {
             )}
             <Button
               size="sm"
-              onClick={() => router.push(`/dashboard/clients/${client.id}/mapa`)}
+              onClick={() => router.push(`${pg}/mapa`)}
               disabled={bankPropostas.length === 0}
             >
               <Map className="h-4 w-4 mr-1.5" />

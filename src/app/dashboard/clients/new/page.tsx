@@ -1,15 +1,14 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { getTranslations } from 'next-intl/server';
-import { NewClientForm } from '@/components/clients/client-form';
+import { NewClientStepper } from '@/components/clients/new-client-stepper';
 
 export default async function NewClientPage() {
   const supabase = await createClient();
-  const serviceClient = await createServiceClient();
-  const t = await getTranslations('clients');
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
+
+  const serviceClient = await createServiceClient();
 
   const { data: brokerRaw } = await serviceClient
     .from('brokers')
@@ -21,10 +20,24 @@ export default async function NewClientPage() {
   const broker = brokerRaw as { id: string; office_id: string } | null;
   if (!broker) redirect('/dashboard');
 
+  // Load office branding for the stepper sidebar
+  const { data: officeRaw } = await serviceClient
+    .from('offices')
+    .select('name, white_label')
+    .eq('id', broker.office_id)
+    .single();
+
+  const office = officeRaw as {
+    name: string;
+    white_label: { logo_url: string | null; primary_color: string } | null;
+  } | null;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h2 className="text-2xl font-semibold text-foreground">{t('newClient')}</h2>
-      <NewClientForm brokerId={broker.id} officeId={broker.office_id} />
-    </div>
+    <NewClientStepper
+      brokerId={broker.id}
+      officeId={broker.office_id}
+      logoUrl={office?.white_label?.logo_url ?? undefined}
+      officeName={office?.name}
+    />
   );
 }

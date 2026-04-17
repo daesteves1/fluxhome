@@ -147,7 +147,7 @@ export function ClientsTable({ clients, showBrokerColumn = false, docCounts = {}
           {listFiltered.map((client) => (
             <Link
               key={client.id}
-              href={`/dashboard/clients/${client.id}`}
+              href={`/dashboard/processes/${client.id}`}
               className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors group"
             >
               {/* Avatar */}

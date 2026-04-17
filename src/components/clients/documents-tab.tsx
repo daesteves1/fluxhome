@@ -32,6 +32,8 @@ interface Props {
   uploads: DocumentUpload[];
   officeId: string;
   officeDocTemplate: OfficeDocTemplate[];
+  /** Override the API base, e.g. /api/processes/[id] instead of /api/clients/[id] */
+  apiBase?: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,7 +57,8 @@ const STATUS_SORT: Record<string, number> = {
   approved: 3,
 };
 
-export function DocumentsTab({ client, documentRequests, uploads, officeId, officeDocTemplate }: Props) {
+export function DocumentsTab({ client, documentRequests, uploads, officeId, officeDocTemplate, apiBase }: Props) {
+  const base = apiBase ?? `/api/clients/${client.id}`;
   const t = useTranslations('documents');
   const router = useRouter();
 
@@ -97,7 +100,7 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId, offi
     if (!newLabel.trim()) return;
     setAddingDoc(true);
     try {
-      const res = await fetch(`/api/clients/${client.id}/documents`, {
+      const res = await fetch(`${base}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: newLabel, proponente: newProponente, is_mandatory: newMandatory, max_files: newMaxFiles }),
@@ -132,7 +135,7 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId, offi
         const supabase = createClient();
         const { error: uploadError } = await supabase.storage.from('client-documents').upload(path, file);
         if (uploadError) { toast.error(uploadError.message); continue; }
-        await fetch(`/api/clients/${client.id}/documents/${requestId}/uploads`, {
+        await fetch(`${base}/documents/${requestId}/uploads`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ storage_path: path, file_name: file.name, file_size: file.size, mime_type: file.type, uploaded_by: 'broker' }),
@@ -149,7 +152,7 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId, offi
   async function handleApprove(requestId: string) {
     setApprovingId(requestId);
     try {
-      const res = await fetch(`/api/clients/${client.id}/documents/${requestId}/approve`, { method: 'PATCH' });
+      const res = await fetch(`${base}/documents/${requestId}/approve`, { method: 'PATCH' });
       const json = await res.json() as { ok?: boolean; advanced?: boolean; error?: string };
       if (!res.ok) { toast.error(json.error ?? 'Erro'); return; }
       toast.success('Documento aprovado');
@@ -173,7 +176,7 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId, offi
     if (!rejectReason.trim()) { toast.error('Introduza o motivo da rejeição'); return; }
     setSubmittingReject(true);
     try {
-      const res = await fetch(`/api/clients/${client.id}/documents/${requestId}/reject`, {
+      const res = await fetch(`${base}/documents/${requestId}/reject`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: rejectReason }),
@@ -192,7 +195,7 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId, offi
   async function handleUndo(requestId: string) {
     setUndoingId(requestId);
     try {
-      const res = await fetch(`/api/clients/${client.id}/documents/${requestId}/undo`, { method: 'PATCH' });
+      const res = await fetch(`${base}/documents/${requestId}/undo`, { method: 'PATCH' });
       if (!res.ok) { const j = await res.json() as { error?: string }; toast.error(j.error ?? 'Erro'); return; }
       toast.success('Anulado');
       router.refresh();

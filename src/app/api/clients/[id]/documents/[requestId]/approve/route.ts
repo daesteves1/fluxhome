@@ -19,32 +19,5 @@ export async function PATCH(_req: NextRequest, { params }: RouteParams) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Auto-advance: check if all mandatory docs are now approved
-  const { data: allReqs } = await serviceClient
-    .from('document_requests')
-    .select('id, is_mandatory, status')
-    .eq('client_id', id);
-
-  const reqs = (allReqs ?? []) as { id: string; is_mandatory: boolean; status: string }[];
-  const mandatoryAll = reqs.filter((r) => r.is_mandatory);
-  const allMandatoryApproved = mandatoryAll.length > 0 && mandatoryAll.every((r) => r.status === 'approved');
-
-  let advanced = false;
-  if (allMandatoryApproved) {
-    const { data: clientRaw } = await serviceClient
-      .from('clients')
-      .select('process_step')
-      .eq('id', id)
-      .single();
-    const step = (clientRaw as { process_step: string } | null)?.process_step;
-    if (step === 'docs_pending') {
-      await serviceClient
-        .from('clients')
-        .update({ process_step: 'docs_complete' })
-        .eq('id', id);
-      advanced = true;
-    }
-  }
-
-  return NextResponse.json({ ok: true, advanced, allMandatoryApproved });
+  return NextResponse.json({ ok: true });
 }

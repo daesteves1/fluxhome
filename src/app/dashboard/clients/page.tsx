@@ -39,12 +39,11 @@ export default async function ClientsPage() {
   const cookieStore = await cookies();
   const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
 
-  // Office admins respect the view preference; regular brokers always see own clients
   const showOwnOnly =
     userProfile?.role === 'broker' ||
     (broker?.is_office_admin && viewCookie === 'broker');
 
-  type ClientRow = {
+  type ProcessRow = {
     id: string;
     p1_name: string;
     p2_name: string | null;
@@ -54,48 +53,63 @@ export default async function ClientsPage() {
     brokers: { id: string; users: { name: string } | null } | null;
   };
 
-  let clients: ClientRow[] = [];
+  let processes: ProcessRow[] = [];
+
+  type RawProc = { id: string; process_step: string; updated_at: string; broker_id: string; clients: { p1_name: string; p2_name: string | null } | null; brokers?: { id: string; users: { name: string } | null } | null };
 
   if (showOwnOnly && broker) {
     const { data } = await serviceClient
-      .from('clients')
-      .select('id, p1_name, p2_name, process_step, updated_at, broker_id')
+      .from('processes')
+      .select('id, process_step, updated_at, broker_id, clients(p1_name, p2_name)')
       .eq('broker_id', broker.id)
       .order('updated_at', { ascending: false });
-    clients = (data ?? []).map((c) => ({
-      ...(c as Omit<ClientRow, 'brokers'>),
+    processes = ((data ?? []) as unknown as RawProc[]).map((p) => ({
+      id: p.id,
+      p1_name: p.clients?.p1_name ?? '',
+      p2_name: p.clients?.p2_name ?? null,
+      process_step: p.process_step,
+      updated_at: p.updated_at,
+      broker_id: p.broker_id,
       brokers: null,
     }));
   } else if (broker?.office_id) {
     const { data } = await serviceClient
-      .from('clients')
-      .select('id, p1_name, p2_name, process_step, updated_at, broker_id, brokers(id, users(name))')
+      .from('processes')
+      .select('id, process_step, updated_at, broker_id, clients(p1_name, p2_name), brokers(id, users(name))')
       .eq('office_id', broker.office_id)
       .order('updated_at', { ascending: false });
-    clients = (data ?? []) as unknown as ClientRow[];
+    processes = ((data ?? []) as unknown as RawProc[]).map((p) => ({
+      id: p.id,
+      p1_name: p.clients?.p1_name ?? '',
+      p2_name: p.clients?.p2_name ?? null,
+      process_step: p.process_step,
+      updated_at: p.updated_at,
+      broker_id: p.broker_id,
+      brokers: p.brokers ?? null,
+    }));
   }
 
-  // Fetch doc counts for all clients (for kanban cards)
-  type DocCountRow = { client_id: string; is_mandatory: boolean; status: string };
+  // Doc counts indexed by process_id
   type DocCounts = Record<string, { mandatory_total: number; mandatory_approved: number; rejected_count: number }>;
   const docCounts: DocCounts = {};
 
-  if (clients.length > 0) {
-    const clientIds = clients.map((c) => c.id);
+  if (processes.length > 0) {
+    const processIds = processes.map((p) => p.id);
     const { data: docData } = await serviceClient
       .from('document_requests')
-      .select('client_id, is_mandatory, status')
-      .in('client_id', clientIds);
+      .select('process_id, is_mandatory, status')
+      .in('process_id', processIds);
 
-    for (const doc of (docData ?? []) as DocCountRow[]) {
-      if (!docCounts[doc.client_id]) {
-        docCounts[doc.client_id] = { mandatory_total: 0, mandatory_approved: 0, rejected_count: 0 };
+    for (const doc of (docData ?? []) as { process_id: string; is_mandatory: boolean; status: string }[]) {
+      if (!doc.process_id) continue;
+      if (!docCounts[doc.process_id]) {
+        docCounts[doc.process_id] = { mandatory_total: 0, mandatory_approved: 0, rejected_count: 0 };
       }
       if (doc.is_mandatory) {
-        docCounts[doc.client_id].mandatory_total++;
-        if (doc.status === 'approved') docCounts[doc.client_id].mandatory_approved++;
+        docCounts[doc.process_id].mandatory_total++;
+        if (doc.status === 'approved') docCounts[doc.process_id].mandatory_approved++;
       }
-      if (doc.status === 'rejected') docCounts[doc.client_id].rejected_count++;
+      if (doc.status === 'rejected') docCounts[doc.process_id].rejected_count++;
     }
   }
 
@@ -105,7 +119,7 @@ export default async function ClientsPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">{t('clients.title')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {clients.length} {clients.length === 1 ? 'cliente' : 'clientes'}
+            {processes.length} {processes.length === 1 ? 'processo' : 'processos'}
           </p>
         </div>
         <Link
@@ -116,7 +130,7 @@ export default async function ClientsPage() {
         </Link>
       </div>
 
-      <ClientsTable clients={clients} showBrokerColumn={!showOwnOnly} docCounts={docCounts} />
+      <ClientsTable clients={processes} showBrokerColumn={!showOwnOnly} docCounts={docCounts} />
     </div>
   );
 }

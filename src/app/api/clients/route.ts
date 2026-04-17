@@ -8,6 +8,42 @@ import {
   type OfficeDocTemplate,
 } from '@/lib/document-defaults';
 
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const serviceClient = await createServiceClient();
+    const { data: brokerRaw } = await serviceClient
+      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).single();
+    const broker = brokerRaw as { id: string; office_id: string } | null;
+    if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    const url = new URL(request.url);
+    const search = url.searchParams.get('search')?.trim() ?? '';
+    const limit = Math.min(Number(url.searchParams.get('limit') ?? '20'), 50);
+
+    let query = serviceClient
+      .from('clients')
+      .select('id, p1_name, p1_email, p2_name')
+      .eq('office_id', broker.office_id)
+      .order('p1_name', { ascending: true })
+      .limit(limit);
+
+    if (search.length >= 2) {
+      query = query.or(`p1_name.ilike.%${search}%,p1_email.ilike.%${search}%,p1_nif.ilike.%${search}%,p2_name.ilike.%${search}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data ?? []);
+  } catch (err) {
+    console.error('List clients error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();

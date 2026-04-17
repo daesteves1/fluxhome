@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { FileText, BarChart2, MessageSquare } from 'lucide-react';
+import { FileText, BarChart2, MessageSquare, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DocumentsTab } from './documents-tab';
 import { PropostasTab } from './propostas-tab';
 import { NotesTab } from './notes-tab';
+import { BankShareTab } from './bank-share-tab';
 import type { ProcessStep } from '@/types/database';
 import type { OfficeDocTemplate } from '@/lib/document-defaults';
 
@@ -49,7 +50,7 @@ interface Client {
   id: string;
   p1_name: string;
   p2_name: string | null;
-  process_step: ProcessStep;
+  process_step?: ProcessStep;
   [key: string]: unknown;
 }
 
@@ -63,9 +64,11 @@ interface Props {
   officeName: string;
   officeDocTemplate: OfficeDocTemplate[];
   defaultTab?: string;
+  /** When set, API calls use /api/processes/[processId] routes */
+  processId?: string;
 }
 
-type Tab = 'documents' | 'propostas' | 'notes';
+type Tab = 'documents' | 'propostas' | 'notes' | 'bank_share';
 
 export function ClientDetailTabs({
   client,
@@ -76,9 +79,12 @@ export function ClientDetailTabs({
   officeId,
   officeDocTemplate,
   defaultTab,
+  processId,
 }: Props) {
+  const apiBase = processId ? `/api/processes/${processId}` : undefined;
+  const pageBase = processId ? `/dashboard/processes/${processId}` : undefined;
   const t = useTranslations();
-  const validDefault = (['documents', 'propostas', 'notes'] as Tab[]).includes(defaultTab as Tab)
+  const validDefault = (['documents', 'propostas', 'notes', 'bank_share'] as Tab[]).includes(defaultTab as Tab)
     ? (defaultTab as Tab)
     : 'documents';
   const [activeTab, setActiveTab] = useState<Tab>(validDefault);
@@ -91,6 +97,7 @@ export function ClientDetailTabs({
     { id: 'documents', label: t('documents.title'), icon: FileText,      badge: pendingDocs || undefined },
     { id: 'propostas', label: t('propostas.title'), icon: BarChart2 },
     { id: 'notes',     label: t('notes.title'),     icon: MessageSquare },
+    { id: 'bank_share', label: 'Partilha bancária', icon: Building2 },
   ];
 
   return (
@@ -141,17 +148,22 @@ export function ClientDetailTabs({
             uploads={uploads}
             officeId={officeId}
             officeDocTemplate={officeDocTemplate}
+            apiBase={apiBase}
           />
         )}
         {activeTab === 'propostas' && (
-          <PropostasTab client={client} />
+          <PropostasTab client={client} apiBase={apiBase} pageBase={pageBase} />
         )}
         {activeTab === 'notes' && (
           <NotesTab
             clientId={client.id}
             notes={brokerNotes}
             currentBrokerId={currentBrokerId}
+            apiBase={apiBase}
           />
+        )}
+        {activeTab === 'bank_share' && (
+          <BankShareTab clientId={client.id} brokerId={currentBrokerId} />
         )}
       </div>
     </div>

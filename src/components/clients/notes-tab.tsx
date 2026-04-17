@@ -15,9 +15,11 @@ interface Props {
   clientId: string;
   notes: BrokerNote[];
   currentBrokerId: string | null;
+  apiBase?: string;
 }
 
-export function NotesTab({ clientId, notes, currentBrokerId }: Props) {
+export function NotesTab({ clientId, notes, currentBrokerId, apiBase }: Props) {
+  const base = apiBase ?? `/api/clients/${clientId}`;
   const t = useTranslations('notes');
   const tCommon = useTranslations('common');
   const router = useRouter();
@@ -30,7 +32,7 @@ export function NotesTab({ clientId, notes, currentBrokerId }: Props) {
     if (!content.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/clients/${clientId}/notes`, {
+      const res = await fetch(`${base}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
@@ -47,7 +49,7 @@ export function NotesTab({ clientId, notes, currentBrokerId }: Props) {
   }
 
   async function updateNote(noteId: string) {
-    const res = await fetch(`/api/clients/${clientId}/notes/${noteId}`, {
+    const res = await fetch(`${base}/notes/${noteId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: editContent }),
@@ -62,7 +64,7 @@ export function NotesTab({ clientId, notes, currentBrokerId }: Props) {
 
   async function deleteNote(noteId: string) {
     if (!confirm(t('confirmDelete'))) return;
-    const res = await fetch(`/api/clients/${clientId}/notes/${noteId}`, {
+    const res = await fetch(`${base}/notes/${noteId}`, {
       method: 'DELETE',
     });
     if (res.ok) {
