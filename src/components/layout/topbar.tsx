@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, KeyRound, ChevronDown, Menu } from 'lucide-react';
+import { LogOut, User, KeyRound, ChevronDown, Menu, HelpCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   DropdownMenu,
@@ -17,9 +17,10 @@ import { HomeFluxLogoMark } from './homeflux-logo';
 interface TopBarProps {
   userName: string;
   onMenuToggle?: () => void;
+  onHelpOpen?: () => void;
 }
 
-export function TopBar({ userName, onMenuToggle }: TopBarProps) {
+export function TopBar({ userName, onMenuToggle, onHelpOpen }: TopBarProps) {
   const t = useTranslations('nav');
   const router = useRouter();
 
@@ -60,6 +61,15 @@ export function TopBar({ userName, onMenuToggle }: TopBarProps) {
 
       {/* Desktop: push user menu to the right */}
       <div className="hidden md:flex flex-1" />
+
+      {/* Help button */}
+      <button
+        onClick={onHelpOpen}
+        className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-700 mr-1"
+        aria-label="Ajuda"
+      >
+        <HelpCircle className="h-5 w-5" />
+      </button>
 
       {/* User dropdown */}
       <DropdownMenu>

@@ -12,6 +12,7 @@ import {
   UserPlus,
   UserCog,
   Settings,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HomeFluxLogoMark } from './homeflux-logo';
@@ -47,6 +48,7 @@ const superAdminLinks = [
   { href: '/admin/invitations', icon: UserPlus, labelKey: 'invitations' },
   { href: '/admin/impersonate', icon: Users, labelKey: 'impersonate' },
   { href: '/admin/settings', icon: Settings, labelKey: 'settings' },
+  { href: '/admin/support', icon: HelpCircle, labelKey: 'support' },
 ];
 
 export function Sidebar({

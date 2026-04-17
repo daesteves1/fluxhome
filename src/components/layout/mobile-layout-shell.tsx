@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { TopBar } from './topbar';
 import { ImpersonationBanner } from './impersonation-banner';
+import { HelpCenter } from './help-center';
 
 interface MobileLayoutShellProps {
   role: 'super_admin' | 'office_admin' | 'broker';
@@ -32,6 +33,7 @@ export function MobileLayoutShell({
   children,
 }: MobileLayoutShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const sidebarProps = { role, userName, userEmail, officeName, logoUrl, primaryColor, isOfficeAdmin, currentView };
 
@@ -72,7 +74,7 @@ export function MobileLayoutShell({
 
         {/* Main area */}
         <div className="flex flex-col flex-1 min-w-0">
-          <TopBar userName={userName} onMenuToggle={() => setSidebarOpen(true)} />
+          <TopBar userName={userName} onMenuToggle={() => setSidebarOpen(true)} onHelpOpen={() => setHelpOpen(true)} />
           <main className="flex-1 bg-slate-50">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
               {children}
@@ -80,6 +82,7 @@ export function MobileLayoutShell({
           </main>
         </div>
       </div>
+      <HelpCenter open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

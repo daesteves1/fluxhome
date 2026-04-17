@@ -447,6 +447,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      support_tickets: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          office_id: string | null;
+          subject: string;
+          message: string;
+          status: 'open' | 'in_progress' | 'resolved';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          office_id?: string | null;
+          subject: string;
+          message: string;
+          status?: 'open' | 'in_progress' | 'resolved';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          office_id?: string | null;
+          subject?: string;
+          message?: string;
+          status?: 'open' | 'in_progress' | 'resolved';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       notification_events: {
         Row: {
           id: string;
