@@ -39,6 +39,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "clients": "Clients",
+    "processes": "Processes",
+    "leads": "Leads",
     "settings": "Settings",
     "mediadores": "Brokers",
     "office": "Office",
@@ -138,7 +140,6 @@
     }
   },
   "processSteps": {
-    "lead": "Lead",
     "docs_pending": "Docs Pending",
     "docs_complete": "Docs Complete",
     "propostas_sent": "Proposals Sent",

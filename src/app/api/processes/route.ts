@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
 
   // Verify client belongs to broker's office
   const { data: clientRaw } = await serviceClient
-    .from('clients').select('id, p2_name, office_id').eq('id', body.client_id).single();
-  const clientInfo = clientRaw as { id: string; p2_name: string | null; office_id: string } | null;
+    .from('clients').select('id, p1_name, p2_name, office_id, portal_token').eq('id', body.client_id).single();
+  const clientInfo = clientRaw as { id: string; p1_name: string; p2_name: string | null; office_id: string; portal_token: string | null } | null;
   if (!clientInfo || clientInfo.office_id !== broker.office_id) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       broker_id: broker.id,
       office_id: broker.office_id,
       tipo: body.tipo,
-      process_step: 'lead',
+      process_step: 'docs_pending',
       valor_imovel: body.valor_imovel ?? null,
       montante_solicitado: body.montante_solicitado ?? null,
       prazo_meses: body.prazo_meses ?? null,
@@ -99,5 +99,9 @@ export async function POST(request: NextRequest) {
 
   if (docRows.length > 0) await serviceClient.from('document_requests').insert(docRows);
 
-  return NextResponse.json({ id: processId }, { status: 201 });
+  return NextResponse.json({
+    id: processId,
+    portal_token: clientInfo.portal_token,
+    client_name: clientInfo.p1_name,
+  }, { status: 201 });
 }

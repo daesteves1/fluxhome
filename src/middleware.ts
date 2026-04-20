@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   '/portal',
   '/privacy',
   '/cookies',
+  '/l',
 ];
 
 function isPublicPath(pathname: string): boolean {

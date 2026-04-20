@@ -37,6 +37,19 @@ export type Database = {
           settings: Json;
           is_active: boolean;
           created_at: string;
+          lead_capture_enabled: boolean;
+          lead_capture_hero_title: string | null;
+          lead_capture_hero_subtitle: string | null;
+          lead_capture_primary_color: string | null;
+          lead_capture_logo_url: string | null;
+          bdp_intermediario_number: string | null;
+          lead_capture_headline: string | null;
+          lead_capture_subheadline: string | null;
+          lead_capture_cta_label: string | null;
+          lead_capture_show_bank_logos: boolean;
+          website_url: string | null;
+          office_nif: string | null;
+          office_address: string | null;
         };
         Insert: {
           id?: string;
@@ -47,6 +60,19 @@ export type Database = {
           settings?: Json;
           is_active?: boolean;
           created_at?: string;
+          lead_capture_enabled?: boolean;
+          lead_capture_hero_title?: string | null;
+          lead_capture_hero_subtitle?: string | null;
+          lead_capture_primary_color?: string | null;
+          lead_capture_logo_url?: string | null;
+          bdp_intermediario_number?: string | null;
+          lead_capture_headline?: string | null;
+          lead_capture_subheadline?: string | null;
+          lead_capture_cta_label?: string | null;
+          lead_capture_show_bank_logos?: boolean;
+          website_url?: string | null;
+          office_nif?: string | null;
+          office_address?: string | null;
         };
         Update: {
           id?: string;
@@ -57,6 +83,148 @@ export type Database = {
           settings?: Json;
           is_active?: boolean;
           created_at?: string;
+          lead_capture_enabled?: boolean;
+          lead_capture_hero_title?: string | null;
+          lead_capture_hero_subtitle?: string | null;
+          lead_capture_primary_color?: string | null;
+          lead_capture_logo_url?: string | null;
+          bdp_intermediario_number?: string | null;
+          lead_capture_headline?: string | null;
+          lead_capture_subheadline?: string | null;
+          lead_capture_cta_label?: string | null;
+          lead_capture_show_bank_logos?: boolean;
+          website_url?: string | null;
+          office_nif?: string | null;
+          office_address?: string | null;
+        };
+        Relationships: [];
+      };
+      leads: {
+        Row: {
+          id: string;
+          office_id: string;
+          p1_nome: string;
+          p1_email: string | null;
+          p1_telefone: string | null;
+          p1_nif: string | null;
+          p1_data_nascimento: string | null;
+          p1_tipo_emprego: string | null;
+          p2_nome: string | null;
+          p2_email: string | null;
+          p2_telefone: string | null;
+          p2_nif: string | null;
+          p2_data_nascimento: string | null;
+          p2_tipo_emprego: string | null;
+          tipo_operacao: string;
+          valor_imovel: number | null;
+          montante_pretendido: number | null;
+          prazo_pretendido: number | null;
+          localizacao_imovel: string | null;
+          horario_preferencial: string | null;
+          mensagem: string | null;
+          status: string;
+          assigned_broker_id: string | null;
+          converted_client_id: string | null;
+          turnstile_token: string | null;
+          ip_address: string | null;
+          user_agent: string | null;
+          utm_source: string | null;
+          utm_medium: string | null;
+          utm_campaign: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+          rendimento_mensal: number | null;
+          num_proponentes: number | null;
+          imovel_escolhido: boolean | null;
+          vender_imovel_atual: boolean | null;
+          consent_marketing: boolean;
+          nome_proprio: string | null;
+          apelido: string | null;
+        };
+        Insert: {
+          id?: string;
+          office_id: string;
+          p1_nome: string;
+          p1_email?: string | null;
+          p1_telefone?: string | null;
+          p1_nif?: string | null;
+          p1_data_nascimento?: string | null;
+          p1_tipo_emprego?: string | null;
+          p2_nome?: string | null;
+          p2_email?: string | null;
+          p2_telefone?: string | null;
+          p2_nif?: string | null;
+          p2_data_nascimento?: string | null;
+          p2_tipo_emprego?: string | null;
+          tipo_operacao: string;
+          valor_imovel?: number | null;
+          montante_pretendido?: number | null;
+          prazo_pretendido?: number | null;
+          localizacao_imovel?: string | null;
+          horario_preferencial?: string | null;
+          mensagem?: string | null;
+          status?: string;
+          assigned_broker_id?: string | null;
+          converted_client_id?: string | null;
+          turnstile_token?: string | null;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          utm_source?: string | null;
+          utm_medium?: string | null;
+          utm_campaign?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          rendimento_mensal?: number | null;
+          num_proponentes?: number | null;
+          imovel_escolhido?: boolean | null;
+          vender_imovel_atual?: boolean | null;
+          consent_marketing?: boolean;
+          nome_proprio?: string | null;
+          apelido?: string | null;
+        };
+        Update: {
+          id?: string;
+          office_id?: string;
+          p1_nome?: string;
+          p1_email?: string | null;
+          p1_telefone?: string | null;
+          p1_nif?: string | null;
+          p1_data_nascimento?: string | null;
+          p1_tipo_emprego?: string | null;
+          p2_nome?: string | null;
+          p2_email?: string | null;
+          p2_telefone?: string | null;
+          p2_nif?: string | null;
+          p2_data_nascimento?: string | null;
+          p2_tipo_emprego?: string | null;
+          tipo_operacao?: string;
+          valor_imovel?: number | null;
+          montante_pretendido?: number | null;
+          prazo_pretendido?: number | null;
+          localizacao_imovel?: string | null;
+          horario_preferencial?: string | null;
+          mensagem?: string | null;
+          status?: string;
+          assigned_broker_id?: string | null;
+          converted_client_id?: string | null;
+          turnstile_token?: string | null;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          utm_source?: string | null;
+          utm_medium?: string | null;
+          utm_campaign?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          rendimento_mensal?: number | null;
+          num_proponentes?: number | null;
+          imovel_escolhido?: boolean | null;
+          vender_imovel_atual?: boolean | null;
+          consent_marketing?: boolean;
+          nome_proprio?: string | null;
+          apelido?: string | null;
         };
         Relationships: [];
       };
@@ -709,7 +877,6 @@ export type Database = {
 export type ProcessTipo = 'credito_habitacao' | 'renegociacao' | 'construcao' | 'outro';
 
 export type ProcessStep =
-  | 'lead'
   | 'docs_pending'
   | 'docs_complete'
   | 'propostas_sent'
@@ -744,4 +911,55 @@ export type OfficeSettings = {
 
 export type BrokerSettings = {
   propostas_enabled: boolean | null;
+};
+
+// Lead capture types
+export type LeadStatus =
+  | 'novo'
+  | 'visto'
+  | 'em_contacto'
+  | 'qualificado'
+  | 'convertido'
+  | 'descartado';
+
+export type TipoOperacao =
+  | 'aquisicao'
+  | 'construcao'
+  | 'refinanciamento'
+  | 'transferencia';
+
+export type HorarioPreferencial = 'manha' | 'tarde' | 'qualquer';
+
+export type Lead = {
+  id: string;
+  office_id: string;
+  p1_nome: string;
+  p1_email: string | null;
+  p1_telefone: string | null;
+  p1_nif: string | null;
+  p1_data_nascimento: string | null;
+  p1_tipo_emprego: string | null;
+  p2_nome: string | null;
+  p2_email: string | null;
+  p2_telefone: string | null;
+  p2_nif: string | null;
+  p2_data_nascimento: string | null;
+  p2_tipo_emprego: string | null;
+  tipo_operacao: TipoOperacao;
+  valor_imovel: number | null;
+  montante_pretendido: number | null;
+  prazo_pretendido: number | null;
+  localizacao_imovel: string | null;
+  horario_preferencial: HorarioPreferencial | null;
+  mensagem: string | null;
+  status: LeadStatus;
+  assigned_broker_id: string | null;
+  converted_client_id: string | null;
+  notes: string | null;
+  ip_address: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  created_at: string;
+  updated_at: string;
 };

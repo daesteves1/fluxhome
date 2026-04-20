@@ -13,6 +13,8 @@ import {
   UserCog,
   Settings,
   HelpCircle,
+  FolderKanban,
+  Inbox,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HomeFluxLogoMark } from './homeflux-logo';
@@ -31,12 +33,16 @@ interface SidebarProps {
 
 const brokerLinks = [
   { href: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { href: '/dashboard/processes', icon: FolderKanban, labelKey: 'processes' },
   { href: '/dashboard/clients', icon: Users, labelKey: 'clients' },
+  { href: '/dashboard/leads', icon: Inbox, labelKey: 'leads' },
 ];
 
 const officeAdminLinks = [
   { href: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { href: '/dashboard/processes', icon: FolderKanban, labelKey: 'processes' },
   { href: '/dashboard/clients', icon: Users, labelKey: 'clients' },
+  { href: '/dashboard/leads', icon: Inbox, labelKey: 'leads' },
   { href: '/dashboard/mediadores', icon: UserCog, labelKey: 'mediadores' },
   { href: '/dashboard/office', icon: Building2, labelKey: 'office' },
 ];

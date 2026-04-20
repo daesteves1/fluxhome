@@ -59,7 +59,6 @@ export default async function AdminDashboardPage() {
   }));
 
   const STEP_LABELS: Record<string, string> = {
-    lead: 'Lead',
     docs_pending: 'Docs Pendentes',
     docs_review: 'Em Análise',
     propostas_sent: 'Propostas Enviadas',

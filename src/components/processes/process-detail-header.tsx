@@ -26,7 +26,6 @@ const TIPO_COLORS: Record<ProcessTipo, string> = {
 };
 
 const STEP_META = [
-  { key: 'lead' as ProcessStep,           label: 'Lead',               short: 'Lead',        circle: 'bg-slate-500',  line: 'bg-slate-400',  ring: 'ring-slate-300' },
   { key: 'docs_pending' as ProcessStep,   label: 'Docs. Pendentes',    short: 'Docs. Pend.', circle: 'bg-amber-500',  line: 'bg-amber-400',  ring: 'ring-amber-300' },
   { key: 'docs_complete' as ProcessStep,  label: 'Docs. Completos',    short: 'Docs. Comp.', circle: 'bg-blue-500',   line: 'bg-blue-400',   ring: 'ring-blue-300' },
   { key: 'propostas_sent' as ProcessStep, label: 'Propostas Enviadas', short: 'Propostas',   circle: 'bg-purple-500', line: 'bg-purple-400', ring: 'ring-purple-300' },

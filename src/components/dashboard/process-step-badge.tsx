@@ -3,10 +3,6 @@ import { cn } from '@/lib/utils';
 import type { ProcessStep } from '@/types/database';
 
 const stepConfig: Record<ProcessStep, { label: string; className: string }> = {
-  lead: {
-    label: 'lead',
-    className: 'bg-gray-100 text-gray-700',
-  },
   docs_pending: {
     label: 'docs_pending',
     className: 'bg-amber-100 text-amber-700',
@@ -36,7 +32,7 @@ interface ProcessStepBadgeProps {
 
 export function ProcessStepBadge({ step, className }: ProcessStepBadgeProps) {
   const t = useTranslations('processSteps');
-  const config = stepConfig[step] ?? stepConfig.lead;
+  const config = stepConfig[step] ?? stepConfig.docs_pending;
 
   return (
     <span

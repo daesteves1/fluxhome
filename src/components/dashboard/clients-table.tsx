@@ -20,7 +20,6 @@ const STEP_FILTER_ALL = 'all';
 
 const STEP_TABS: { value: ProcessStep | 'all'; label: string; active: string; inactive: string }[] = [
   { value: 'all',            label: 'Todos',              active: 'bg-slate-800 text-white',   inactive: 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' },
-  { value: 'lead',           label: 'Lead',               active: 'bg-slate-500 text-white',   inactive: 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' },
   { value: 'docs_pending',   label: 'Docs. Pendentes',    active: 'bg-amber-500 text-white',   inactive: 'text-amber-600 hover:bg-amber-50' },
   { value: 'docs_complete',  label: 'Docs. Completos',    active: 'bg-blue-500 text-white',    inactive: 'text-blue-600 hover:bg-blue-50' },
   { value: 'propostas_sent', label: 'Propostas Enviadas', active: 'bg-purple-500 text-white',  inactive: 'text-purple-600 hover:bg-purple-50' },
@@ -78,23 +77,23 @@ export function ClientsTable({ clients, showBrokerColumn = false, docCounts = {}
         <div className="flex items-center bg-slate-100 rounded-lg p-0.5 shrink-0">
           <button
             onClick={() => handleViewChange('list')}
-            title="Vista em lista"
             className={cn(
-              'p-1.5 rounded-md transition-colors',
-              view === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+              view === 'list' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'
             )}
           >
-            <List className="h-4 w-4" />
+            <List className="h-3.5 w-3.5" />
+            Lista
           </button>
           <button
             onClick={() => handleViewChange('kanban')}
-            title="Vista kanban"
             className={cn(
-              'p-1.5 rounded-md transition-colors',
-              view === 'kanban' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+              view === 'kanban' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'
             )}
           >
-            <LayoutDashboard className="h-4 w-4" />
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Quadro
           </button>
         </div>
       </div>

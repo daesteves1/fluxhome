@@ -4,7 +4,6 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, X, Plus, Upload, FileText } from 'lucide-react';
-import { VerticalStepper, type StepDef } from '@/components/ui/vertical-stepper';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -105,7 +104,7 @@ function saveRecentBank(bankId: string) {
 
 // ─── Step defs ────────────────────────────────────────────────────────────────
 
-const STEPS: StepDef[] = [
+const STEPS = [
   { id: 'banco',      name: 'Banco',                   subtitle: 'Selecione o banco desta proposta' },
   { id: 'condicoes',  name: 'Condições do empréstimo', subtitle: 'Taxa, prazo e montante' },
   { id: 'seguros',    name: 'Seguros',                 subtitle: 'Condições de seguro associadas' },
@@ -881,8 +880,6 @@ interface NewPropostaStepperProps {
   p2Name?: string | null;
   clientLoanAmount?: number | null;
   clientTermMonths?: number | null;
-  logoUrl?: string;
-  officeName?: string;
 }
 
 export function NewPropostaStepper({
@@ -890,8 +887,6 @@ export function NewPropostaStepper({
   p2Name,
   clientLoanAmount,
   clientTermMonths,
-  logoUrl,
-  officeName,
 }: NewPropostaStepperProps) {
   const hasP2 = Boolean(p2Name);
   const [currentStep, setCurrentStep] = useState(0);
@@ -1040,46 +1035,103 @@ export function NewPropostaStepper({
     );
   }
 
-  const STEP_META = [
-    { title: 'Banco',                    desc: 'Selecione o banco desta proposta' },
-    { title: 'Condições do empréstimo',  desc: 'Taxa, prazo e montante' },
-    { title: 'Seguros',                  desc: 'Condições de seguro associadas à proposta' },
-    { title: 'Encargos únicos',          desc: 'Comissões e custos iniciais associados ao crédito' },
-    { title: 'Condições & notas',        desc: 'Informação complementar sobre a proposta' },
-    { title: 'Resumo',                   desc: 'Verifique os dados antes de guardar a proposta.' },
-  ];
-
-  const meta = STEP_META[currentStep]!;
+  const step = STEPS[currentStep]!;
+  const progressPct = ((currentStep + 1) / STEPS.length) * 100;
 
   return (
-    <VerticalStepper
-      steps={STEPS}
-      currentStep={currentStep}
-      completedSteps={completedSteps}
-      onStepClick={handleStepClick}
-      onNext={handleNext}
-      onPrev={handlePrev}
-      onCancel={handleCancel}
-      isLastStep={currentStep === STEPS.length - 1}
-      isSubmitting={isSubmitting}
-      nextLabel="Guardar proposta"
-      stepTitle={meta.title}
-      stepDescription={meta.desc}
-      logoUrl={logoUrl}
-      officeName={officeName}
-    >
-      {errors._form && (
-        <div className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {errors._form}
+    <div className="max-w-2xl mx-auto space-y-5">
+      {/* Progress header */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <div>
+            <span className="font-semibold text-slate-900">{step.name}</span>
+            <span className="text-slate-400 ml-2">{step.subtitle}</span>
+          </div>
+          <span className="text-slate-400 text-xs shrink-0">{currentStep + 1} / {STEPS.length}</span>
         </div>
-      )}
+        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-primary rounded-full transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
 
-      {currentStep === 0 && <Step1Banco data={data} onChange={onChange} errors={errors} />}
-      {currentStep === 1 && <Step2Condicoes data={data} onChange={onChange} errors={errors} />}
-      {currentStep === 2 && <Step3Seguros data={data} onChange={onChange} hasP2={hasP2} />}
-      {currentStep === 3 && <Step4Encargos data={data} onChange={onChange} />}
-      {currentStep === 4 && <Step5Notas data={data} onChange={onChange} clientId={clientId} />}
-      {currentStep === 5 && <Step6Resumo data={data} onEditStep={handleStepClick} />}
-    </VerticalStepper>
+      {/* Step tabs (desktop) */}
+      <div className="hidden sm:flex gap-1 overflow-x-auto pb-0.5">
+        {STEPS.map((s, i) => {
+          const done = completedSteps[i] ?? false;
+          const active = i === currentStep;
+          const clickable = done && i < currentStep;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              disabled={!clickable && !active}
+              onClick={() => clickable ? handleStepClick(i) : undefined}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
+                active && 'bg-primary/10 text-primary',
+                done && !active && clickable && 'text-slate-500 hover:bg-slate-100',
+                !active && !clickable && 'text-slate-300 cursor-default',
+              )}
+            >
+              {done && i < currentStep ? (
+                <Check className="h-3 w-3 shrink-0" />
+              ) : (
+                <span className={cn(
+                  'w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0',
+                  active ? 'bg-primary text-white' : 'bg-slate-200 text-slate-400',
+                )}>{i + 1}</span>
+              )}
+              {s.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Content */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        {errors._form && (
+          <div className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {errors._form}
+          </div>
+        )}
+        {currentStep === 0 && <Step1Banco data={data} onChange={onChange} errors={errors} />}
+        {currentStep === 1 && <Step2Condicoes data={data} onChange={onChange} errors={errors} />}
+        {currentStep === 2 && <Step3Seguros data={data} onChange={onChange} hasP2={hasP2} />}
+        {currentStep === 3 && <Step4Encargos data={data} onChange={onChange} />}
+        {currentStep === 4 && <Step5Notas data={data} onChange={onChange} clientId={clientId} />}
+        {currentStep === 5 && <Step6Resumo data={data} onEditStep={handleStepClick} />}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pb-4">
+        <div className="flex items-center gap-3">
+          {currentStep > 0 ? (
+            <Button type="button" variant="outline" onClick={handlePrev} disabled={isSubmitting}>
+              ← Anterior
+            </Button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Cancelar
+            </button>
+          )}
+        </div>
+        <Button type="button" onClick={handleNext} disabled={isSubmitting} className="min-w-[140px]">
+          {isSubmitting ? (
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />A guardar…</>
+          ) : currentStep === STEPS.length - 1 ? (
+            'Guardar proposta'
+          ) : (
+            'Seguinte →'
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }

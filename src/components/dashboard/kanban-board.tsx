@@ -55,7 +55,6 @@ interface KanbanBoardProps {
 // ─── Column config ─────────────────────────────────────────────────────────────
 
 const KANBAN_COLUMNS: { step: string; label: string; accent: string; defaultVisible: boolean }[] = [
-  { step: 'lead',            label: 'Lead',               accent: '#94a3b8', defaultVisible: false },
   { step: 'docs_pending',    label: 'Docs. Pendentes',    accent: '#f59e0b', defaultVisible: true  },
   { step: 'docs_complete',   label: 'Docs. Completos',    accent: '#3b82f6', defaultVisible: true  },
   { step: 'propostas_sent',  label: 'Propostas Enviadas', accent: '#a855f7', defaultVisible: true  },

@@ -14,20 +14,68 @@ export default async function AdminOfficeDetailPage({ params }: PageProps) {
 
   const { data: officeRaw } = await serviceClient
     .from('offices')
-    .select('id, name, is_active, created_at, settings, white_label, document_template')
+    .select('id, name, slug, is_active, created_at, settings, white_label, document_template')
     .eq('id', id)
     .single();
 
   if (!officeRaw) notFound();
 
-  const office = officeRaw as unknown as {
-    id: string;
-    name: string;
-    is_active: boolean;
-    created_at: string;
-    settings: Record<string, unknown> | null;
-    white_label: { logo_url?: string | null; primary_color?: string } | null;
-    document_template: import('@/lib/document-defaults').OfficeDocTemplate[] | null;
+  // Fetch lead capture columns separately — they may not exist if migration 016 hasn't run yet
+  let leadCols: {
+    lead_capture_enabled: boolean;
+    lead_capture_hero_title: string | null;
+    lead_capture_hero_subtitle: string | null;
+    lead_capture_primary_color: string | null;
+    lead_capture_logo_url: string | null;
+    bdp_intermediario_number: string | null;
+    lead_capture_headline: string | null;
+    lead_capture_subheadline: string | null;
+    lead_capture_cta_label: string | null;
+    lead_capture_show_bank_logos: boolean;
+    website_url: string | null;
+    office_nif: string | null;
+    office_address: string | null;
+  } = {
+    lead_capture_enabled: false,
+    lead_capture_hero_title: null,
+    lead_capture_hero_subtitle: null,
+    lead_capture_primary_color: null,
+    lead_capture_logo_url: null,
+    bdp_intermediario_number: null,
+    lead_capture_headline: null,
+    lead_capture_subheadline: null,
+    lead_capture_cta_label: null,
+    lead_capture_show_bank_logos: true,
+    website_url: null,
+    office_nif: null,
+    office_address: null,
+  };
+
+  try {
+    const { data: lcRaw } = await serviceClient
+      .from('offices')
+      .select('lead_capture_enabled, lead_capture_hero_title, lead_capture_hero_subtitle, lead_capture_primary_color, lead_capture_logo_url, bdp_intermediario_number, lead_capture_headline, lead_capture_subheadline, lead_capture_cta_label, lead_capture_show_bank_logos, website_url, office_nif, office_address')
+      .eq('id', id)
+      .single();
+    if (lcRaw) {
+      leadCols = lcRaw as unknown as typeof leadCols;
+    }
+  } catch {
+    // Migration not yet applied — use defaults
+  }
+
+  const office = {
+    ...(officeRaw as unknown as {
+      id: string;
+      name: string;
+      slug: string;
+      is_active: boolean;
+      created_at: string;
+      settings: Record<string, unknown> | null;
+      white_label: { logo_url?: string | null; primary_color?: string } | null;
+      document_template: import('@/lib/document-defaults').OfficeDocTemplate[] | null;
+    }),
+    ...leadCols,
   };
 
   const [{ count: brokersCount }, { count: clientsCount }] = await Promise.all([

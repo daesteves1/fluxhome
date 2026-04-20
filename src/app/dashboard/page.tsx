@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { ClientsTable } from '@/components/dashboard/clients-table';
-import { Users, FileText, Send, CheckCircle, Calendar } from 'lucide-react';
+import { Users, FileText, Send, CheckCircle, Calendar, Inbox } from 'lucide-react';
 import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
 
@@ -136,6 +136,27 @@ export default async function DashboardPage() {
     }));
   }
 
+  // Leads KPI — only when lead capture is enabled for the office
+  let newLeadsCount = 0;
+  let leadCaptureEnabled = false;
+  if (broker?.office_id) {
+    const { data: officeRaw } = await serviceClient
+      .from('offices')
+      .select('lead_capture_enabled')
+      .eq('id', broker.office_id)
+      .single();
+    leadCaptureEnabled = (officeRaw as { lead_capture_enabled: boolean } | null)?.lead_capture_enabled ?? false;
+
+    if (leadCaptureEnabled) {
+      const { count } = await serviceClient
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', broker.office_id)
+        .eq('status', 'novo');
+      newLeadsCount = count ?? 0;
+    }
+  }
+
   const firstName = userProfile?.name?.split(' ')[0] ?? '';
 
   const activeProcesses = processesRaw.filter(
@@ -171,11 +192,16 @@ export default async function DashboardPage() {
       {/* KPI cards */}
       <div>
         <h2 className="text-sm font-semibold text-slate-700 mb-2">{t('pipeline')}</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={`grid gap-3 ${leadCaptureEnabled ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
           <KpiCard title={t('activeProcesses')} value={activeProcesses} icon={Users} trend="neutral" />
           <KpiCard title={t('docsPendingReview')} value={docsPending} icon={FileText} trend={docsPending > 0 ? 'warning' : 'neutral'} />
           <KpiCard title={t('propostasSent')} value={propostasSent} icon={Send} trend="neutral" />
           <KpiCard title={t('closedThisMonth')} value={closedThisMonth} icon={CheckCircle} trend="positive" />
+          {leadCaptureEnabled && (
+            <Link href="/dashboard/leads">
+              <KpiCard title="Leads Novos" value={newLeadsCount} icon={Inbox} trend={newLeadsCount > 0 ? 'warning' : 'neutral'} />
+            </Link>
+          )}
         </div>
       </div>
 

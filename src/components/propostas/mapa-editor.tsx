@@ -14,12 +14,13 @@ import { cn } from '@/lib/utils';
 
 interface MapaEditorProps {
   clientId: string;
+  processId?: string;
   backUrl: string;
   bankPropostas: BankProposta[];
   initialMapa: MapaComparativo | null;
 }
 
-export function MapaEditor({ clientId, backUrl, bankPropostas, initialMapa }: MapaEditorProps) {
+export function MapaEditor({ clientId, processId, backUrl, bankPropostas, initialMapa }: MapaEditorProps) {
   const router = useRouter();
 
   const [selectedIds, setSelectedIds] = useState<string[]>(
@@ -74,7 +75,8 @@ export function MapaEditor({ clientId, backUrl, bankPropostas, initialMapa }: Ma
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/clients/${clientId}/mapa`, {
+      const mapaUrl = processId ? `/api/processes/${processId}/mapa` : `/api/clients/${clientId}/mapa`;
+      const res = await fetch(mapaUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -99,11 +101,13 @@ export function MapaEditor({ clientId, backUrl, bankPropostas, initialMapa }: Ma
   }
 
   function handleExcelExport() {
-    window.open(`/api/clients/${clientId}/mapa/excel`, '_blank');
+    const base = processId ? `/api/processes/${processId}` : `/api/clients/${clientId}`;
+    window.open(`${base}/mapa/excel`, '_blank');
   }
 
   function handlePdfExport() {
-    window.open(`/api/clients/${clientId}/mapa/pdf`, '_blank');
+    const base = processId ? `/api/processes/${processId}` : `/api/clients/${clientId}`;
+    window.open(`${base}/mapa/pdf`, '_blank');
   }
 
   return (

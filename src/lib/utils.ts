@@ -42,6 +42,18 @@ export function getInitials(name: string): string {
     .join('');
 }
 
+/** Validates a Portuguese NIF (Número de Identificação Fiscal) checksum. */
+export function isValidNIF(nif: string): boolean {
+  const clean = nif.replace(/\s/g, '');
+  if (!/^[123456789]\d{8}$/.test(clean)) return false;
+  const digits = clean.split('').map(Number);
+  let sum = 0;
+  for (let i = 0; i < 8; i++) sum += digits[i] * (9 - i);
+  const remainder = sum % 11;
+  const check = remainder < 2 ? 0 : 11 - remainder;
+  return check === digits[8];
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

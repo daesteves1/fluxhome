@@ -27,7 +27,13 @@ export async function PATCH(
   if (!serviceClient) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json();
-  const allowed = ['name', 'slug', 'is_active', 'institution_id', 'white_label', 'settings', 'document_template'];
+  const allowed = [
+    'name', 'slug', 'is_active', 'institution_id', 'white_label', 'settings', 'document_template',
+    'lead_capture_enabled', 'lead_capture_hero_title', 'lead_capture_hero_subtitle',
+    'lead_capture_primary_color', 'lead_capture_logo_url', 'bdp_intermediario_number',
+    'lead_capture_headline', 'lead_capture_subheadline', 'lead_capture_cta_label',
+    'lead_capture_show_bank_logos', 'website_url', 'office_nif', 'office_address',
+  ];
   const update: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) update[key] = body[key];

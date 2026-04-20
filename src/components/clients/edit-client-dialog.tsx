@@ -16,18 +16,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { isValidNIF } from '@/lib/utils';
+
+function nifField() {
+  return z.string().optional().nullable().refine(
+    (v) => !v || !v.trim() || isValidNIF(v.trim()),
+    { message: 'NIF inválido' }
+  );
+}
+function emailField() {
+  return z.string().optional().nullable().refine(
+    (v) => !v || !v.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()),
+    { message: 'Email inválido' }
+  );
+}
 
 const editSchema = z.object({
   p1_name: z.string().min(1),
-  p1_nif: z.string().optional().nullable(),
-  p1_email: z.string().optional().nullable(),
+  p1_nif: nifField(),
+  p1_email: emailField(),
   p1_phone: z.string().optional().nullable(),
   p1_employment_type: z.string().optional().nullable(),
   p1_birth_date: z.string().optional().nullable(),
   has_p2: z.boolean(),
   p2_name: z.string().optional().nullable(),
-  p2_nif: z.string().optional().nullable(),
-  p2_email: z.string().optional().nullable(),
+  p2_nif: nifField(),
+  p2_email: emailField(),
   p2_phone: z.string().optional().nullable(),
   p2_employment_type: z.string().optional().nullable(),
   p2_birth_date: z.string().optional().nullable(),
@@ -75,7 +89,7 @@ export function EditClientDialog({ client, iconOnly, customTrigger }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  const { register, handleSubmit, watch, setValue, formState: { isSubmitting } } = useForm<EditValues>({
+  const { register, handleSubmit, watch, setValue, formState: { isSubmitting, errors } } = useForm<EditValues>({
     resolver: zodResolver(editSchema),
     defaultValues: {
       p1_name: client.p1_name,
@@ -162,10 +176,12 @@ export function EditClientDialog({ client, iconOnly, customTrigger }: Props) {
               <div className="space-y-1.5">
                 <Label htmlFor="e_p1_nif">{t('nif')}</Label>
                 <Input id="e_p1_nif" {...register('p1_nif')} />
+                {errors.p1_nif && <p className="text-xs text-destructive">{errors.p1_nif.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="e_p1_email">{tCommon('email')}</Label>
                 <Input id="e_p1_email" {...register('p1_email')} />
+                {errors.p1_email && <p className="text-xs text-destructive">{errors.p1_email.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="e_p1_phone">{tCommon('phone')}</Label>
@@ -214,10 +230,12 @@ export function EditClientDialog({ client, iconOnly, customTrigger }: Props) {
               <div className="space-y-1.5">
                 <Label>{t('nif')}</Label>
                 <Input {...register('p2_nif')} />
+                {errors.p2_nif && <p className="text-xs text-destructive">{errors.p2_nif.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>{tCommon('email')}</Label>
                 <Input {...register('p2_email')} />
+                {errors.p2_email && <p className="text-xs text-destructive">{errors.p2_email.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>{tCommon('phone')}</Label>
