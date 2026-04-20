@@ -64,7 +64,10 @@ function hslToHex(h: number, s: number, l: number): string {
 export function safeAccentColor(hex: string): string {
   if (!hex?.startsWith('#')) return '#0f172a';
   try {
-    let [h, s, l] = hexToHsl(hex);
+    const hsl = hexToHsl(hex);
+    const h = hsl[0];
+    const s = hsl[1];
+    let l = hsl[2];
     let attempts = 0;
     while (contrastOnWhite(hslToHex(h, s, l)) < 4.5 && attempts < 20) {
       l = Math.max(0, l - 5);

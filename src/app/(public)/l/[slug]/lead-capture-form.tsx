@@ -168,8 +168,8 @@ export function LeadCaptureForm({
     setValue,
     trigger,
     formState: { errors },
+  } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } = useForm<FormValues, any, FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
       tipo_operacao: 'aquisicao',
