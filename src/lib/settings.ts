@@ -12,6 +12,8 @@ export type PlatformSettings = {
   max_propostas_per_client: number | null;
   // RGPD
   rgpd_text: string | null;
+  // AI features
+  ai_proposta_extraction: boolean;
 };
 
 export const PLATFORM_DEFAULTS: PlatformSettings = {
@@ -24,6 +26,7 @@ export const PLATFORM_DEFAULTS: PlatformSettings = {
   max_clients: null,
   max_propostas_per_client: null,
   rgpd_text: null,
+  ai_proposta_extraction: false,
 };
 
 // Broker-level overrides use three-state: absent = inherit, 'on' = true, 'off' = false

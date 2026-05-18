@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { cn, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ProcessStep, ProcessTipo } from '@/types/database';
+import { PortalLinkBar } from '@/components/clients/portal-link-bar';
 
 const TIPO_LABELS: Record<ProcessTipo, string> = {
   credito_habitacao: 'Crédito Habitação',
@@ -48,6 +49,7 @@ interface Props {
     id: string;
     p1_name: string;
     p2_name: string | null;
+    portal_token?: string | null;
   };
 }
 
@@ -162,6 +164,11 @@ export function ProcessDetailHeader({ process, client }: Props) {
             </div>
           )}
         </div>
+
+        {/* Portal link */}
+        {client.portal_token && (
+          <PortalLinkBar portalToken={client.portal_token} />
+        )}
 
         {/* Process stepper */}
         <div className="pt-3 border-t border-slate-100">

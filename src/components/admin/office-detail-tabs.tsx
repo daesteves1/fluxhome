@@ -54,6 +54,7 @@ const BOOLEAN_SETTINGS: { key: keyof PlatformSettings; label: string; descriptio
   { key: 'charts_enabled', label: 'Gráficos Comparativos', description: 'Ativar gráficos no portal de propostas' },
   { key: 'chart_monthly_bar', label: 'Gráfico Prestação Mensal', description: 'Mostrar gráfico de barras de prestação mensal' },
   { key: 'chart_total_cost', label: 'Gráfico Custo Total', description: 'Mostrar gráfico de custo total do crédito' },
+  { key: 'ai_proposta_extraction', label: 'Análise automática de FINE com IA', description: 'Permite aos brokers fazer upload do PDF da FINE para extração automática dos dados da proposta.' },
 ];
 
 export function OfficeDetailTabs({ office, brokersCount, clientsCount }: Props) {

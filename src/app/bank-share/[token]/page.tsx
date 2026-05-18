@@ -13,6 +13,7 @@ type PageState = 'loading' | 'invalid' | 'otp_gate' | 'verified';
 
 interface PageData {
   client: Record<string, unknown>;
+  process: Record<string, unknown> | null;
   documents: Array<{
     request: { id: string; label: string; proponente: string; doc_type: string | null };
     upload: { id: string; file_name: string | null; file_size: number | null } | null;
@@ -47,6 +48,8 @@ export default function BankSharePage({ params }: { params: { token: string } })
 
   // Initialize page
   useEffect(() => {
+    let ignore = false;
+
     const initPage = async () => {
       // 1. Check for existing valid session in sessionStorage
       const sessionKey = getSessionKey();
@@ -65,6 +68,8 @@ export default function BankSharePage({ params }: { params: { token: string } })
         sessionStorage.removeItem(sessionKey);
       }
 
+      if (ignore) return;
+
       if (existingSession) {
         // Valid session — go straight to loading data
         await loadPageData();
@@ -80,6 +85,8 @@ export default function BankSharePage({ params }: { params: { token: string } })
           body: JSON.stringify({ token }),
         });
 
+        if (ignore) return;
+
         if (response.status === 404) {
           setState('invalid');
           return;
@@ -93,11 +100,12 @@ export default function BankSharePage({ params }: { params: { token: string } })
         // 429 (rate limit) → token is valid, just show OTP gate without auto-sending
         setState('otp_gate');
       } catch {
-        setState('invalid');
+        if (!ignore) setState('invalid');
       }
     };
 
     initPage();
+    return () => { ignore = true; };
   }, [token]);
 
   const loadPageData = async () => {
@@ -395,9 +403,41 @@ export default function BankSharePage({ params }: { params: { token: string } })
   // VERIFIED STATE
   if (state === 'verified' && pageData) {
     const client = pageData.client as any;
-    const currentDate = new Date();
+    const proc = pageData.process as any;
     const expiresAt = new Date(pageData.link.expires_at);
     const expiryFormatted = expiresAt.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const TIPO_LABELS: Record<string, string> = {
+      credito_habitacao: 'Crédito Habitação',
+      renegociacao: 'Renegociação',
+      construcao: 'Construção',
+      outro: 'Outro',
+    };
+
+    const formatCurrency = (val: number | null | undefined): string => {
+      if (!val) return '—';
+      return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val);
+    };
+
+    const formatDate = (val: string | null | undefined): string => {
+      if (!val) return '—';
+      try { return new Date(val).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+      catch { return '—'; }
+    };
+
+    const formatPrazo = (months: number | null | undefined): string => {
+      if (!months) return '—';
+      if (months % 12 === 0) return `${months / 12} anos`;
+      return `${months} meses`;
+    };
+
+    // Derived
+    const tipoDeProcesso = proc?.tipo ? (TIPO_LABELS[proc.tipo] ?? proc.tipo) : (client.mortgage_type ?? '—');
+    const finalidade = proc?.finalidade ?? '—';
+    const montante = proc?.montante_solicitado ?? client.loan_amount ?? null;
+    const prazo = proc?.prazo_meses ?? client.term_months ?? null;
+    const valorImovel = proc?.valor_imovel ?? client.property_value ?? null;
+    const ltv = montante && valorImovel ? `${Math.round((montante / valorImovel) * 100)}%` : '—';
 
     // Document grouping
     const docsByProponente: Record<string, any[]> = {
@@ -418,38 +458,26 @@ export default function BankSharePage({ params }: { params: { token: string } })
       const lines: string[] = [];
       lines.push('DADOS DO PROCESSO');
       lines.push('');
-      lines.push(`Tipo de processo: ${client.mortgage_type ?? '—'}`);
-      lines.push(`Finalidade: ${client.notes_general ?? '—'}`);
-      const loanAmount = client.loan_amount ? new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(client.loan_amount) : '—';
-      lines.push(`Montante solicitado: ${loanAmount}`);
-      const term = client.term_months ? `${Math.floor(client.term_months / 12)} anos (${client.term_months} meses)` : '—';
-      lines.push(`Prazo: ${term}`);
-      const propValue = client.property_value ? new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(client.property_value) : '—';
-      lines.push(`Valor do imóvel: ${propValue}`);
-      const ltv = client.loan_amount && client.property_value ? `${Math.round((client.loan_amount / client.property_value) * 100)}%` : '—';
+      lines.push(`Tipo de processo: ${tipoDeProcesso}`);
+      lines.push(`Finalidade: ${finalidade}`);
+      lines.push(`Montante solicitado: ${formatCurrency(montante)}`);
+      lines.push(`Prazo: ${formatPrazo(prazo)}`);
+      lines.push(`Valor do imóvel: ${formatCurrency(valorImovel)}`);
       lines.push(`Rácio LTV: ${ltv}`);
       lines.push('');
 
-      // Proponents
-      ['p1', 'p2'].forEach((proponente, idx) => {
-        const num = idx + 1;
-        const nameKey = `${proponente}_name`;
-        const name = client[nameKey];
-        if (!name && proponente === 'p2') return;
+      (['p1', 'p2'] as const).forEach((p, idx) => {
+        const name = client[`${p}_name`];
+        if (!name && p === 'p2') return;
 
-        lines.push(`PROPONENTE ${num}`);
+        lines.push(`PROPONENTE ${idx + 1}`);
         lines.push(`Nome completo: ${name ?? '—'}`);
-        const birthDateKey = `${proponente}_birth_date`;
-        const birthDate = client[birthDateKey] ? new Date(client[birthDateKey]).toLocaleDateString('pt-PT') : '—';
-        lines.push(`Data de nascimento: ${birthDate}`);
-        const nifKey = `${proponente}_nif`;
-        lines.push(`NIF: ${client[nifKey] ?? '—'}`);
-        lines.push(`Estado civil: —`);
-        lines.push(`Profissão: —`);
-        lines.push(`Entidade empregadora: —`);
-        const empTypeKey = `${proponente}_employment_type`;
-        lines.push(`Tipo de contrato: ${client[empTypeKey] ?? '—'}`);
-        lines.push(`Rendimento mensal líquido: —`);
+        lines.push(`Data de nascimento: ${formatDate(client[`${p}_birth_date`] as string)}`);
+        lines.push(`NIF: ${client[`${p}_nif`] ?? '—'}`);
+        lines.push(`Profissão: ${proc?.[`${p}_profissao`] ?? '—'}`);
+        lines.push(`Entidade empregadora: ${proc?.[`${p}_entidade_empregadora`] ?? '—'}`);
+        lines.push(`Tipo de contrato: ${proc?.[`${p}_tipo_contrato`] ?? client[`${p}_employment_type`] ?? '—'}`);
+        lines.push(`Rendimento mensal líquido: ${formatCurrency(proc?.[`${p}_rendimento_mensal`] as number)}`);
         lines.push('');
       });
 
@@ -493,24 +521,12 @@ export default function BankSharePage({ params }: { params: { token: string } })
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {[
-                { label: 'Tipo de processo', value: client.mortgage_type ?? '—' },
-                { label: 'Finalidade', value: client.notes_general ?? '—' },
-                {
-                  label: 'Montante solicitado',
-                  value: client.loan_amount ? new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(client.loan_amount) : '—',
-                },
-                {
-                  label: 'Prazo',
-                  value: client.term_months ? `${Math.floor(client.term_months / 12)} anos (${client.term_months} meses)` : '—',
-                },
-                {
-                  label: 'Valor do imóvel',
-                  value: client.property_value ? new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(client.property_value) : '—',
-                },
-                {
-                  label: 'Rácio LTV',
-                  value: client.loan_amount && client.property_value ? `${Math.round((client.loan_amount / client.property_value) * 100)}%` : '—',
-                },
+                { label: 'Tipo de processo', value: tipoDeProcesso },
+                { label: 'Finalidade', value: finalidade },
+                { label: 'Montante solicitado', value: formatCurrency(montante) },
+                { label: 'Prazo', value: formatPrazo(prazo) },
+                { label: 'Valor do imóvel', value: formatCurrency(valorImovel) },
+                { label: 'Rácio LTV', value: ltv },
               ].map((field, idx) => (
                 <div key={idx} className="bg-white rounded-lg border border-slate-200 p-3 relative">
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">{field.label}</p>
@@ -526,28 +542,22 @@ export default function BankSharePage({ params }: { params: { token: string } })
             </div>
 
             {/* Proponents */}
-            {['p1', 'p2'].map((proponente, idx) => {
-              const num = idx + 1;
-              const nameKey = `${proponente}_name`;
-              const name = client[nameKey];
-              if (!name && proponente === 'p2') return null;
+            {(['p1', 'p2'] as const).map((p, idx) => {
+              const name = client[`${p}_name`];
+              if (!name && p === 'p2') return null;
 
               return (
-                <div key={proponente} className="mb-6">
-                  <h3 className="text-sm font-semibold text-slate-600 mb-3">Proponente {num}</h3>
+                <div key={p} className="mb-6">
+                  <h3 className="text-sm font-semibold text-slate-600 mb-3">Proponente {idx + 1}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {[
                       { label: 'Nome completo', value: name ?? '—' },
-                      {
-                        label: 'Data de nascimento',
-                        value: client[`${proponente}_birth_date`] ? new Date(client[`${proponente}_birth_date`]).toLocaleDateString('pt-PT') : '—',
-                      },
-                      { label: 'NIF', value: client[`${proponente}_nif`] ?? '—' },
-                      { label: 'Estado civil', value: '—' },
-                      { label: 'Profissão', value: '—' },
-                      { label: 'Entidade empregadora', value: '—' },
-                      { label: 'Tipo de contrato', value: client[`${proponente}_employment_type`] ?? '—' },
-                      { label: 'Rendimento mensal líquido', value: '—' },
+                      { label: 'Data de nascimento', value: formatDate(client[`${p}_birth_date`] as string) },
+                      { label: 'NIF', value: client[`${p}_nif`] ?? '—' },
+                      { label: 'Profissão', value: proc?.[`${p}_profissao`] ?? '—' },
+                      { label: 'Entidade empregadora', value: proc?.[`${p}_entidade_empregadora`] ?? '—' },
+                      { label: 'Tipo de contrato', value: proc?.[`${p}_tipo_contrato`] ?? client[`${p}_employment_type`] ?? '—' },
+                      { label: 'Rendimento mensal líquido', value: formatCurrency(proc?.[`${p}_rendimento_mensal`] as number) },
                     ].map((field, fieldIdx) => (
                       <div key={fieldIdx} className="bg-slate-50 rounded-lg border border-slate-200 p-3 relative">
                         <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">{field.label}</p>

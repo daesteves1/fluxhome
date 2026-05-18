@@ -11,6 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { banks, type Bank } from '@/lib/banks';
 import { cn } from '@/lib/utils';
+import {
+  MethodChoiceStep,
+  FineUploadStep,
+  ExtractionProcessingScreen,
+  type ExtractionResult,
+  type ExtractedPropostaData,
+} from './fine-extraction-flow';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -410,7 +417,7 @@ function Step2Condicoes({
           <Input type="number" step="0.01" value={data.taeg} onChange={(e) => onChange({ taeg: e.target.value })} placeholder="4.32" />
         </div>
         <div className="space-y-1.5">
-          <Label>MTIC (€) <span className="text-xs text-slate-400">introduzido manualmente</span></Label>
+          <Label>MTIC (€)</Label>
           <Input type="number" step="0.01" value={data.mtic} onChange={(e) => onChange({ mtic: e.target.value })} placeholder="—" />
         </div>
         <div className="space-y-1.5">
@@ -844,12 +851,16 @@ function SuccessScreen({
   clientId,
   bankName,
   onAddAnother,
+  backUrl,
 }: {
   clientId: string;
   bankName: string;
   onAddAnother: () => void;
+  backUrl?: string;
 }) {
   const router = useRouter();
+  const propostsUrl = backUrl ?? `/dashboard/clients/${clientId}?tab=propostas`;
+  const homeUrl = backUrl ? backUrl.split('?')[0] : `/dashboard/clients/${clientId}`;
   return (
     <div className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center bg-slate-50 px-6 py-12">
       <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mb-6">
@@ -862,11 +873,11 @@ function SuccessScreen({
         <Button className="w-full" onClick={onAddAnother}>
           Adicionar outra proposta
         </Button>
-        <Button variant="outline" className="w-full" onClick={() => router.push(`/dashboard/clients/${clientId}?tab=propostas`)}>
+        <Button variant="outline" className="w-full" onClick={() => router.push(propostsUrl)}>
           Ver mapa comparativo
         </Button>
-        <Button variant="ghost" className="w-full text-slate-500" onClick={() => router.push(`/dashboard/clients/${clientId}`)}>
-          Voltar ao cliente
+        <Button variant="ghost" className="w-full text-slate-500" onClick={() => router.push(homeUrl)}>
+          Voltar
         </Button>
       </div>
     </div>
@@ -880,17 +891,227 @@ interface NewPropostaStepperProps {
   p2Name?: string | null;
   clientLoanAmount?: number | null;
   clientTermMonths?: number | null;
+  backUrl?: string;
+  aiExtractionEnabled?: boolean;
+  processId?: string;
+  initialExtractionId?: string | null;
+  initialExtractedData?: { extracted_data: Record<string, unknown>; confidence_data: Record<string, number>; pdf_path: string | null } | null;
 }
+
+// ─── Helper: map extracted data → FormData ────────────────────────────────────
+
+function euriborNumToIndex(n: number | null): EuriborIndex {
+  if (n === 3) return '3m';
+  if (n === 12) return '12m';
+  return '6m';
+}
+
+function extractedToFormData(
+  extracted: ExtractedPropostaData,
+  clientLoanAmount?: number | null,
+  clientTermMonths?: number | null,
+): FormData {
+  const base = emptyForm(clientLoanAmount, clientTermMonths);
+  const rateType: RateType = extracted.rate_type ?? 'variavel';
+
+  // Find matching bank
+  const matchedBank = banks.find(
+    (b) => b.name.toLowerCase() === (extracted.bank_name ?? '').toLowerCase()
+      || b.shortName.toLowerCase() === (extracted.bank_name ?? '').toLowerCase()
+  );
+
+  const vida_p1_externa = extracted.vida_p1_externa != null ? String(extracted.vida_p1_externa) : '';
+  const multiriscos_externa = extracted.multiriscos_externa != null ? String(extracted.multiriscos_externa) : '';
+
+  return {
+    ...base,
+    bank_id: matchedBank?.id ?? 'custom',
+    bank_name: extracted.bank_name ?? '',
+    rate_type: rateType,
+    euribor_index: euriborNumToIndex(extracted.euribor_index),
+    spread: extracted.spread != null ? String(extracted.spread) : '',
+    tan_fixa: extracted.tan_fixa != null ? String(extracted.tan_fixa) : (rateType === 'fixa' && extracted.tan != null ? String(extracted.tan) : ''),
+    prazo_fixo_anos: extracted.prazo_fixo_anos != null ? String(extracted.prazo_fixo_anos) : '',
+    periodo_fixo_anos: extracted.periodo_fixo_anos != null ? String(extracted.periodo_fixo_anos) : '',
+    tan_periodo_fixo: extracted.tan_periodo_fixo != null ? String(extracted.tan_periodo_fixo) : '',
+    spread_pos_fixo: extracted.spread_pos_fixo != null ? String(extracted.spread_pos_fixo) : '',
+    montante: extracted.loan_amount != null ? String(extracted.loan_amount) : (clientLoanAmount ? String(clientLoanAmount) : ''),
+    prazo_meses: extracted.term_months != null ? String(extracted.term_months) : (clientTermMonths ? String(clientTermMonths) : ''),
+    valor_avaliacao: extracted.valor_avaliacao != null ? String(extracted.valor_avaliacao) : '',
+    monthly_payment: extracted.monthly_payment != null ? String(extracted.monthly_payment) : '',
+    tan: extracted.tan != null ? String(extracted.tan) : '',
+    taeg: extracted.taeg != null ? String(extracted.taeg) : '',
+    mtic: extracted.mtic != null ? String(extracted.mtic) : '',
+    validade_ate: extracted.validade_ate ?? base.validade_ate,
+    vida_p1_banco: extracted.vida_p1_banco != null ? String(extracted.vida_p1_banco) : '',
+    vida_p1_externa,
+    vida_p1_recomendada: vida_p1_externa ? 'externa' : 'banco',
+    multiriscos_banco: extracted.multiriscos_banco != null ? String(extracted.multiriscos_banco) : '',
+    multiriscos_externa,
+    multiriscos_recomendada: multiriscos_externa ? 'externa' : 'banco',
+    manutencao_conta: extracted.manutencao_conta != null ? String(extracted.manutencao_conta) : '',
+    comissao_abertura: extracted.comissao_abertura != null ? String(extracted.comissao_abertura) : '',
+    comissao_formalizacao: extracted.comissao_formalizacao != null ? String(extracted.comissao_formalizacao) : '',
+    despesas_avaliacao: extracted.despesas_avaliacao != null ? String(extracted.despesas_avaliacao) : '',
+    comissao_avaliacao: extracted.comissao_avaliacao != null ? String(extracted.comissao_avaliacao) : '',
+    despesas_escritura: extracted.despesas_escritura != null ? String(extracted.despesas_escritura) : '',
+    imposto_selo: extracted.imposto_selo != null ? String(extracted.imposto_selo) : '',
+    registo_predial: extracted.registo_predial != null ? String(extracted.registo_predial) : '',
+    condicoes_spread: extracted.condicoes_spread ?? [],
+    condicoes_pos_fixo: extracted.condicoes_pos_fixo ?? '',
+  };
+}
+
+// ─── Validation screen (Step 7) ───────────────────────────────────────────────
+
+function ValidationSection({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+        <p className="text-sm font-semibold text-slate-700">{title}</p>
+        {action}
+      </div>
+      <div className="px-4 py-4">{children}</div>
+    </div>
+  );
+}
+
+function BankValidationSection({
+  data,
+  onChange,
+}: {
+  data: FormData;
+  onChange: (patch: Partial<FormData>) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const bank = banks.find((b) => b.id === data.bank_id);
+
+  return (
+    <ValidationSection
+      title="Banco"
+      action={
+        <button
+          type="button"
+          onClick={() => setEditing((v) => !v)}
+          className="text-xs text-primary hover:underline"
+        >
+          {editing ? 'Fechar' : 'Alterar'}
+        </button>
+      }
+    >
+      {editing ? (
+        <Step1Banco data={data} onChange={(p) => { onChange(p); if (p.bank_id) setEditing(false); }} errors={{}} />
+      ) : (
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+            style={{ backgroundColor: bank?.color ?? '#94a3b8' }}
+          >
+            {(bank?.shortName ?? data.bank_name).slice(0, 2)}
+          </div>
+          <div>
+            <p className="text-sm font-medium text-slate-900">{data.bank_name || '—'}</p>
+            {bank && <p className="text-xs text-slate-400">{bank.name}</p>}
+          </div>
+        </div>
+      )}
+    </ValidationSection>
+  );
+}
+
+function ValidationScreen({
+  data,
+  onChange,
+  hasP2,
+  clientId,
+}: {
+  data: FormData;
+  confidence: Record<string, number>;
+  onChange: (patch: Partial<FormData>) => void;
+  hasP2: boolean;
+  clientId: string;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+        Dados extraídos automaticamente da FINE. Verifica e corrige se necessário antes de guardar.
+      </div>
+
+      <BankValidationSection data={data} onChange={onChange} />
+
+      <ValidationSection title="Condições do empréstimo">
+        <Step2Condicoes data={data} onChange={onChange} errors={{}} />
+      </ValidationSection>
+
+      <ValidationSection title="Seguros">
+        <Step3Seguros data={data} onChange={onChange} hasP2={hasP2} />
+      </ValidationSection>
+
+      <ValidationSection title="Encargos únicos">
+        <Step4Encargos data={data} onChange={onChange} />
+      </ValidationSection>
+
+      <ValidationSection title="Condições & notas">
+        <Step5Notas data={data} onChange={onChange} clientId={clientId} />
+      </ValidationSection>
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 
 export function NewPropostaStepper({
   clientId,
   p2Name,
   clientLoanAmount,
   clientTermMonths,
+  backUrl,
+  aiExtractionEnabled = false,
+  processId,
+  initialExtractionId = null,
+  initialExtractedData = null,
 }: NewPropostaStepperProps) {
   const hasP2 = Boolean(p2Name);
+
+  // ── FINE extraction flow state ─────────────────────────────────────────────
+  type FineFlowStage =
+    | 'method_choice'   // Step 0 — only if aiExtractionEnabled
+    | 'fine_upload'     // dropzone
+    | 'fine_processing' // spinner
+    | 'manual'          // regular stepper
+    | 'validation';     // pre-filled validation step
+
+  // If arriving from "Validar agora" with an existing extraction, start in validation
+  const initialStage: FineFlowStage = initialExtractionId && initialExtractedData
+    ? 'validation'
+    : aiExtractionEnabled ? 'method_choice' : 'manual';
+
+  const [fineStage, setFineStage] = useState<FineFlowStage>(initialStage);
+  const [extractionId, setExtractionId] = useState<string | null>(initialExtractionId);
+  const [extractionFileName, setExtractionFileName] = useState('');
+  const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(
+    initialExtractedData
+      ? { id: initialExtractionId ?? '', status: 'complete', extracted_data: initialExtractedData.extracted_data as any, confidence_data: initialExtractedData.confidence_data, error_message: null, pdf_path: initialExtractedData.pdf_path }
+      : null
+  );
+  const [extractedPdfPath, setExtractedPdfPath] = useState<string | null>(initialExtractedData?.pdf_path ?? null);
+
+  // ── Regular stepper state ──────────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState(0);
-  const [data, setData] = useState<FormData>(() => emptyForm(clientLoanAmount, clientTermMonths));
+  const [data, setData] = useState<FormData>(() => {
+    if (initialExtractionId && initialExtractedData?.extracted_data) {
+      return extractedToFormData(initialExtractedData.extracted_data as any, clientLoanAmount, clientTermMonths);
+    }
+    return emptyForm(clientLoanAmount, clientTermMonths);
+  });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successBankName, setSuccessBankName] = useState<string | null>(null);
@@ -940,7 +1161,7 @@ export function NewPropostaStepper({
 
   const router = useRouter();
   function handleCancel() {
-    router.push(`/dashboard/clients/${clientId}?tab=propostas`);
+    router.push(backUrl ?? `/dashboard/clients/${clientId}?tab=propostas`);
   }
 
   async function handleSubmit() {
@@ -987,7 +1208,11 @@ export function NewPropostaStepper({
         notes: data.notes || null,
       };
 
-      const res = await fetch(`/api/clients/${clientId}/bank-propostas`, {
+      const propostaEndpoint = processId
+        ? `/api/processes/${processId}/bank-propostas`
+        : `/api/clients/${clientId}/bank-propostas`;
+
+      const res = await fetch(propostaEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1000,15 +1225,39 @@ export function NewPropostaStepper({
       }
 
       const saved = await res.json() as { id?: string };
+      const propostaId = saved.id;
 
-      // Upload PDF if present
-      if (data.bank_pdf_file && saved.id) {
+      // Upload PDF if present (manual upload)
+      if (data.bank_pdf_file && propostaId) {
         const fd = new FormData();
         fd.append('file', data.bank_pdf_file);
-        await fetch(`/api/clients/${clientId}/bank-propostas/${saved.id}/upload-pdf`, {
+        await fetch(`/api/clients/${clientId}/bank-propostas/${propostaId}/upload-pdf`, {
           method: 'POST',
           body: fd,
         });
+      }
+
+      // If this came from AI extraction: link extraction row and count edited fields
+      if (extractionId && propostaId && extractionResult?.extracted_data) {
+        const extracted = extractionResult.extracted_data;
+        // Count fields the broker changed vs auto-accepted
+        const fieldsEdited = [
+          { key: 'bank_name', orig: extracted.bank_name, curr: data.bank_name },
+          { key: 'montante', orig: extracted.loan_amount != null ? String(extracted.loan_amount) : '', curr: data.montante },
+          { key: 'spread', orig: extracted.spread != null ? String(extracted.spread) : '', curr: data.spread },
+          { key: 'tan', orig: extracted.tan != null ? String(extracted.tan) : '', curr: data.tan },
+          { key: 'monthly_payment', orig: extracted.monthly_payment != null ? String(extracted.monthly_payment) : '', curr: data.monthly_payment },
+          { key: 'mtic', orig: extracted.mtic != null ? String(extracted.mtic) : '', curr: data.mtic },
+          { key: 'manutencao_conta', orig: extracted.manutencao_conta != null ? String(extracted.manutencao_conta) : '', curr: data.manutencao_conta },
+        ].filter(({ orig, curr }) => String(orig ?? '') !== String(curr ?? '')).length;
+
+        try {
+          await fetch(`/api/proposta-extractions/${extractionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proposta_id: propostaId, fields_edited: fieldsEdited }),
+          });
+        } catch { /* non-critical */ }
       }
 
       setSuccessBankName(data.bank_name);
@@ -1019,12 +1268,13 @@ export function NewPropostaStepper({
     }
   }
 
-  // Success
+  // Success screen — must be checked before any fineStage early returns
   if (successBankName) {
     return (
       <SuccessScreen
         clientId={clientId}
         bankName={successBankName}
+        backUrl={backUrl}
         onAddAnother={() => {
           setData(emptyForm(clientLoanAmount, clientTermMonths));
           setCurrentStep(0);
@@ -1032,6 +1282,120 @@ export function NewPropostaStepper({
           setErrors({});
         }}
       />
+    );
+  }
+
+  // ── FINE extraction flow screens ──────────────────────────────────────────
+  if (fineStage === 'method_choice') {
+    return (
+      <div className="max-w-2xl mx-auto space-y-5">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold text-slate-900">Como queres criar esta proposta?</h2>
+          <p className="text-sm text-slate-500">Escolhe o método de criação da proposta bancária.</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <MethodChoiceStep
+            onChooseManual={() => setFineStage('manual')}
+            onChooseFine={() => setFineStage('fine_upload')}
+          />
+        </div>
+        <div className="flex">
+          <button type="button" onClick={handleCancel} className="text-sm text-slate-400 hover:text-slate-600">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (fineStage === 'fine_upload') {
+    return (
+      <div className="max-w-2xl mx-auto space-y-5">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold text-slate-900">Carregar FINE</h2>
+          <p className="text-sm text-slate-500">Seleciona o PDF da FINE enviado pelo banco.</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <FineUploadStep
+            processId={processId ?? ''}
+            onExtractionStarted={(eid, fname) => {
+              setExtractionId(eid);
+              setExtractionFileName(fname);
+              setFineStage('fine_processing');
+            }}
+            onBack={() => setFineStage('method_choice')}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (fineStage === 'fine_processing') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <ExtractionProcessingScreen
+            extractionId={extractionId ?? ''}
+            fileName={extractionFileName}
+            backUrl={backUrl ?? `/dashboard/clients/${clientId}?tab=propostas`}
+            onComplete={(result) => {
+              setExtractionResult(result);
+              setExtractedPdfPath(result.pdf_path ?? null);
+              if (result.extracted_data) {
+                setData(extractedToFormData(result.extracted_data, clientLoanAmount, clientTermMonths));
+              }
+              setFineStage('validation');
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (fineStage === 'validation') {
+    return (
+      <div className="max-w-2xl mx-auto space-y-5">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <div>
+              <span className="font-semibold text-slate-900">Validar proposta extraída</span>
+              <span className="text-slate-400 ml-2">Confirma os dados antes de guardar</span>
+            </div>
+            <button type="button" onClick={() => setFineStage('manual')} className="text-xs text-slate-400 hover:text-slate-600">
+              Editar passo a passo
+            </button>
+          </div>
+          {/* All steps shown as complete */}
+          <div className="hidden sm:flex gap-1 overflow-x-auto pb-0.5">
+            {STEPS.map((s) => (
+              <span key={s.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-500">
+                <Check className="h-3 w-3 shrink-0 text-emerald-500" />
+                {s.name}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {errors._form && (
+          <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{errors._form}</div>
+        )}
+        <ValidationScreen
+          data={data}
+          confidence={extractionResult?.confidence_data ?? {}}
+          onChange={onChange}
+          hasP2={hasP2}
+          clientId={clientId}
+        />
+
+        <div className="flex items-center justify-between pb-4">
+          <button type="button" onClick={() => setFineStage('fine_upload')} className="text-sm text-slate-400 hover:text-slate-600">
+            ← Recarregar FINE
+          </button>
+          <Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="min-w-[160px]">
+            {isSubmitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />A guardar…</> : 'Guardar proposta'}
+          </Button>
+        </div>
+      </div>
     );
   }
 
@@ -1058,7 +1422,7 @@ export function NewPropostaStepper({
       </div>
 
       {/* Step tabs (desktop) */}
-      <div className="hidden sm:flex gap-1 overflow-x-auto pb-0.5">
+      <div className="hidden sm:flex gap-1 overflow-x-auto scrollbar-none">
         {STEPS.map((s, i) => {
           const done = completedSteps[i] ?? false;
           const active = i === currentStep;

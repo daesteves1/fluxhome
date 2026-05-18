@@ -8,315 +8,276 @@ import {
   YAxis,
   Tooltip,
   Legend,
-  LineChart,
-  Line,
-  CartesianGrid,
-  Cell,
   LabelList,
-  ReferenceArea,
-  ReferenceLine,
+  Cell,
 } from 'recharts';
-import type { TooltipContentProps } from 'recharts';
 import type { BankProposta } from '@/types/proposta';
-import { calcTotalRecomendado, fmtEur } from '@/types/proposta';
 
 interface ChartProps {
   propostas: BankProposta[];
   recommendedId: string | null;
 }
 
-// Bank color by name
-const BANK_COLOR_MAP: Record<string, string> = {
-  'CGD': '#1E40AF', 'Caixa Geral de Depósitos': '#1E40AF',
-  'BPI': '#7C3AED',
-  'Santander': '#DC2626',
-  'Novo Banco': '#15803D',
-  'Banco CTT': '#0891B2',
-  'ActivoBank': '#D97706',
-  'Millennium BCP': '#BE185D',
-};
-const FALLBACK_COLORS = ['#1E40AF', '#7C3AED', '#0891B2', '#D97706', '#15803D', '#DC2626', '#BE185D', '#64748b'];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getBankColor(bankName: string, idx: number, isRec: boolean): string {
-  if (isRec) return '#1E40AF';
-  return BANK_COLOR_MAP[bankName] ?? FALLBACK_COLORS[idx % FALLBACK_COLORS.length] ?? '#64748b';
+/** Monthly payment given monthly decimal rate, number of periods, principal. */
+function pmt(rate: number, nper: number, pv: number): number {
+  if (rate <= 0 || nper <= 0 || pv <= 0) return pv / Math.max(1, nper);
+  return (rate * pv) / (1 - Math.pow(1 + rate, -nper));
 }
 
-function fmtAbbrev(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M€`;
-  if (v >= 1000) return `${Math.round(v / 1000)}k€`;
-  return `${Math.round(v)}€`;
+function fmtEur(v: number): string {
+  return v.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 }
 
-function pmt(principal: number, tanDecimal: number, months: number): number {
-  const r = tanDecimal / 12;
-  if (r <= 0 || months <= 0) return principal > 0 ? principal / Math.max(1, months) : 0;
-  return (principal * r) / (1 - Math.pow(1 + r, -months));
+function fmtEurDec(v: number): string {
+  return v.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// ─── Chart 1: Prestação Mensal Comparativa ────────────────────────────────────
+const BANK_COLORS = ['#1E40AF', '#7C3AED', '#0891B2', '#D97706', '#15803D', '#DC2626', '#BE185D', '#64748b'];
+function bankColor(idx: number): string {
+  return BANK_COLORS[idx % BANK_COLORS.length] ?? '#64748b';
+}
 
-function Chart1Tooltip(props: TooltipContentProps<number, string>) {
-  const { active, payload, label } = props;
+// Short display name — trim long legal suffixes for chart axes
+function shortName(name: string): string {
+  return name.replace(/\s+(S\.A\.|SA|,? S\.A\.)$/i, '').trim();
+}
+
+// ─── Chart 1 — Prestação Mensal (Juros + Amortização) ────────────────────────
+
+const AMORT_COLOR = '#3B82F6'; // blue-500
+const JUROS_COLOR = '#F59E0B'; // amber-400
+
+interface BarEntry {
+  bank: string;
+  amortizacao: number;
+  juros: number;
+  total: number;
+  idx: number;
+}
+
+function buildBarData(propostas: BankProposta[]): BarEntry[] {
+  return propostas
+    .map((p, idx) => {
+      const monthly = p.monthly_payment;
+      const loan = p.loan_amount;
+      const tan = p.tan; // percentage, e.g. 4.15 for 4.15%
+      if (!monthly || !loan || !tan) return null;
+
+      const jurosMensal = loan * (tan / 100) / 12;
+      const amort = Math.max(0, monthly - jurosMensal);
+      const juros = Math.max(0, Math.min(jurosMensal, monthly));
+
+      return {
+        bank: shortName(p.bank_name),
+        amortizacao: Math.round(amort * 100) / 100,
+        juros: Math.round(juros * 100) / 100,
+        total: Math.round(monthly * 100) / 100,
+        idx,
+      };
+    })
+    .filter((x): x is BarEntry => x !== null);
+}
+
+function TotalLabel(props: { x?: number; y?: number; width?: number; value?: number }) {
+  const { x = 0, y = 0, width = 0, value } = props;
+  if (!value) return null;
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 6}
+      textAnchor="middle"
+      fill="#374151"
+      fontSize={11}
+      fontWeight={600}
+    >
+      {fmtEur(value)}
+    </text>
+  );
+}
+
+function Chart1Tooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload as Record<string, number | string | boolean> | undefined;
-  if (!d) return null;
+  const total = (payload[0]?.value ?? 0) + (payload[1]?.value ?? 0);
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs min-w-[180px]">
-      <p className="font-bold text-gray-800 mb-2">{label}</p>
-      {payload.map((entry) => (
-        <p key={String(entry.name)} className="flex justify-between gap-4" style={{ color: entry.color as string | undefined }}>
-          <span>{entry.name}:</span>
-          <span className="font-semibold">{fmtEur(entry.value as number)}</span>
-        </p>
-      ))}
-      {typeof d._prestacao === 'number' && d._prestacao > 0 && (
-        <div className="mt-2 pt-2 border-t border-gray-100 space-y-0.5">
-          {(d._prestacao as number) > 0 && <p className="flex justify-between text-gray-500"><span>Prestação base:</span><span>{fmtEur(d._prestacao as number)}</span></p>}
-          {(d._seguros as number) > 0 && <p className="flex justify-between text-gray-500"><span>Seguros:</span><span>{fmtEur(d._seguros as number)}</span></p>}
-          {(d._manutencao as number) > 0 && <p className="flex justify-between text-gray-500"><span>Manutenção:</span><span>{fmtEur(d._manutencao as number)}</span></p>}
+      <p className="font-semibold text-gray-800 mb-2">{label}</p>
+      {[...payload].reverse().map((entry) => (
+        <div key={entry.name} className="flex justify-between gap-4 items-center mb-1">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: entry.color }} />
+            {entry.name}
+          </span>
+          <span className="font-medium">{fmtEurDec(entry.value)}</span>
         </div>
+      ))}
+      <div className="mt-1.5 pt-1.5 border-t border-gray-100 flex justify-between font-semibold text-gray-700">
+        <span>Total</span>
+        <span>{fmtEurDec(total)}</span>
+      </div>
+    </div>
+  );
+}
+
+function PrestacaoMensalChart({ propostas }: ChartProps) {
+  const data = buildBarData(propostas);
+  if (!data.length) return null;
+
+  const hasMista = propostas.some((p) => p.rate_type === 'mista');
+  const fixedYears = hasMista
+    ? (propostas.find((p) => p.rate_type === 'mista')?.fixed_period_years ?? null)
+    : null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <p className="text-sm font-bold text-gray-800">Prestação Mensal Estimada</p>
+      <p className="text-xs text-gray-500 mt-0.5 mb-5">Distribuição entre juros e amortização de capital</p>
+
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={data} barCategoryGap="35%" margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
+          <XAxis
+            dataKey="bank"
+            tick={{ fontSize: 11, fill: '#6B7280' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: '#9CA3AF' }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v: number) => `${Math.round(v)}€`}
+            width={52}
+          />
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <Tooltip content={(props: any) => <Chart1Tooltip {...props} />} cursor={{ fill: '#F9FAFB' }} />
+          <Bar dataKey="amortizacao" name="Amortização" stackId="a" fill={AMORT_COLOR} radius={[0, 0, 3, 3]}>
+            {data.map((entry) => (
+              <Cell key={entry.bank} fill={AMORT_COLOR} fillOpacity={0.75 + entry.idx * 0} />
+            ))}
+          </Bar>
+          <Bar dataKey="juros" name="Juros" stackId="a" fill={JUROS_COLOR} radius={[3, 3, 0, 0]}>
+            {data.map((entry) => (
+              <Cell key={entry.bank} fill={JUROS_COLOR} />
+            ))}
+            <LabelList
+              dataKey="total"
+              position="top"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              content={(props: any) => <TotalLabel {...props} />}
+            />
+          </Bar>
+          <Legend
+            wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
+            formatter={(value: string) => value === 'amortizacao' ? 'Amortização de Capital' : 'Juros'}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+
+      {hasMista && fixedYears && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3">
+          Valores calculados para o período fixo inicial de {fixedYears} {fixedYears === 1 ? 'ano' : 'anos'}.
+        </p>
       )}
     </div>
   );
 }
 
-export function MonthlyTotalBarChart({ propostas, recommendedId }: ChartProps) {
-  const data = propostas.map((p, i) => {
-    const total = calcTotalRecomendado(p);
-    const seguros = total - (p.monthly_payment ?? 0) - (p.manutencao_conta ?? 0) - (p.outras_comissoes_mensais ?? 0);
-    return {
-      name: p.bank_name,
-      'Prestação recomendada': total > 0 ? Math.round(total * 100) / 100 : 0,
-      _prestacao: p.monthly_payment ?? 0,
-      _seguros: Math.max(0, seguros),
-      _manutencao: (p.manutencao_conta ?? 0) + (p.outras_comissoes_mensais ?? 0),
-      isRec: p.id === recommendedId,
-      color: getBankColor(p.bank_name, i, p.id === recommendedId),
-    };
-  });
+// ─── Chart 2 — Sensibilidade à Euribor ───────────────────────────────────────
 
-  const allVals = data.map((d) => d['Prestação recomendada']).filter((v) => v > 0);
-  const yMin = allVals.length ? Math.floor(Math.min(...allVals) * 0.8) : 0;
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <p className="text-sm font-bold text-gray-800">Prestação Mensal Total</p>
-      <p className="text-xs text-gray-500 mt-0.5 mb-4">Valor mensal estimado a pagar com seguros recomendados</p>
-      <ResponsiveContainer width="100%" height={320}>
-        <BarChart data={data} barCategoryGap="30%" syncId={undefined}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-          <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={fmtAbbrev} domain={[yMin, 'auto']} />
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <Tooltip content={(p: any) => <Chart1Tooltip {...p} />} />
-          <Bar dataKey="Prestação recomendada" radius={[4, 4, 0, 0]}>
-            {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-            <LabelList dataKey="Prestação recomendada" position="top" formatter={(v: unknown) => typeof v === 'number' && v > 0 ? `${Math.round(v)}€` : ''} style={{ fontSize: 10, fill: '#374151', fontWeight: 600 }} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-      <p className="text-[10px] text-gray-400 mt-1">* O eixo vertical não começa em zero para ampliar as diferenças</p>
-    </div>
-  );
+interface EuriborScenario {
+  label: string;
+  delta: number; // pp relative to euribor_atual
+  rowClass: string;
+  isCurrent: boolean;
 }
 
-// ─── Chart 2: Custo Total Estimado ────────────────────────────────────────────
+function buildSensibilidadeTable(propostas: BankProposta[]) {
+  // Find the reference Euribor from the first variavel/mista proposta
+  const refProposta = propostas.find((p) => p.rate_type === 'variavel' || p.rate_type === 'mista');
+  const refTan = refProposta?.tan ?? 0;        // percentage e.g. 4.15
+  const refSpread = refProposta?.spread ?? 0;  // percentage e.g. 0.70
+  const euriborAtual = refTan - refSpread;     // e.g. 3.45
 
-export function TotalCostBarChart({ propostas, recommendedId }: ChartProps) {
-  const withValues = propostas.map((p, i) => {
-    const monthly = calcTotalRecomendado(p);
-    const total = (p.term_months ?? 0) > 0 ? monthly * p.term_months! : 0;
-    return { proposta: p, total, idx: i };
-  }).filter((d) => d.total > 0);
+  const scenarios: EuriborScenario[] = [
+    { label: 'Euribor −1%', delta: -1, rowClass: 'bg-green-50', isCurrent: false },
+    { label: `Euribor atual (${euriborAtual.toFixed(2)}%)`, delta: 0, rowClass: 'bg-white', isCurrent: true },
+    { label: 'Euribor +1%', delta: 1, rowClass: 'bg-amber-50', isCurrent: false },
+    { label: 'Euribor +2%', delta: 2, rowClass: 'bg-red-50', isCurrent: false },
+  ];
 
-  if (!withValues.length) return null;
+  const rows = scenarios.map(({ label, delta, rowClass, isCurrent }) => {
+    const cells = propostas.map((p) => {
+      if (!p.loan_amount || !p.term_months) return null;
 
-  const minTotal = Math.min(...withValues.map((d) => d.total));
-  const maxTotal = Math.max(...withValues.map((d) => d.total));
-
-  const data = withValues.map(({ proposta, total, idx }) => {
-    const isRec = proposta.id === recommendedId;
-    let color = '#64748b';
-    if (isRec) color = '#1E40AF';
-    else if (total === minTotal) color = '#15803D';
-    else if (total === maxTotal) color = '#DC2626';
-    const years = proposta.term_months ? Math.round(proposta.term_months / 12) : '?';
-    return {
-      name: proposta.bank_name,
-      total: Math.round(total),
-      color,
-      years,
-      _monthly: Math.round(calcTotalRecomendado(proposta)),
-      _idx: idx,
-    };
-  });
-
-  const maxVal = Math.max(...data.map((d) => d.total));
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <p className="text-sm font-bold text-gray-800">Custo Total Estimado do Crédito</p>
-      <p className="text-xs text-gray-500 mt-0.5 mb-4">Montante total a pagar ao longo de todo o prazo</p>
-      <ResponsiveContainer width="100%" height={Math.max(180, data.length * 48 + 40)}>
-        <BarChart data={data} layout="vertical" barCategoryGap="30%" syncId={undefined} margin={{ right: 70 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={fmtAbbrev} domain={[0, maxVal * 1.05]} />
-          <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} width={100} />
-          <Tooltip
-            formatter={(v: unknown, _name: unknown, props: { payload?: { years: string | number; _monthly: number } }) => [
-              fmtEur(typeof v === 'number' ? v : 0),
-              `Ao longo de ${props.payload?.years ?? '?'} anos (${fmtEur(props.payload?._monthly ?? 0)}/mês)`
-            ]}
-          />
-          <Bar dataKey="total" radius={[0, 4, 4, 0]}>
-            {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-            <LabelList dataKey="total" position="right" formatter={(v: unknown) => typeof v === 'number' ? fmtAbbrev(v) : ''} style={{ fontSize: 11, fill: '#374151', fontWeight: 600 }} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-      <p className="text-[10px] text-gray-400 mt-1">Valor indicativo. Inclui capital, juros e seguros ao longo de todo o prazo.</p>
-    </div>
-  );
-}
-
-// ─── Chart 3: Evolução do Capital em Dívida ───────────────────────────────────
-
-export function CapitalEvolutionChart({ propostas, recommendedId }: ChartProps) {
-  const valid = propostas.filter((p) => p.loan_amount && p.term_months && p.tan);
-  if (!valid.length) return null;
-
-  // Amortization — sample every 6 months
-  const datasets = valid.map((p, i) => {
-    const principal = p.loan_amount!;
-    const months = p.term_months!;
-    const tan = p.tan!; // stored as decimal e.g. 0.0415
-    const r = tan / 12;
-    const payment = pmt(principal, tan, months);
-    const points: { year: number; [key: string]: number }[] = [];
-    let balance = principal;
-    points.push({ year: 0, [p.bank_name]: Math.round(principal) });
-    for (let m = 1; m <= months; m++) {
-      const interest = balance * r;
-      balance = Math.max(0, balance - (payment - interest));
-      if (m % 6 === 0 || m === months) {
-        points.push({ year: parseFloat((m / 12).toFixed(1)), [p.bank_name]: Math.round(balance) });
+      if (p.rate_type === 'fixa') {
+        return { value: p.monthly_payment ?? null, isFixed: true };
       }
-    }
-    return { proposta: p, color: getBankColor(p.bank_name, i, p.id === recommendedId), points };
-  });
 
-  const allYears = Array.from(new Set(datasets.flatMap((d) => d.points.map((pt) => pt.year)))).sort((a, b) => a - b);
-  const mergedData = allYears.map((year) => {
-    const entry: Record<string, number> = { year };
-    datasets.forEach((d) => {
-      const pt = d.points.find((p) => p.year === year);
-      if (pt) entry[d.proposta.bank_name] = pt[d.proposta.bank_name] as number;
+      const spread = p.spread ?? 0;
+      const tan = p.tan ?? 0;
+      const euribor = tan - spread; // current euribor for this proposta
+      const scenarioEuribor = Math.max(0, euribor + delta);
+      const scenarioRate = (scenarioEuribor + spread) / 100 / 12;
+      const payment = pmt(scenarioRate, p.term_months, p.loan_amount);
+      return { value: Math.round(payment * 100) / 100, isFixed: false };
     });
-    return entry;
+
+    return { label, rowClass, isCurrent, cells };
   });
 
-  const refPropostaAmount = valid.find((p) => p.id === recommendedId)?.loan_amount ?? valid[0]?.loan_amount ?? 0;
-  const halfCapital = Math.round(refPropostaAmount / 2);
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <p className="text-sm font-bold text-gray-800">Capital em Dívida ao Longo do Tempo</p>
-      <p className="text-xs text-gray-500 mt-0.5 mb-4">Quanto ainda deve ao banco em cada momento do prazo</p>
-      <ResponsiveContainer width="100%" height={350}>
-        <LineChart data={mergedData} syncId={undefined}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          <XAxis dataKey="year" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v: number) => `Ano ${v}`} interval={4} />
-          <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={fmtAbbrev} />
-          <Tooltip formatter={(v) => fmtEur(v as number)} labelFormatter={(l) => `Ano ${l}`} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          {halfCapital > 0 && (
-            <ReferenceLine
-              y={halfCapital}
-              stroke="#94a3b8"
-              strokeDasharray="4 3"
-              label={{ value: 'Metade do capital em dívida', position: 'insideLeft', fontSize: 10, fill: '#94a3b8', offset: 6 }}
-            />
-          )}
-          {datasets.map((d) => (
-            <Line
-              key={d.proposta.id}
-              type="monotone"
-              dataKey={d.proposta.bank_name}
-              stroke={d.color}
-              strokeWidth={d.proposta.id === recommendedId ? 3 : 1.5}
-              dot={false}
-              activeDot={{ r: 5, fill: d.color }}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
+  return { rows, propostas };
 }
 
-// ─── Chart 4: Impacto Euribor ─────────────────────────────────────────────────
-
-const EURIBOR_SCENARIOS = [
-  { label: '-2%', delta: -0.02 },
-  { label: '-1%', delta: -0.01 },
-  { label: 'Atual', delta: 0 },
-  { label: '+1%', delta: 0.01 },
-  { label: '+2%', delta: 0.02 },
-  { label: '+3%', delta: 0.03 },
-];
-
-export function EuriborSensitivityChart({ propostas, recommendedId }: ChartProps) {
-  const eligible = propostas.filter((p) => p.loan_amount && p.term_months && p.tan);
-  const hasVariable = eligible.some((p) => p.rate_type === 'variavel' || p.rate_type === 'mista');
+function EuriborSensibilidadeTable({ propostas }: ChartProps) {
+  const hasVariable = propostas.some((p) => p.rate_type === 'variavel' || p.rate_type === 'mista');
   if (!hasVariable) return null;
 
-  const data = EURIBOR_SCENARIOS.map(({ label, delta }) => {
-    const entry: Record<string, number | string> = { scenario: label };
-    eligible.forEach((p) => {
-      let payment: number;
-      if (p.rate_type === 'fixa') {
-        payment = p.monthly_payment ?? pmt(p.loan_amount!, p.tan ?? 0, p.term_months!);
-      } else {
-        const scenarioTan = Math.max(0.001, (p.tan ?? 0) + delta);
-        payment = pmt(p.loan_amount!, scenarioTan, p.term_months!);
-      }
-      entry[p.bank_name] = Math.round(payment);
-    });
-    return entry;
-  });
-
-  const allPmts = data.flatMap((d) => eligible.map((p) => d[p.bank_name] as number)).filter((v) => v > 0);
-  const yMin = allPmts.length ? Math.floor(Math.min(...allPmts) - 50) : 0;
-  const yMax = allPmts.length ? Math.ceil(Math.max(...allPmts) + 50) : undefined;
+  const { rows } = buildSensibilidadeTable(propostas);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <p className="text-sm font-bold text-gray-800">Impacto de Variações da Euribor na Prestação</p>
-      <p className="text-xs text-gray-500 mt-0.5 mb-4">Como a prestação base muda consoante a evolução da Euribor (sem seguros)</p>
-      <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={data} syncId={undefined}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          <XAxis dataKey="scenario" tick={{ fontSize: 11, fill: '#64748b' }} />
-          <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={fmtAbbrev} domain={[yMin, yMax ?? 'auto']} />
-          <Tooltip formatter={(v) => fmtEur(v as number)} labelFormatter={(l) => `Cenário Euribor: ${l}`} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          <ReferenceArea x1="-1%" x2="+1%" fill="#FEF3C7" fillOpacity={0.5} label={{ value: 'Zona mais provável', position: 'insideTop', fontSize: 10, fill: '#92400e' }} />
-          {eligible.map((p, i) => (
-            <Line
-              key={p.id}
-              type="monotone"
-              dataKey={p.bank_name}
-              stroke={getBankColor(p.bank_name, i, p.id === recommendedId)}
-              strokeWidth={p.id === recommendedId ? 2.5 : 1.5}
-              strokeDasharray={p.rate_type === 'fixa' ? '5 5' : undefined}
-              dot={{ r: 3 }}
-              activeDot={{ r: 5 }}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-      <p className="text-[10px] text-gray-400 mt-1">Euribor de referência usada: valor atual do indexante registado em cada proposta.</p>
+    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <p className="text-sm font-bold text-gray-800">Impacto de Variações da Euribor</p>
+      <p className="text-xs text-gray-500 mt-0.5 mb-5">Como a sua prestação mensal muda consoante a evolução da Euribor</p>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-100">
+        <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100">
+              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3 min-w-[160px]">Cenário</th>
+              {propostas.map((p, i) => (
+                <th key={p.id} className="text-center text-xs font-semibold text-gray-700 px-3 py-3 min-w-[110px]">
+                  <span style={{ color: bankColor(i) }}>{shortName(p.bank_name)}</span>
+                  {p.rate_type === 'fixa' && (
+                    <span className="ml-1.5 inline-block text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5 font-normal">Taxa fixa</span>
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ label, rowClass, isCurrent, cells }) => (
+              <tr key={label} className={`${rowClass} border-b border-gray-50 last:border-0`}>
+                <td className={`px-4 py-3 text-xs ${isCurrent ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
+                  {label}
+                </td>
+                {cells.map((cell, ci) => (
+                  <td key={ci} className={`px-3 py-3 text-center text-xs ${isCurrent ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>
+                    {cell?.value != null ? (
+                      <span>
+                        {fmtEurDec(cell.value)}
+                        <span className="text-gray-400">/mês</span>
+                      </span>
+                    ) : '—'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-[11px] text-gray-400 mt-3">Valores estimados, sem seguros.</p>
     </div>
   );
 }
@@ -327,10 +288,12 @@ export function PropostasCharts({ propostas, recommendedId }: ChartProps) {
   if (!propostas.length) return null;
   return (
     <div className="space-y-4">
-      <MonthlyTotalBarChart propostas={propostas} recommendedId={recommendedId} />
-      <TotalCostBarChart propostas={propostas} recommendedId={recommendedId} />
-      <CapitalEvolutionChart propostas={propostas} recommendedId={recommendedId} />
-      <EuriborSensitivityChart propostas={propostas} recommendedId={recommendedId} />
+      <PrestacaoMensalChart propostas={propostas} recommendedId={recommendedId} />
+      <EuriborSensibilidadeTable propostas={propostas} recommendedId={recommendedId} />
     </div>
   );
 }
+
+// Named sub-exports kept for any direct usages elsewhere
+export { PrestacaoMensalChart as MonthlyTotalBarChart };
+export { EuriborSensibilidadeTable as EuriborSensitivityChart };

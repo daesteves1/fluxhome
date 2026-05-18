@@ -110,7 +110,7 @@ export default async function ProcessDetailPage({ params, searchParams }: PagePr
     <div className="space-y-4">
       <ProcessDetailHeader
         process={proc}
-        client={{ id: clientInfo.id, p1_name: clientInfo.p1_name, p2_name: clientInfo.p2_name }}
+        client={{ id: clientInfo.id, p1_name: clientInfo.p1_name, p2_name: clientInfo.p2_name, portal_token: clientInfo.portal_token }}
       />
       <ClientDetailTabs
         client={clientForTabs as Parameters<typeof ClientDetailTabs>[0]['client']}

@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { FileText, BarChart2, MessageSquare, Building2 } from 'lucide-react';
+import { FileText, BarChart2, MessageSquare, Building2, GitCompareArrows } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DocumentsTab } from './documents-tab';
 import { PropostasTab } from './propostas-tab';
+import { AnaliseComparativaTab } from './analise-comparativa-tab';
 import { NotesTab } from './notes-tab';
 import { BankShareTab } from './bank-share-tab';
 import type { ProcessStep } from '@/types/database';
@@ -50,6 +51,7 @@ interface Client {
   id: string;
   p1_name: string;
   p2_name: string | null;
+  portal_token?: string;
   process_step?: ProcessStep;
   [key: string]: unknown;
 }
@@ -68,7 +70,7 @@ interface Props {
   processId?: string;
 }
 
-type Tab = 'documents' | 'propostas' | 'notes' | 'bank_share';
+type Tab = 'documents' | 'propostas' | 'analise_comparativa' | 'notes' | 'bank_share';
 
 export function ClientDetailTabs({
   client,
@@ -84,7 +86,7 @@ export function ClientDetailTabs({
   const apiBase = processId ? `/api/processes/${processId}` : undefined;
   const pageBase = processId ? `/dashboard/processes/${processId}` : undefined;
   const t = useTranslations();
-  const validDefault = (['documents', 'propostas', 'notes', 'bank_share'] as Tab[]).includes(defaultTab as Tab)
+  const validDefault = (['documents', 'propostas', 'analise_comparativa', 'notes', 'bank_share'] as Tab[]).includes(defaultTab as Tab)
     ? (defaultTab as Tab)
     : 'documents';
   const [activeTab, setActiveTab] = useState<Tab>(validDefault);
@@ -94,10 +96,11 @@ export function ClientDetailTabs({
   ).length;
 
   const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
-    { id: 'documents', label: t('documents.title'), icon: FileText,      badge: pendingDocs || undefined },
-    { id: 'propostas', label: t('propostas.title'), icon: BarChart2 },
-    { id: 'notes',     label: t('notes.title'),     icon: MessageSquare },
-    { id: 'bank_share', label: 'Partilha bancária', icon: Building2 },
+    { id: 'documents',            label: t('documents.title'), icon: FileText,           badge: pendingDocs || undefined },
+    { id: 'propostas',            label: t('propostas.title'), icon: BarChart2 },
+    { id: 'analise_comparativa',  label: 'Análise Comparativa', icon: GitCompareArrows },
+    { id: 'notes',                label: t('notes.title'),     icon: MessageSquare },
+    { id: 'bank_share',           label: 'Partilha bancária',  icon: Building2 },
   ];
 
   return (
@@ -152,7 +155,10 @@ export function ClientDetailTabs({
           />
         )}
         {activeTab === 'propostas' && (
-          <PropostasTab client={client} apiBase={apiBase} pageBase={pageBase} />
+          <PropostasTab client={client} apiBase={apiBase} pageBase={pageBase} processId={processId} />
+        )}
+        {activeTab === 'analise_comparativa' && (
+          <AnaliseComparativaTab client={client} apiBase={apiBase} pageBase={pageBase} />
         )}
         {activeTab === 'notes' && (
           <NotesTab

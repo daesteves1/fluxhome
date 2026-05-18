@@ -52,6 +52,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
+    // Fetch most recent process for this client
+    const { data: processData } = await (serviceClient as any)
+      .from('processes')
+      .select('tipo, finalidade, montante_solicitado, prazo_meses, valor_imovel, localizacao_imovel, p1_profissao, p1_entidade_empregadora, p1_tipo_contrato, p1_rendimento_mensal, p2_profissao, p2_entidade_empregadora, p2_tipo_contrato, p2_rendimento_mensal')
+      .eq('client_id', link.client_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     // Fetch approved document requests with latest uploads
     const { data: docRequests, error: docError } = await (serviceClient as any)
       .from('document_requests')
@@ -129,6 +138,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       client: clientData,
+      process: processData ?? null,
       documents: documentsWithUploads,
       office: {
         name: officeName,

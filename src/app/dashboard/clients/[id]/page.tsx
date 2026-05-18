@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react';
 import { ProcessStepBadge } from '@/components/dashboard/process-step-badge';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { ProcessStep, ProcessTipo } from '@/types/database';
+import { PortalLinkBar } from '@/components/clients/portal-link-bar';
 
 const TIPO_LABELS: Record<ProcessTipo, string> = {
   credito_habitacao: 'Crédito Habitação',
@@ -75,6 +76,9 @@ export default async function ClientProfilePage({ params }: PageProps) {
             <Plus className="h-4 w-4 mr-1" /> Novo processo
           </Link>
         </div>
+
+        {/* Portal link */}
+        {client.portal_token && <PortalLinkBar portalToken={client.portal_token} />}
 
         {/* P1 identity */}
         <div>

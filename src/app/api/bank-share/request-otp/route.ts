@@ -37,24 +37,37 @@ export async function POST(request: NextRequest) {
     const link = linkData;
     console.log('[otp] step 2 — rate limit check, link.id:', link.id);
 
+    // Idempotency guard: if an OTP was created for this link in the last 60 seconds, don't send another one
+    const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString();
+    const { data: recentOtp } = await (serviceClient as any)
+      .from('bank_share_otps')
+      .select('id, expires_at')
+      .eq('share_link_id', link.id)
+      .is('used_at', null)
+      .gt('created_at', sixtySecondsAgo)
+      .limit(1)
+      .maybeSingle();
+
+    if (recentOtp) {
+      // OTP already sent within the last 60 seconds — return without sending another email
+      const maskedEmail = maskEmail(link.contact_email);
+      return NextResponse.json({ masked_email: maskedEmail });
+    }
+
     // Rate limit: count OTP requests in last 60 minutes
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { data: otpData, error: otpQueryError } = await (serviceClient as any)
       .from('bank_share_otps')
-      .select('created_at')
-      .eq('share_link_id', link.id);
+      .select('id')
+      .eq('share_link_id', link.id)
+      .gt('created_at', oneHourAgo);
 
     if (otpQueryError) {
       console.error('[otp] rate limit query error:', otpQueryError);
     }
 
-    if (!otpQueryError && otpData) {
-      const recentOtps = otpData.filter((otp: any) => {
-        return new Date(otp.created_at) > new Date(Date.now() - 60 * 60 * 1000);
-      });
-
-      if (recentOtps.length >= 3) {
-        return NextResponse.json({ error: 'Demasiadas tentativas. Tente mais tarde.' }, { status: 429 });
-      }
+    if (!otpQueryError && otpData && otpData.length >= 3) {
+      return NextResponse.json({ error: 'Demasiadas tentativas. Tente mais tarde.' }, { status: 429 });
     }
 
     console.log('[otp] step 3 — generating OTP');
