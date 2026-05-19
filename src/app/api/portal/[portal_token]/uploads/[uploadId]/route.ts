@@ -1,6 +1,41 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ portal_token: string; uploadId: string }> }
+) {
+  const { portal_token, uploadId } = await params;
+  const serviceClient = await createServiceClient();
+
+  const { data: clientRaw } = await serviceClient
+    .from('clients')
+    .select('id')
+    .eq('portal_token', portal_token)
+    .single();
+
+  if (!clientRaw) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const client = clientRaw as { id: string };
+
+  const { data: uploadRaw } = await serviceClient
+    .from('document_uploads')
+    .select('id, storage_path, client_id')
+    .eq('id', uploadId)
+    .eq('client_id', client.id)
+    .single();
+
+  if (!uploadRaw) return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+  const upload = uploadRaw as { id: string; storage_path: string; client_id: string };
+
+  const { data: signedData, error } = await serviceClient.storage
+    .from('client-documents')
+    .createSignedUrl(upload.storage_path, 3600);
+
+  if (error || !signedData) return NextResponse.json({ error: 'Could not generate URL' }, { status: 500 });
+
+  return NextResponse.json({ url: signedData.signedUrl });
+}
+
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ portal_token: string; uploadId: string }> }

@@ -45,7 +45,7 @@ export default async function PortalPage({ params }: PageProps) {
 
   const { data: documentRequestsRaw } = await serviceClient
     .from('document_requests')
-    .select('id, label, status, broker_notes, max_files, sort_order, created_at, proponente, is_mandatory')
+    .select('id, doc_type, label, description, status, broker_notes, max_files, sort_order, created_at, proponente, is_mandatory')
     .eq('client_id', client.id)
     .order('sort_order', { ascending: true });
 
@@ -110,7 +110,9 @@ export default async function PortalPage({ params }: PageProps) {
 
   type DocRequest = {
     id: string;
+    doc_type: string | null;
     label: string;
+    description: string | null;
     status: string;
     broker_notes: string | null;
     max_files: number;
