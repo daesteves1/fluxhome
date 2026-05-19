@@ -12,10 +12,13 @@ import {
   Loader2,
   RefreshCw,
   Star,
+  Info,
+  Eye,
+  ExternalLink,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
 import { HomeFluxLogoMark } from '@/components/layout/homeflux-logo';
 import { ComparisonTable } from '@/components/propostas/comparison-table';
 import { PropostasCharts } from '@/components/propostas/propostas-charts';
@@ -23,10 +26,13 @@ import type { BankProposta, MapaComparativo } from '@/types/proposta';
 import { calcTotalRecomendado, calcPrestacaoTotalBanco, calcPrestacaoTotalExterno, fmtEur, fmtPct } from '@/types/proposta';
 import type { PlatformSettings } from '@/lib/settings';
 import { PLATFORM_DEFAULTS } from '@/lib/settings';
+import { PLATFORM_DEFAULT_DOCUMENTS } from '@/lib/document-defaults';
 
 type DocRequest = {
   id: string;
+  doc_type?: string | null;
   label: string;
+  description?: string | null;
   status: string;
   broker_notes: string | null;
   max_files: number;
@@ -44,7 +50,7 @@ type PortalUpload = {
 };
 
 type PropostaChoice = {
-  proposta_id: string;  // bank_proposta id
+  proposta_id: string;
   bank_name: string;
   insurance_choice: 'banco' | 'externa';
   confirmed_at: string;
@@ -85,7 +91,6 @@ function SummaryCards({ propostas, recommendedId, hasP2 }: { propostas: BankProp
               border: isRec ? '2px solid #3b82f6' : '1px solid #e2e8f0',
             }}
           >
-            {/* Row 1: initials + name + rate type + recommended badge */}
             <div className="flex items-center gap-2">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 ${isRec ? 'bg-blue-600' : 'bg-slate-700'}`}>
                 {initials}
@@ -102,15 +107,10 @@ function SummaryCards({ propostas, recommendedId, hasP2 }: { propostas: BankProp
               )}
             </div>
 
-            {/* Row 2: label */}
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-2">Prestação recomendada</p>
-
-            {/* Row 3: value */}
             <p className="text-xl font-bold text-slate-900 leading-tight">
               {totalRec > 0 ? fmtEur(totalRec) : '—'}
             </p>
-
-            {/* Row 4: TAN + Spread */}
             <p className="text-xs text-slate-500 mt-1">
               {[
                 p.tan ? `TAN: ${fmtPct(p.tan)}` : null,
@@ -118,7 +118,6 @@ function SummaryCards({ propostas, recommendedId, hasP2 }: { propostas: BankProp
               ].filter(Boolean).join(' · ')}
             </p>
 
-            {/* Row 5: validity */}
             {p.validade_ate && (
               <p className={`text-xs mt-1 ${isExpired ? 'text-red-600 font-medium' : expiresSoon ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
                 {isExpired ? '⚠ Expirada' : expiresSoon ? `⚠ Expira em ${daysUntilExpiry} dias` : `Válida até ${fmtDate(p.validade_ate)}`}
@@ -188,13 +187,9 @@ function PortalMapaCard({
 
   return (
     <div className="space-y-5">
-      {/* Summary cards */}
       <SummaryCards propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
-
-      {/* Comparison table */}
       <ComparisonTable propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} mode="client" />
 
-      {/* Charts section */}
       {hasChart && (
         <div className="border-t border-slate-200 pt-6">
           <p className="text-base font-bold text-slate-900 mb-1">Análise Comparativa</p>
@@ -203,7 +198,6 @@ function PortalMapaCard({
         </div>
       )}
 
-      {/* Broker notes */}
       {mapa.broker_notes && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
           <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1.5">Notas do mediador</p>
@@ -211,12 +205,10 @@ function PortalMapaCard({
         </div>
       )}
 
-      {/* Client choice section */}
       <div className="max-w-[600px] mx-auto bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-base font-bold text-slate-800 mb-1">A minha preferência</p>
         <p className="text-xs text-slate-500 mb-4">Indique ao seu mediador qual a proposta que prefere. Isto não é vinculativo.</p>
 
-        {/* Success state */}
         {anyChoice && !editing && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-3">
             <div className="flex items-start gap-2">
@@ -235,10 +227,8 @@ function PortalMapaCard({
           </div>
         )}
 
-        {/* Bank selection form */}
         {showChoiceForm && (
           <div className="space-y-4">
-            {/* Bank cards */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Escolha o banco</p>
               <div className="overflow-x-auto">
@@ -274,7 +264,6 @@ function PortalMapaCard({
               </div>
             </div>
 
-            {/* Insurance choice */}
             {selectedBankId && selectedBank && (
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Tipo de seguros</p>
@@ -310,7 +299,6 @@ function PortalMapaCard({
               </div>
             )}
 
-            {/* Optional notes */}
             {selectedBankId && insuranceChoice && (
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Observações (opcional)</p>
@@ -324,7 +312,6 @@ function PortalMapaCard({
               </div>
             )}
 
-            {/* Submit */}
             <div className="flex items-center gap-3">
               <button
                 onClick={handleConfirmChoice}
@@ -371,10 +358,131 @@ function StatusChip({ status }: { status: string }) {
   };
   const cfg = configs[status] ?? configs.pending;
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${cfg.className}`}>
+    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${cfg.className}`}>
       {cfg.icon}
       {t(`status.${status}` as Parameters<typeof t>[0])}
     </span>
+  );
+}
+
+// ─── Doc Info Sheet ───────────────────────────────────────────────────────────
+
+function DocInfoSheet({
+  doc,
+  open,
+  onClose,
+}: {
+  doc: DocRequest | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!doc) return null;
+
+  const template = doc.doc_type
+    ? PLATFORM_DEFAULT_DOCUMENTS.find((t) => t.doc_type === doc.doc_type)
+    : undefined;
+
+  const description = doc.description || template?.description;
+  const instructions = template?.instructions;
+  const sourceLabel = template?.source_label;
+  const sourceUrl = template?.source_url;
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader className="mb-5">
+          <SheetTitle className="text-base font-bold text-slate-900 leading-snug">{doc.label}</SheetTitle>
+        </SheetHeader>
+
+        <div className="space-y-5 pb-6">
+          {description && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Descrição</p>
+              <p className="text-sm text-slate-600 leading-relaxed">{description}</p>
+            </div>
+          )}
+
+          {instructions && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Como obter</p>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{instructions}</p>
+            </div>
+          )}
+
+          {sourceLabel && sourceUrl && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Fonte</p>
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+              >
+                {sourceLabel}
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+              </a>
+            </div>
+          )}
+
+          {!description && !instructions && !sourceLabel && (
+            <p className="text-sm text-slate-400 italic">Sem informação adicional disponível para este documento.</p>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── Progress Bar ─────────────────────────────────────────────────────────────
+
+function DocProgressBar({ docs, localStatuses }: { docs: DocRequest[]; localStatuses: Record<string, string> }) {
+  if (docs.length === 0) return null;
+
+  const counts = { approved: 0, em_analise: 0, rejected: 0, pending: 0 };
+  for (const doc of docs) {
+    const s = (localStatuses[doc.id] ?? doc.status) as keyof typeof counts;
+    counts[s] = (counts[s] ?? 0) + 1;
+  }
+
+  const entregues = counts.em_analise + counts.approved + counts.rejected;
+  const total = docs.length;
+
+  const segmentColor = (status: string) => {
+    if (status === 'approved') return 'bg-emerald-500';
+    if (status === 'em_analise') return 'bg-amber-400';
+    if (status === 'rejected') return 'bg-red-400';
+    return 'bg-slate-200';
+  };
+
+  const legendItems = [
+    counts.approved > 0 && { label: `${counts.approved} aprovado${counts.approved !== 1 ? 's' : ''}`, className: 'text-emerald-600' },
+    counts.em_analise > 0 && { label: `${counts.em_analise} em análise`, className: 'text-amber-600' },
+    counts.rejected > 0 && { label: `${counts.rejected} rejeitado${counts.rejected !== 1 ? 's' : ''}`, className: 'text-red-600' },
+    counts.pending > 0 && { label: `${counts.pending} por entregar`, className: 'text-slate-500' },
+  ].filter(Boolean) as { label: string; className: string }[];
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-slate-600">Progresso de documentos</span>
+        <span className="text-xs text-slate-500">{entregues} de {total} entregues</span>
+      </div>
+
+      <div className="flex gap-0.5 h-2 rounded-full overflow-hidden">
+        {docs.map((doc) => {
+          const s = localStatuses[doc.id] ?? doc.status;
+          return <div key={doc.id} className={`flex-1 ${segmentColor(s)}`} />;
+        })}
+      </div>
+
+      {legendItems.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-2">
+          {legendItems.map((item) => (
+            <span key={item.label} className={`text-[11px] ${item.className}`}>{item.label}</span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -418,6 +526,7 @@ export function PortalView({
 
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set());
   const [replacingIds, setReplacingIds] = useState<Set<string>>(new Set());
+  const [viewingIds, setViewingIds] = useState<Set<string>>(new Set());
 
   const [localUploads, setLocalUploads] = useState<PortalUpload[]>(uploads);
   const [localStatuses, setLocalStatuses] = useState<Record<string, string>>(
@@ -427,19 +536,16 @@ export function PortalView({
     Object.fromEntries(documentRequests.map((r) => [r.id, r.broker_notes]))
   );
 
-  // Sub-navigation: which proponente to show
   const hasP2 = Boolean(p2Name);
   const [activeProponente, setActiveProponente] = useState<'p1' | 'p2' | 'shared'>('p1');
-
-  // Collapsed approved section
   const [approvedExpanded, setApprovedExpanded] = useState(false);
+  const [infoDocId, setInfoDocId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const activeRequestIdRef = useRef<string | null>(null);
   const replaceRequestIdRef = useRef<string | null>(null);
 
-  // Ordered bank propostas for the mapa
   const orderedPropostas = mapa
     ? (mapa.proposta_ids
         .map((pid) => bankPropostas.find((p) => p.id === pid))
@@ -558,6 +664,33 @@ export function PortalView({
     }
   }
 
+  async function handleViewClick(requestId: string) {
+    const reqUploads = getUploadsForRequest(requestId);
+    if (reqUploads.length === 0) {
+      toast.error('Nenhum ficheiro disponível.');
+      return;
+    }
+    const upload = reqUploads[reqUploads.length - 1];
+    setViewingIds((prev) => new Set(prev).add(requestId));
+    try {
+      const res = await fetch(`/api/portal/${portalToken}/uploads/${upload.id}`);
+      if (res.ok) {
+        const { url } = (await res.json()) as { url: string };
+        window.open(url, '_blank');
+      } else {
+        toast.error(tCommon('error'));
+      }
+    } catch {
+      toast.error(tCommon('error'));
+    } finally {
+      setViewingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
+    }
+  }
+
   async function handleAcceptTerms() {
     if (!termsAccepted) return;
     setAcceptingTerms(true);
@@ -577,6 +710,8 @@ export function PortalView({
     const status = localStatuses[r.id] ?? r.status;
     return status === 'pending' || status === 'rejected';
   }).length;
+
+  const infoDoc = infoDocId ? documentRequests.find((r) => r.id === infoDocId) ?? null : null;
 
   // Terms screen
   if (showTerms) {
@@ -649,259 +784,293 @@ export function PortalView({
       <main className="w-full py-6">
         <Tabs defaultValue={effectiveSettings.documents_tab_enabled ? 'documents' : 'propostas'}>
           {(effectiveSettings.documents_tab_enabled && effectiveSettings.propostas_tab_enabled) && (
-          <div className="max-w-2xl mx-auto px-4">
-          <TabsList className="bg-white border border-slate-200 rounded-xl p-1 gap-0.5 h-auto w-full mb-4">
-            {effectiveSettings.documents_tab_enabled && (
-            <TabsTrigger
-              value="documents"
-              className="flex-1 rounded-lg text-sm font-medium py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              {t('documentsTab')}
-              {pendingCount > 0 && (
-                <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
-                  {pendingCount}
-                </span>
-              )}
-            </TabsTrigger>
-            )}
-            {effectiveSettings.propostas_tab_enabled && (
-            <TabsTrigger
-              value="propostas"
-              className="flex-1 rounded-lg text-sm font-medium py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              {t('propostasTab')}
-              {hasVisibleMapa && (
-                <span className="ml-1.5 bg-blue-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
-                  {orderedPropostas.length}
-                </span>
-              )}
-            </TabsTrigger>
-            )}
-          </TabsList>
-          </div>
+            <div className="max-w-2xl mx-auto px-4">
+              <TabsList className="bg-white border border-slate-200 rounded-xl p-1 gap-0.5 h-auto w-full mb-4">
+                {effectiveSettings.documents_tab_enabled && (
+                  <TabsTrigger
+                    value="documents"
+                    className="flex-1 rounded-lg text-sm font-medium py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+                  >
+                    {t('documentsTab')}
+                    {pendingCount > 0 && (
+                      <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                )}
+                {effectiveSettings.propostas_tab_enabled && (
+                  <TabsTrigger
+                    value="propostas"
+                    className="flex-1 rounded-lg text-sm font-medium py-1.5 text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+                  >
+                    {t('propostasTab')}
+                    {hasVisibleMapa && (
+                      <span className="ml-1.5 bg-blue-500 text-white text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center">
+                        {orderedPropostas.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
           )}
-
-
 
           {/* Documents Tab */}
           <TabsContent value="documents">
             <div className="max-w-[680px] mx-auto px-4 space-y-3">
-            {/* Sub-navigation for multi-proponente */}
-            {hasP2 && (
-              <div className="flex rounded-xl bg-white border border-slate-200 p-1 gap-0.5">
-                {(['p1', 'p2', 'shared'] as const).map((tab) => {
-                  const label = tab === 'p1' ? clientName : tab === 'p2' ? p2Name! : 'Partilhados';
-                  const pendingForTab = documentRequests.filter((r) => {
-                    const s = localStatuses[r.id] ?? r.status;
-                    return r.proponente === tab && (s === 'pending' || s === 'rejected');
-                  }).length;
-                  return (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveProponente(tab)}
-                      className={`flex-1 text-xs font-medium py-1.5 rounded-lg transition-colors ${
-                        activeProponente === tab
-                          ? 'bg-slate-900 text-white'
-                          : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      {label}
-                      {pendingForTab > 0 && (
-                        <span className={`ml-1.5 text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center ${
-                          activeProponente === tab ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {pendingForTab}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Document cards */}
-            {(() => {
-              const filtered = hasP2
-                ? documentRequests.filter((r) => r.proponente === activeProponente)
-                : documentRequests;
-
-              if (filtered.length === 0) {
+              {/* Progress bar + subtitle */}
+              {(() => {
+                const visibleDocs = hasP2
+                  ? documentRequests.filter((r) => r.proponente === activeProponente)
+                  : documentRequests;
                 return (
-                  <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
-                    <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                    <p className="text-sm text-slate-400">{t('noDocuments')}</p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-slate-500">Carregue os documentos solicitados pelo seu mediador.</p>
+                    <DocProgressBar docs={visibleDocs} localStatuses={localStatuses} />
                   </div>
                 );
-              }
+              })()}
 
-              const statusOrder: Record<string, number> = { rejected: 0, pending: 1, em_analise: 2, approved: 3 };
-              const sorted = [...filtered].sort((a, b) => {
-                const sa = localStatuses[a.id] ?? a.status;
-                const sb = localStatuses[b.id] ?? b.status;
-                return (statusOrder[sa] ?? 1) - (statusOrder[sb] ?? 1);
-              });
-
-              const activeDocs = sorted.filter((r) => (localStatuses[r.id] ?? r.status) !== 'approved');
-              const approvedDocs = sorted.filter((r) => (localStatuses[r.id] ?? r.status) === 'approved');
-
-              return (
-                <div className="space-y-2.5">
-                  {activeDocs.map((req) => {
-                    const status = localStatuses[req.id] ?? req.status;
-                    const reqUploads = getUploadsForRequest(req.id);
-                    const isUploading = uploadingIds.has(req.id);
-                    const isReplacing = replacingIds.has(req.id);
-                    const brokerNote = localBrokerNotes[req.id] ?? req.broker_notes;
-
+              {/* Sub-navigation for multi-proponente */}
+              {hasP2 && (
+                <div className="flex rounded-xl bg-white border border-slate-200 p-1 gap-0.5">
+                  {(['p1', 'p2', 'shared'] as const).map((tab) => {
+                    const label = tab === 'p1' ? clientName : tab === 'p2' ? p2Name! : 'Partilhados';
+                    const pendingForTab = documentRequests.filter((r) => {
+                      const s = localStatuses[r.id] ?? r.status;
+                      return r.proponente === tab && (s === 'pending' || s === 'rejected');
+                    }).length;
                     return (
-                      <div
-                        key={req.id}
-                        className={`bg-white border rounded-xl p-4 ${
-                          status === 'rejected' ? 'border-red-200' : 'border-slate-200'
+                      <button
+                        key={tab}
+                        onClick={() => setActiveProponente(tab)}
+                        className={`flex-1 text-xs font-medium py-1.5 rounded-lg transition-colors ${
+                          activeProponente === tab
+                            ? 'bg-slate-900 text-white'
+                            : 'text-slate-500 hover:text-slate-700'
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm text-slate-900 leading-snug">{req.label}</p>
-                            {req.is_mandatory && (
-                              <span className="text-[10px] text-slate-400 font-medium">Obrigatório</span>
-                            )}
-                          </div>
-                          <StatusChip status={status} />
-                        </div>
-
-                        {/* REJECTED */}
-                        {status === 'rejected' && (
-                          <>
-                            {brokerNote && (
-                              <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                                <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                                <p className="text-xs text-red-700">{brokerNote}</p>
-                              </div>
-                            )}
-                            <button
-                              onClick={() => triggerUpload(req.id)}
-                              disabled={isUploading}
-                              className="w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
-                            >
-                              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                              {t('uploadAgain')}
-                            </button>
-                          </>
+                        {label}
+                        {pendingForTab > 0 && (
+                          <span className={`ml-1.5 text-[10px] font-bold rounded-full w-4 h-4 inline-flex items-center justify-center ${
+                            activeProponente === tab ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {pendingForTab}
+                          </span>
                         )}
-
-                        {/* PENDING */}
-                        {status === 'pending' && (
-                          <>
-                            <p className="text-xs text-slate-400 mb-3">PDF, JPG, PNG · Máx. 15MB</p>
-                            <button
-                              onClick={() => triggerUpload(req.id)}
-                              disabled={isUploading}
-                              className="w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
-                            >
-                              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                              {t('upload')}
-                            </button>
-                          </>
-                        )}
-
-                        {/* EM_ANALISE */}
-                        {status === 'em_analise' && (
-                          <>
-                            {reqUploads.length > 0 && (
-                              <div className="mb-3 space-y-1.5">
-                                {reqUploads.map((u) => (
-                                  <div key={u.id} className="flex items-center gap-2 text-xs text-slate-600">
-                                    <FileText className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                    <span className="truncate">{u.file_name ?? u.storage_path.split('/').pop()}</span>
-                                    <span className="shrink-0 text-slate-400">· {formatDate(u.uploaded_at)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => handleReplaceClick(req.id)}
-                                disabled={isReplacing || isUploading}
-                                className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
-                              >
-                                {isReplacing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                                {t('substituirFicheiro')}
-                              </button>
-                              <p className="text-xs text-slate-400">Em análise pelo mediador</p>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                      </button>
                     );
                   })}
-
-                  {/* Approved section — collapsible */}
-                  {approvedDocs.length > 0 && (
-                    <div>
-                      <button
-                        onClick={() => setApprovedExpanded((v) => !v)}
-                        className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors"
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <CheckCircle className="h-4 w-4" />
-                          {approvedDocs.length} documento{approvedDocs.length !== 1 ? 's' : ''} aprovado{approvedDocs.length !== 1 ? 's' : ''}
-                        </span>
-                        <span className="text-emerald-500 text-base leading-none">{approvedExpanded ? '▲' : '▼'}</span>
-                      </button>
-
-                      {approvedExpanded && (
-                        <div className="mt-1.5 space-y-1.5">
-                          {approvedDocs.map((req) => {
-                            const reqUploads = getUploadsForRequest(req.id);
-                            return (
-                              <div key={req.id} className="bg-white border border-emerald-100 rounded-xl p-4 opacity-75">
-                                <div className="flex items-start justify-between gap-3 mb-2">
-                                  <p className="font-medium text-sm text-slate-700">{req.label}</p>
-                                  <StatusChip status="approved" />
-                                </div>
-                                {reqUploads.length > 0 && (
-                                  <div className="space-y-1">
-                                    {reqUploads.map((u) => (
-                                      <div key={u.id} className="flex items-center gap-2 text-xs text-slate-500">
-                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                                        <span className="truncate">{u.file_name ?? u.storage_path.split('/').pop()}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
-              );
-            })()}
+              )}
+
+              {/* Document rows */}
+              {(() => {
+                const filtered = hasP2
+                  ? documentRequests.filter((r) => r.proponente === activeProponente)
+                  : documentRequests;
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
+                      <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                      <p className="text-sm text-slate-400">{t('noDocuments')}</p>
+                    </div>
+                  );
+                }
+
+                const statusOrder: Record<string, number> = { rejected: 0, pending: 1, em_analise: 2, approved: 3 };
+                const sorted = [...filtered].sort((a, b) => {
+                  const sa = localStatuses[a.id] ?? a.status;
+                  const sb = localStatuses[b.id] ?? b.status;
+                  return (statusOrder[sa] ?? 1) - (statusOrder[sb] ?? 1);
+                });
+
+                const activeDocs = sorted.filter((r) => (localStatuses[r.id] ?? r.status) !== 'approved');
+                const approvedDocs = sorted.filter((r) => (localStatuses[r.id] ?? r.status) === 'approved');
+
+                return (
+                  <div className="space-y-1.5">
+                    {activeDocs.map((req) => {
+                      const status = localStatuses[req.id] ?? req.status;
+                      const isUploading = uploadingIds.has(req.id);
+                      const isReplacing = replacingIds.has(req.id);
+                      const isViewing = viewingIds.has(req.id);
+                      const brokerNote = localBrokerNotes[req.id] ?? req.broker_notes;
+                      const hasUploads = getUploadsForRequest(req.id).length > 0;
+
+                      return (
+                        <div
+                          key={req.id}
+                          className={`bg-white border rounded-xl px-4 py-3 ${
+                            status === 'rejected' ? 'border-red-200' : 'border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Left: name, optional label, info button, rejection note */}
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className="font-semibold text-sm text-slate-900 leading-snug">{req.label}</span>
+                                <span className="text-[11px] text-slate-400 shrink-0">
+                                  {req.is_mandatory ? 'Obrigatório' : 'Opcional'}
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => setInfoDocId(req.id)}
+                                className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 mt-0.5 transition-colors"
+                              >
+                                <Info className="h-3 w-3" />
+                                Como obter?
+                              </button>
+                              {status === 'rejected' && brokerNote && (
+                                <p className="text-[11px] text-red-600 mt-1 leading-snug">{brokerNote}</p>
+                              )}
+                            </div>
+
+                            {/* Right: badge + actions */}
+                            <div className="flex items-center gap-1.5 shrink-0 pt-0.5 flex-wrap justify-end">
+                              <StatusChip status={status} />
+
+                              {status === 'pending' && (
+                                <button
+                                  onClick={() => triggerUpload(req.id)}
+                                  disabled={isUploading}
+                                  className="flex items-center gap-1 h-7 px-3 text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                                >
+                                  {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                                  Carregar
+                                </button>
+                              )}
+
+                              {status === 'em_analise' && (
+                                <>
+                                  <button
+                                    onClick={() => handleViewClick(req.id)}
+                                    disabled={isViewing || !hasUploads}
+                                    className="flex items-center gap-1 h-7 px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
+                                  >
+                                    {isViewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
+                                    Ver
+                                  </button>
+                                  <button
+                                    onClick={() => handleReplaceClick(req.id)}
+                                    disabled={isReplacing || isUploading}
+                                    className="flex items-center gap-1 h-7 px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
+                                  >
+                                    {isReplacing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                                    Substituir
+                                  </button>
+                                </>
+                              )}
+
+                              {status === 'rejected' && (
+                                <>
+                                  <button
+                                    onClick={() => handleViewClick(req.id)}
+                                    disabled={isViewing || !hasUploads}
+                                    className="flex items-center gap-1 h-7 px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
+                                  >
+                                    {isViewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
+                                    Ver
+                                  </button>
+                                  <button
+                                    onClick={() => triggerUpload(req.id)}
+                                    disabled={isUploading}
+                                    className="flex items-center gap-1 h-7 px-3 text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                                  >
+                                    {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                                    Carregar novo
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Approved section — collapsible compact rows */}
+                    {approvedDocs.length > 0 && (
+                      <div>
+                        <button
+                          onClick={() => setApprovedExpanded((v) => !v)}
+                          className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <CheckCircle className="h-4 w-4" />
+                            {approvedDocs.length} documento{approvedDocs.length !== 1 ? 's' : ''} aprovado{approvedDocs.length !== 1 ? 's' : ''}
+                          </span>
+                          <span className="text-emerald-500 text-base leading-none">{approvedExpanded ? '▲' : '▼'}</span>
+                        </button>
+
+                        {approvedExpanded && (
+                          <div className="mt-1 space-y-1">
+                            {approvedDocs.map((req) => {
+                              const isViewing = viewingIds.has(req.id);
+                              const hasUploads = getUploadsForRequest(req.id).length > 0;
+                              return (
+                                <div key={req.id} className="bg-white border border-emerald-100 rounded-xl px-4 py-3 opacity-80">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex-1 min-w-0 pt-0.5">
+                                      <div className="flex items-baseline gap-2 flex-wrap">
+                                        <span className="font-semibold text-sm text-slate-700 leading-snug">{req.label}</span>
+                                        <span className="text-[11px] text-slate-400 shrink-0">
+                                          {req.is_mandatory ? 'Obrigatório' : 'Opcional'}
+                                        </span>
+                                      </div>
+                                      <button
+                                        onClick={() => setInfoDocId(req.id)}
+                                        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 mt-0.5 transition-colors"
+                                      >
+                                        <Info className="h-3 w-3" />
+                                        Como obter?
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                                      <StatusChip status="approved" />
+                                      <button
+                                        onClick={() => handleViewClick(req.id)}
+                                        disabled={isViewing || !hasUploads}
+                                        className="flex items-center gap-1 h-7 px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
+                                      >
+                                        {isViewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
+                                        Ver
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </TabsContent>
 
           {/* Propostas Tab */}
           <TabsContent value="propostas">
             <div className="max-w-[1280px] mx-auto px-4 md:px-6 space-y-6">
-            {!hasVisibleMapa ? (
-              <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
-                <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm text-slate-400">{t('noPropostas')}</p>
-              </div>
-            ) : (
-              <PortalMapaCard
-                mapa={mapa!}
-                propostas={orderedPropostas}
-                portalToken={portalToken}
-                currentChoice={savedChoice}
-                onChoiceSaved={setSavedChoice}
-                p2Name={p2Name}
-                chartsEnabled={effectiveSettings.charts_enabled}
-              />
-            )}
+              {!hasVisibleMapa ? (
+                <div className="bg-white border border-slate-200 rounded-xl py-14 text-center">
+                  <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                  <p className="text-sm text-slate-400">{t('noPropostas')}</p>
+                </div>
+              ) : (
+                <PortalMapaCard
+                  mapa={mapa!}
+                  propostas={orderedPropostas}
+                  portalToken={portalToken}
+                  currentChoice={savedChoice}
+                  onChoiceSaved={setSavedChoice}
+                  p2Name={p2Name}
+                  chartsEnabled={effectiveSettings.charts_enabled}
+                />
+              )}
             </div>
           </TabsContent>
         </Tabs>
@@ -921,6 +1090,12 @@ export function PortalView({
         className="hidden"
         onChange={handleReplaceFileSelected}
         accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+      />
+
+      <DocInfoSheet
+        doc={infoDoc}
+        open={infoDocId !== null}
+        onClose={() => setInfoDocId(null)}
       />
     </div>
   );
