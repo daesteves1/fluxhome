@@ -182,6 +182,9 @@ export function DocumentTemplateEditor({ initialTemplate, saving, onSave }: Prop
         proponente: newProponente,
         enabled: true,
         is_custom: true,
+        allowed_types: ['application/pdf', 'image/jpeg', 'image/png'],
+        expected_files: 1,
+        max_file_size_mb: 15,
       },
     ]);
     setNewLabel('');

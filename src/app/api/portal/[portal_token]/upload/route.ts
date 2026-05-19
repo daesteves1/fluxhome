@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { PLATFORM_DEFAULT_DOCUMENTS } from '@/lib/document-defaults';
 
 export async function POST(
   request: NextRequest,
@@ -37,6 +38,44 @@ export async function POST(
       return NextResponse.json({ error: 'file and request_id are required' }, { status: 400 });
     }
 
+    // Fetch doc_type for template validation before uploading
+    const { data: docTypeRaw } = await serviceClient
+      .from('document_requests')
+      .select('id, doc_type')
+      .eq('id', request_id)
+      .eq('client_id', client.id)
+      .single();
+
+    if (!docTypeRaw) return NextResponse.json({ error: 'Document request not found' }, { status: 404 });
+
+    const docType = (docTypeRaw as { id: string; doc_type: string | null }).doc_type;
+    const template = docType ? PLATFORM_DEFAULT_DOCUMENTS.find((t) => t.doc_type === docType) : null;
+
+    if (template) {
+      if (!template.allowed_types.includes(file.type)) {
+        const readableTypes = template.allowed_types
+          .map((t) => {
+            if (t === 'application/pdf') return 'PDF';
+            if (t === 'image/jpeg') return 'JPG';
+            if (t === 'image/png') return 'PNG';
+            return t;
+          })
+          .join(', ');
+        return NextResponse.json(
+          { error: `Tipo de ficheiro não permitido. Use: ${readableTypes}` },
+          { status: 400 }
+        );
+      }
+
+      const maxBytes = template.max_file_size_mb * 1024 * 1024;
+      if (file.size > maxBytes) {
+        return NextResponse.json(
+          { error: `Ficheiro demasiado grande. Tamanho máximo: ${template.max_file_size_mb} MB` },
+          { status: 400 }
+        );
+      }
+    }
+
     file_name = file.name;
     file_size = file.size;
     mime_type = file.type || null;
@@ -63,15 +102,17 @@ export async function POST(
     }
   }
 
-  // Verify document_request belongs to this client
-  const { data: docReqRaw } = await serviceClient
-    .from('document_requests')
-    .select('id, status')
-    .eq('id', request_id)
-    .eq('client_id', client.id)
-    .single();
+  // For JSON path: verify document_request belongs to this client (multipart already verified above)
+  if (!contentType.includes('multipart/form-data')) {
+    const { data: docReqRaw } = await serviceClient
+      .from('document_requests')
+      .select('id, status')
+      .eq('id', request_id)
+      .eq('client_id', client.id)
+      .single();
 
-  if (!docReqRaw) return NextResponse.json({ error: 'Document request not found' }, { status: 404 });
+    if (!docReqRaw) return NextResponse.json({ error: 'Document request not found' }, { status: 404 });
+  }
 
   const { data, error } = await serviceClient
     .from('document_uploads')
