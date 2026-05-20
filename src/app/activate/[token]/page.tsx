@@ -44,6 +44,24 @@ export default async function ActivatePage({ params }: PageProps) {
   const isExpired =
     invitation.expires_at && new Date(invitation.expires_at) < new Date();
 
+  // Detect if this email already has an active account
+  let isExistingUser = false;
+  try {
+    const { data: { users } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const found = users.find((u) => u.email === invitation.email);
+    if (found) {
+      const { data: brokers } = await supabase
+        .from('brokers')
+        .select('id')
+        .eq('user_id', found.id)
+        .eq('is_active', true)
+        .limit(1);
+      isExistingUser = (brokers?.length ?? 0) > 0;
+    }
+  } catch {
+    // If lookup fails, fall back to the normal signup form
+  }
+
   return (
     <ActivateForm
       token={token}
@@ -51,6 +69,7 @@ export default async function ActivatePage({ params }: PageProps) {
       role={invitation.role}
       officeName={officeName}
       isExpired={!!isExpired}
+      isExistingUser={isExistingUser}
     />
   );
 }
