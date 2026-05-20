@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
           invited_at: invitation.sent_at,
           activated_at: now,
         },
-        { onConflict: 'user_id,office_id', ignoreDuplicates: true }
+        { onConflict: 'user_id,office_id', ignoreDuplicates: false }
       );
     }
 
