@@ -7,6 +7,12 @@ import { TopBar } from './topbar';
 import { ImpersonationBanner } from './impersonation-banner';
 import { HelpCenter } from './help-center';
 
+interface Office {
+  id: string;
+  name: string;
+  logoUrl?: string;
+}
+
 interface MobileLayoutShellProps {
   role: 'super_admin' | 'office_admin' | 'broker';
   userName: string;
@@ -17,6 +23,8 @@ interface MobileLayoutShellProps {
   isOfficeAdmin?: boolean;
   currentView?: 'broker' | 'office';
   impersonatedName?: string | null;
+  userOffices?: Office[];
+  activeOfficeId?: string;
   children: React.ReactNode;
 }
 
@@ -26,24 +34,33 @@ export function MobileLayoutShell({
   userEmail,
   officeName,
   logoUrl,
-  primaryColor,
   isOfficeAdmin,
   currentView,
   impersonatedName,
+  userOffices,
+  activeOfficeId,
   children,
 }: MobileLayoutShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const sidebarProps = { role, userName, userEmail, officeName, logoUrl, primaryColor, isOfficeAdmin, currentView };
+  const sidebarProps = {
+    role,
+    userName,
+    userEmail,
+    officeName,
+    logoUrl,
+    isOfficeAdmin,
+    userOffices,
+    activeOfficeId,
+  };
 
   return (
     <div>
-      {/* Impersonation banner spans full width — above sidebar */}
       {impersonatedName && <ImpersonationBanner impersonatedName={impersonatedName} />}
 
       <div style={{ display: 'flex', minHeight: '100vh' }}>
-        {/* Desktop sidebar — hidden below md */}
+        {/* Desktop sidebar */}
         <div className="hidden md:flex shrink-0">
           <Sidebar {...sidebarProps} />
         </div>
@@ -51,12 +68,10 @@ export function MobileLayoutShell({
         {/* Mobile sidebar overlay */}
         {sidebarOpen && (
           <div className="md:hidden">
-            {/* Backdrop */}
             <div
               className="fixed inset-0 bg-black/50 z-40"
               onClick={() => setSidebarOpen(false)}
             />
-            {/* Panel */}
             <div className="fixed inset-y-0 left-0 z-50 w-[280px] flex flex-col shadow-2xl">
               <div className="absolute top-3 right-3 z-10">
                 <button
@@ -74,7 +89,12 @@ export function MobileLayoutShell({
 
         {/* Main area */}
         <div className="flex flex-col flex-1 min-w-0">
-          <TopBar userName={userName} onMenuToggle={() => setSidebarOpen(true)} onHelpOpen={() => setHelpOpen(true)} />
+          <TopBar
+            onMenuToggle={() => setSidebarOpen(true)}
+            onHelpOpen={() => setHelpOpen(true)}
+            isOfficeAdmin={isOfficeAdmin}
+            currentView={currentView}
+          />
           <main className="flex-1 bg-slate-50">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
               {children}

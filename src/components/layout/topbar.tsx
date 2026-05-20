@@ -1,55 +1,49 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, KeyRound, ChevronDown, Menu, HelpCircle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import Link from 'next/link';
+import { HelpCircle, Menu } from 'lucide-react';
 import { HomeFluxLogoMark } from './homeflux-logo';
 import { NotificationBell } from './notification-bell';
+import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
 interface TopBarProps {
-  userName: string;
   onMenuToggle?: () => void;
   onHelpOpen?: () => void;
+  isOfficeAdmin?: boolean;
+  currentView?: 'broker' | 'office';
 }
 
-export function TopBar({ userName, onMenuToggle, onHelpOpen }: TopBarProps) {
-  const t = useTranslations('nav');
+export function TopBar({ onMenuToggle, onHelpOpen, isOfficeAdmin, currentView }: TopBarProps) {
   const router = useRouter();
+  const [view, setView] = useState<'broker' | 'office'>(currentView ?? 'office');
+  const [switching, setSwitching] = useState(false);
 
-  async function handleLogout() {
-    const supabase = createClient();
-    // Clear any active impersonation before signing out
-    await fetch('/api/admin/impersonate/exit', { method: 'POST' });
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+  async function toggleView(next: 'broker' | 'office') {
+    if (next === view || switching) return;
+    setSwitching(true);
+    setView(next);
+    try {
+      await fetch('/api/settings/view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ view: next }),
+      });
+      router.refresh();
+    } finally {
+      setSwitching(false);
+    }
   }
 
-  const initials = userName
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase();
-
   return (
-    <header className="flex items-center h-14 px-4 bg-white border-b border-slate-200 shrink-0">
+    <header className="flex items-center h-14 px-4 bg-white border-b border-slate-200 shrink-0 gap-2">
       {/* Mobile: hamburger */}
       <button
         onClick={onMenuToggle}
-        className="md:hidden flex items-center justify-center w-10 h-10 -ml-1 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+        className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shrink-0 text-slate-500"
         aria-label="Abrir menu"
       >
-        <Menu className="h-5 w-5 text-slate-600" />
+        <Menu className="h-4 w-4" />
       </button>
 
       {/* Mobile: centered logo */}
@@ -60,8 +54,43 @@ export function TopBar({ userName, onMenuToggle, onHelpOpen }: TopBarProps) {
         </div>
       </div>
 
-      {/* Desktop: push user menu to the right */}
+      {/* Desktop: push right */}
       <div className="hidden md:flex flex-1" />
+
+      {/* Escritório / Mediador toggle — office admins only, desktop */}
+      {isOfficeAdmin && (
+        <div className="hidden md:flex items-center">
+          <div
+            className="flex h-8 rounded-full p-0.5"
+            style={{ backgroundColor: '#f1f5f9' }}
+          >
+            <button
+              onClick={() => toggleView('office')}
+              disabled={switching}
+              className={cn(
+                'px-3 rounded-full text-[12px] font-semibold transition-colors duration-150 disabled:opacity-60',
+                view === 'office'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              )}
+            >
+              Escritório
+            </button>
+            <button
+              onClick={() => toggleView('broker')}
+              disabled={switching}
+              className={cn(
+                'px-3 rounded-full text-[12px] font-semibold transition-colors duration-150 disabled:opacity-60',
+                view === 'broker'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              )}
+            >
+              Mediador
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Notification bell */}
       <NotificationBell />
@@ -69,48 +98,11 @@ export function TopBar({ userName, onMenuToggle, onHelpOpen }: TopBarProps) {
       {/* Help button */}
       <button
         onClick={onHelpOpen}
-        className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-700 mr-1"
+        className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-slate-500 hover:text-slate-700 shrink-0"
         aria-label="Ajuda"
       >
-        <HelpCircle className="h-5 w-5" />
+        <HelpCircle className="h-4 w-4" />
       </button>
-
-      {/* User dropdown */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 h-9 px-2 rounded-lg hover:bg-slate-100 transition-colors min-w-[44px] justify-center md:justify-start">
-            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold shrink-0">
-              {initials}
-            </div>
-            <span className="text-sm font-medium text-slate-700 max-w-[140px] truncate hidden sm:block">
-              {userName}
-            </span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/settings" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              {t('profile')}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/settings/password" className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4" />
-              {t('changePassword')}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive flex items-center gap-2"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-4 w-4" />
-            {t('logout')}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </header>
   );
 }

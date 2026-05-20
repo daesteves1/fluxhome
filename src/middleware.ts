@@ -3,6 +3,8 @@ import { updateSession } from './lib/supabase/middleware';
 
 const PUBLIC_PATHS = [
   '/login',
+  '/forgot-password',
+  '/reset-password',
   '/activate',
   '/portal',
   '/privacy',

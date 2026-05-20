@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Create or find the auth user
     let userId: string;
+    let userAlreadyActivated = false;
 
     const { data: authData, error: signUpError } = await supabase.auth.admin.createUser({
       email: invitation.email,
@@ -71,12 +72,26 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Update password so they can log in with the new credentials
-      await supabase.auth.admin.updateUserById(existingUser.id, { password });
+      // If the user already has active broker records they already have a working
+      // account — do NOT overwrite their password (would break existing login).
+      const { data: existingBrokers } = await supabase
+        .from('brokers')
+        .select('id')
+        .eq('user_id', existingUser.id)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (!existingBrokers || existingBrokers.length === 0) {
+        // First-time activation for this user (new office only in the system)
+        await supabase.auth.admin.updateUserById(existingUser.id, { password });
+      }
+
       userId = existingUser.id;
+      userAlreadyActivated = true;
     } else {
       userId = authData.user.id;
     }
+    void userAlreadyActivated;
 
     const now = new Date().toISOString();
 
@@ -104,7 +119,7 @@ export async function POST(request: NextRequest) {
           invited_at: invitation.sent_at,
           activated_at: now,
         },
-        { onConflict: 'user_id', ignoreDuplicates: true }
+        { onConflict: 'user_id,office_id', ignoreDuplicates: true }
       );
     }
 

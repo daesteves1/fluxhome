@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -93,6 +94,11 @@ function LoginForm() {
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? t('loggingIn') : t('loginButton')}
       </Button>
+      <div className="text-center">
+        <Link href="/forgot-password" className="text-sm text-slate-500 hover:text-slate-800 transition-colors">
+          {t('forgotPassword')}?
+        </Link>
+      </div>
     </form>
   );
 }

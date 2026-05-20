@@ -16,10 +16,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
 
-  // Fetch user profile and broker data in parallel (broker result ignored when impersonating or super_admin)
-  const [{ data: userProfileRaw }, { data: brokerRawParallel }] = await Promise.all([
+  const [{ data: userProfileRaw }, { data: allBrokersRaw }] = await Promise.all([
     serviceClient.from('users').select('id, name, email, role').eq('id', user.id).single(),
-    serviceClient.from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true).single(),
+    serviceClient.from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true),
   ]);
 
   const userProfile = userProfileRaw as {
@@ -31,13 +30,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!userProfile) redirect('/login');
 
-  // Super admins must use /admin — only allow /dashboard when actively impersonating
   if (userProfile.role === 'super_admin' && !impersonatingId) {
     redirect('/admin');
   }
-  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
 
-  // ── Sidebar/TopBar display data (may be overridden by impersonation) ──────
+  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
+  const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+
   let displayRole = userProfile.role as 'super_admin' | 'office_admin' | 'broker';
   let displayName = userProfile.name;
   let displayEmail = userProfile.email;
@@ -48,8 +47,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let impersonatedName: string | null = null;
   const currentView: 'broker' | 'office' = viewCookie ?? 'office';
 
+  // All offices this user belongs to (for the office switcher)
+  let userOffices: { id: string; name: string; logoUrl?: string }[] = [];
+  let activeOfficeId: string | undefined;
+
   if (impersonatingId) {
-    // ── Impersonation mode: load target broker's full context ─────────────
     const { data: impBrokerRaw } = await serviceClient
       .from('brokers')
       .select('id, user_id, office_id, is_office_admin')
@@ -75,7 +77,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         white_label: { logo_url: string | null; primary_color: string } | null;
       } | null;
 
-      // Override display context with impersonated broker's data
       displayRole = impBroker.is_office_admin ? 'office_admin' : 'broker';
       displayName = impUser?.name ?? '—';
       displayEmail = impUser?.email ?? '—';
@@ -84,28 +85,53 @@ export default async function DashboardLayout({ children }: { children: React.Re
       logoUrl = impOffice?.white_label?.logo_url ?? undefined;
       primaryColor = impOffice?.white_label?.primary_color;
       impersonatedName = impUser?.name ?? null;
+      activeOfficeId = impBroker.office_id;
+      userOffices = officeName
+        ? [{ id: impBroker.office_id, name: officeName, logoUrl }]
+        : [];
     }
   } else if (userProfile.role !== 'super_admin') {
-    // ── Normal broker/office-admin mode ───────────────────────────────────
-    const broker = brokerRawParallel as { id: string; office_id: string; is_office_admin: boolean } | null;
-    isOfficeAdmin = broker?.is_office_admin ?? false;
+    const allBrokers = (allBrokersRaw ?? []) as {
+      id: string;
+      office_id: string;
+      is_office_admin: boolean;
+    }[];
 
-    if (broker?.office_id) {
-      const { data: officeRaw } = await serviceClient
+    if (allBrokers.length > 0) {
+      // Determine active office: prefer cookie if it matches one of the user's offices
+      const cookieMatch = allBrokers.find((b) => b.office_id === activeOfficeCookie);
+      const activeBroker = cookieMatch ?? allBrokers[0];
+      activeOfficeId = activeBroker.office_id;
+      isOfficeAdmin = activeBroker.is_office_admin;
+      displayRole = isOfficeAdmin ? 'office_admin' : 'broker';
+
+      // Fetch all offices in parallel
+      const officeIds = allBrokers.map((b) => b.office_id);
+      const { data: officesRaw } = await serviceClient
         .from('offices')
-        .select('name, white_label')
-        .eq('id', broker.office_id)
-        .single();
+        .select('id, name, white_label')
+        .in('id', officeIds);
 
-      const office = officeRaw as {
+      const officesData = (officesRaw ?? []) as {
+        id: string;
         name: string;
-        white_label: { logo_url: string | null; primary_color: string };
-      } | null;
+        white_label: { logo_url: string | null; primary_color: string } | null;
+      }[];
 
-      if (office) {
-        officeName = office.name;
-        logoUrl = office.white_label?.logo_url ?? undefined;
-        primaryColor = office.white_label?.primary_color;
+      userOffices = allBrokers.map((b) => {
+        const o = officesData.find((x) => x.id === b.office_id);
+        return {
+          id: b.office_id,
+          name: o?.name ?? '—',
+          logoUrl: o?.white_label?.logo_url ?? undefined,
+        };
+      });
+
+      const activeOfficeData = officesData.find((o) => o.id === activeOfficeId);
+      if (activeOfficeData) {
+        officeName = activeOfficeData.name;
+        logoUrl = activeOfficeData.white_label?.logo_url ?? undefined;
+        primaryColor = activeOfficeData.white_label?.primary_color;
       }
     }
   }
@@ -125,6 +151,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         isOfficeAdmin={isOfficeAdmin}
         currentView={currentView}
         impersonatedName={impersonatedName}
+        userOffices={userOffices}
+        activeOfficeId={activeOfficeId}
       >
         {children}
       </MobileLayoutShell>
