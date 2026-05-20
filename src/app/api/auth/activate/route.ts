@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const { token, name, password } = await request.json();
 
-    if (!token || !name || !password) {
+    if (!token || !password) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
