@@ -22,12 +22,11 @@ export default async function ClientsPage() {
   const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
   const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
 
-  let brokerQ = serviceClient
+  const { data: brokerArr } = await serviceClient
     .from('brokers').select('id, office_id, is_office_admin')
     .eq('user_id', user.id).eq('is_active', true);
-  if (activeOfficeCookie) brokerQ = brokerQ.eq('office_id', activeOfficeCookie);
-  const { data: brokerArr } = await brokerQ.limit(1);
-  const broker = ((brokerArr ?? [])[0] ?? null) as { id: string; office_id: string; is_office_admin: boolean } | null;
+  const allBrokers = (brokerArr ?? []) as { id: string; office_id: string; is_office_admin: boolean }[];
+  const broker = allBrokers.find((b) => b.office_id === activeOfficeCookie) ?? allBrokers[0] ?? null;
 
   if (!broker && userProfile?.role !== 'super_admin') redirect('/login');
   const showOwnOnly =

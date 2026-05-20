@@ -93,10 +93,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     broker = data as BrokerData | null;
   } else {
     const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
-    let q = serviceClient.from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true);
-    if (activeOfficeCookie) q = q.eq('office_id', activeOfficeCookie);
-    const { data } = await q;
-    broker = ((data ?? [])[0] ?? null) as BrokerData | null;
+    const { data } = await serviceClient.from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true);
+    const all = (data ?? []) as BrokerData[];
+    broker = all.find((b) => b.office_id === activeOfficeCookie) ?? all[0] ?? null;
   }
 
   if (!broker && userProfile?.role !== 'super_admin') redirect('/login');

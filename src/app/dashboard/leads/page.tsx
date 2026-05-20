@@ -26,14 +26,13 @@ export default async function LeadsPage() {
       .single();
     broker = data as BrokerRow | null;
   } else {
-    let q = serviceClient
+    const { data } = await serviceClient
       .from('brokers')
       .select('id, office_id, is_office_admin')
       .eq('user_id', user.id)
       .eq('is_active', true);
-    if (activeOfficeCookie) q = q.eq('office_id', activeOfficeCookie);
-    const { data } = await q.limit(1);
-    broker = ((data ?? [])[0] ?? null) as BrokerRow | null;
+    const all = (data ?? []) as BrokerRow[];
+    broker = all.find((b) => b.office_id === activeOfficeCookie) ?? all[0] ?? null;
   }
 
   if (!broker) redirect('/dashboard');
