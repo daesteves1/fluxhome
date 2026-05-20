@@ -18,15 +18,18 @@ export default async function ClientsPage() {
     .from('users').select('id, role').eq('id', user.id).single();
   const userProfile = userProfileRaw as { id: string; role: string } | null;
 
-  const { data: brokerRaw } = await serviceClient
+  const cookieStore = await cookies();
+  const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
+
+  let brokerQ = serviceClient
     .from('brokers').select('id, office_id, is_office_admin')
-    .eq('user_id', user.id).eq('is_active', true).single();
-  const broker = brokerRaw as { id: string; office_id: string; is_office_admin: boolean } | null;
+    .eq('user_id', user.id).eq('is_active', true);
+  if (activeOfficeCookie) brokerQ = brokerQ.eq('office_id', activeOfficeCookie);
+  const { data: brokerArr } = await brokerQ.limit(1);
+  const broker = ((brokerArr ?? [])[0] ?? null) as { id: string; office_id: string; is_office_admin: boolean } | null;
 
   if (!broker && userProfile?.role !== 'super_admin') redirect('/login');
-
-  const cookieStore = await cookies();
-  const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
   const showOwnOnly =
     userProfile?.role === 'broker' ||
     (broker?.is_office_admin && viewCookie === 'broker');

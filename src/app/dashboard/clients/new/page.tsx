@@ -1,5 +1,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { NewClientForm } from '@/components/clients/new-client-form';
 
 export default async function NewClientPage() {
@@ -8,14 +9,18 @@ export default async function NewClientPage() {
   if (!user) redirect('/login');
 
   const serviceClient = await createServiceClient();
-  const { data: brokerRaw } = await serviceClient
+  const cookieStore = await cookies();
+  const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+
+  let brokerQ = serviceClient
     .from('brokers')
     .select('id, office_id')
     .eq('user_id', user.id)
-    .eq('is_active', true)
-    .single();
+    .eq('is_active', true);
+  if (activeOfficeCookie) brokerQ = brokerQ.eq('office_id', activeOfficeCookie);
+  const { data: brokerArr } = await brokerQ.limit(1);
 
-  const broker = brokerRaw as { id: string; office_id: string } | null;
+  const broker = ((brokerArr ?? [])[0] ?? null) as { id: string; office_id: string } | null;
   if (!broker) redirect('/dashboard');
 
   return (

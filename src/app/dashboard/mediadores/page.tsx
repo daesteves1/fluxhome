@@ -1,5 +1,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { MediadorList } from '@/components/mediadores/mediador-list';
 
 export default async function MediadorPage() {
@@ -8,15 +9,18 @@ export default async function MediadorPage() {
   if (!user) redirect('/login');
 
   const serviceClient = await createServiceClient();
+  const cookieStore = await cookies();
+  const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
 
-  const { data: brokerRaw } = await serviceClient
+  let brokerQ = serviceClient
     .from('brokers')
     .select('id, office_id, is_office_admin')
     .eq('user_id', user.id)
-    .eq('is_active', true)
-    .single();
+    .eq('is_active', true);
+  if (activeOfficeCookie) brokerQ = brokerQ.eq('office_id', activeOfficeCookie);
+  const { data: brokerArr } = await brokerQ.limit(1);
 
-  const currentBroker = brokerRaw as {
+  const currentBroker = ((brokerArr ?? [])[0] ?? null) as {
     id: string;
     office_id: string;
     is_office_admin: boolean;

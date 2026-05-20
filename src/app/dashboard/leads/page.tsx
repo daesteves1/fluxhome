@@ -12,6 +12,7 @@ export default async function LeadsPage() {
 
   const cookieStore = await cookies();
   const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
+  const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
 
   type BrokerRow = { id: string; office_id: string; is_office_admin: boolean };
   let broker: BrokerRow | null = null;
@@ -25,13 +26,14 @@ export default async function LeadsPage() {
       .single();
     broker = data as BrokerRow | null;
   } else {
-    const { data } = await serviceClient
+    let q = serviceClient
       .from('brokers')
       .select('id, office_id, is_office_admin')
       .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single();
-    broker = data as BrokerRow | null;
+      .eq('is_active', true);
+    if (activeOfficeCookie) q = q.eq('office_id', activeOfficeCookie);
+    const { data } = await q.limit(1);
+    broker = ((data ?? [])[0] ?? null) as BrokerRow | null;
   }
 
   if (!broker) redirect('/dashboard');
