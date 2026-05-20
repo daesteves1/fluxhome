@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { isValidNIF } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
@@ -53,6 +53,11 @@ export async function POST(request: NextRequest) {
       p2_phone, p2_employment_type, p2_birth_date,
     } = body;
 
+    // Verify the user owns this broker/office
+    const { data: brokerArr } = await serviceClient
+      .from('brokers').select('id').eq('user_id', user.id).eq('id', broker_id).eq('is_active', true).limit(1);
+    if (!brokerArr?.length) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     const hasP2 = Boolean(p2_name);
 
     // Validate email and NIF format
@@ -62,8 +67,8 @@ export async function POST(request: NextRequest) {
     if (hasP2 && p2_email && !emailRe.test(p2_email)) return NextResponse.json({ error: 'Email do P2 inválido' }, { status: 400 });
     if (hasP2 && p2_nif && !isValidNIF(p2_nif)) return NextResponse.json({ error: 'NIF do P2 inválido' }, { status: 400 });
 
-    // Insert client (identity fields only)
-    const { data, error } = await serviceClient.from('clients').insert({
+    // Insert client using admin client to bypass RLS
+    const { data, error } = await createAdminClient().from('clients').insert({
       broker_id,
       office_id,
       p1_name,
