@@ -18,14 +18,14 @@ export default async function NewBankPropostaProcessPage({ params, searchParams 
 
   const serviceClient = await createServiceClient();
 
-  const { data: brokerRaw } = await serviceClient
+  const { data: brokerArr } = await serviceClient
     .from('brokers')
     .select('id, office_id')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .single();
+    .limit(1);
 
-  const broker = brokerRaw as { id: string; office_id: string } | null;
+  const broker = ((brokerArr ?? [])[0] ?? null) as { id: string; office_id: string } | null;
   if (!broker) redirect('/dashboard');
 
   const { data: processRaw } = await serviceClient

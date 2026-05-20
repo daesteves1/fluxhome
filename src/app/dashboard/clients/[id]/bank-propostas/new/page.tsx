@@ -14,14 +14,15 @@ export default async function NewBankPropostaPage({ params }: PageProps) {
 
   const serviceClient = await createServiceClient();
 
-  const { data: brokerRaw } = await serviceClient
+  const { data: brokerArr } = await serviceClient
     .from('brokers')
     .select('id')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .single();
+    .limit(1);
 
-  if (!brokerRaw) redirect('/dashboard');
+  if (!brokerArr?.length) redirect('/dashboard');
+  const brokerRaw = brokerArr[0];
 
   const { data: clientRaw } = await serviceClient
     .from('clients')
