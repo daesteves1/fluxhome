@@ -48,8 +48,8 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     const serviceClient = createAdminClient();
 
     const { data: brokerRaw } = await (serviceClient as any)
-      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).single();
-    const broker = brokerRaw as { id: string; office_id: string } | null;
+      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+    const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     // Fetch the row to verify ownership and get pdf_path
@@ -91,7 +91,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       .eq('user_id', user.id)
       .eq('is_active', true)
       .single();
-    const broker = brokerRaw as { id: string; office_id: string } | null;
+    const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { data, error } = await (serviceClient as any)

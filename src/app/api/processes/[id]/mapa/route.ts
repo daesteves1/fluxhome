@@ -43,8 +43,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const serviceClient = await createServiceClient();
-  const brokerRaw = await serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).single();
-  const broker = brokerRaw.data as { id: string; office_id: string } | null;
+  const brokerRaw = await serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+  const broker = ((brokerRaw.data ?? [])[0] ?? null) as { id: string; office_id: string } | null;
   if (!broker) return NextResponse.json({ error: 'Broker not found' }, { status: 403 });
 
   const { data: procRaw } = await serviceClient.from('processes').select('client_id').eq('id', id).single();

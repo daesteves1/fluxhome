@@ -23,11 +23,11 @@ export async function POST(request: NextRequest) {
 
   const [{ data: userRaw }, { data: brokerRaw }] = await Promise.all([
     serviceClient.from('users').select('name, email').eq('id', user.id).single(),
-    serviceClient.from('brokers').select('office_id').eq('user_id', user.id).eq('is_active', true).single(),
+    serviceClient.from('brokers').select('office_id').eq('user_id', user.id).eq('is_active', true).limit(1),
   ]);
 
   const userInfo = userRaw as { name: string; email: string } | null;
-  const broker = brokerRaw as { office_id: string } | null;
+  const broker = ((brokerRaw ?? [])[0] ?? null) as { office_id: string } | null;
 
   let officeName = 'Desconhecido';
   if (broker?.office_id) {

@@ -92,9 +92,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .from('brokers').select('id, office_id, is_office_admin').eq('id', impersonatingId).eq('is_active', true).single();
     broker = data as BrokerData | null;
   } else {
-    const { data } = await serviceClient
-      .from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true).single();
-    broker = data as BrokerData | null;
+    const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+    let q = serviceClient.from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true);
+    if (activeOfficeCookie) q = q.eq('office_id', activeOfficeCookie);
+    const { data } = await q;
+    broker = ((data ?? [])[0] ?? null) as BrokerData | null;
   }
 
   if (!broker && userProfile?.role !== 'super_admin') redirect('/login');

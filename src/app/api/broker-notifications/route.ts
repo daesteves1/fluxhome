@@ -10,8 +10,8 @@ export async function GET() {
   const serviceClient = await createServiceClient();
 
   const { data: brokerRaw } = await serviceClient
-    .from('brokers').select('id').eq('user_id', user.id).eq('is_active', true).single();
-  const broker = brokerRaw as { id: string } | null;
+    .from('brokers').select('id').eq('user_id', user.id).eq('is_active', true).limit(1);
+  const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string } | null;
   if (!broker) return NextResponse.json({ error: 'Broker not found' }, { status: 404 });
 
   const { data, error } = await (serviceClient as any)

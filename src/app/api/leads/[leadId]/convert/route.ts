@@ -31,8 +31,8 @@ export async function POST(
     const { data } = await serviceClient.from('brokers').select('id, office_id').eq('id', impersonatingId).eq('is_active', true).single();
     broker = data as BrokerRow | null;
   } else {
-    const { data } = await serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).single();
-    broker = data as BrokerRow | null;
+    const { data } = await serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+    broker = ((data ?? [])[0] ?? null) as BrokerRow | null;
   }
 
   if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

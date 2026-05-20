@@ -11,8 +11,8 @@ export async function GET(request: NextRequest) {
 
     const serviceClient = createAdminClient();
     const { data: brokerRaw } = await (serviceClient as any)
-      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).single();
-    const broker = brokerRaw as { id: string; office_id: string } | null;
+      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+    const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json([], { status: 200 });
 
     const processId = request.nextUrl.searchParams.get('process_id');
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
       .single();
 
-    const broker = brokerRaw as { id: string; office_id: string } | null;
+    const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Broker not found' }, { status: 403 });
 
     // Check feature flag

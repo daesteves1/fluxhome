@@ -31,7 +31,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Send doc-requested email (non-fatal)
-  const { data: brokerRaw } = await serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).single() as { data: { id: string; office_id: string } | null };
+  const { data: brokerArr } = await serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+  const brokerRaw = ((brokerArr ?? [])[0] ?? null) as { id: string; office_id: string } | null;
   const { data: clientRaw } = await serviceClient.from('clients').select('p1_name, p1_email, portal_token').eq('id', id).single() as { data: { p1_name: string; p1_email: string | null; portal_token: string | null } | null };
   if (brokerRaw && clientRaw) {
     void sendClientDocRequestedEmail(serviceClient, {

@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
 
     const serviceClient = await createServiceClient();
     const { data: brokerRaw } = await serviceClient
-      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).single();
-    const broker = brokerRaw as { id: string; office_id: string } | null;
+      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+    const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const url = new URL(request.url);
