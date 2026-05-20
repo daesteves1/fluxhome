@@ -23,7 +23,6 @@ import {
   Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { HomeFluxLogoMark } from './homeflux-logo';
 import { createClient } from '@/lib/supabase/client';
 import {
   DropdownMenu,
@@ -53,7 +52,6 @@ interface Office {
 interface SidebarProps {
   role: 'super_admin' | 'office_admin' | 'broker';
   userName: string;
-  userEmail: string;
   officeName?: string;
   logoUrl?: string;
   isOfficeAdmin?: boolean;
@@ -112,7 +110,6 @@ function buildNavGroups(role: string, isOfficeAdmin: boolean): NavGroup[] {
 export function Sidebar({
   role,
   userName,
-  userEmail,
   officeName,
   logoUrl,
   isOfficeAdmin = false,
