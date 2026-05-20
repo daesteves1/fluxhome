@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react';
 import { ProcessStepBadge } from '@/components/dashboard/process-step-badge';
@@ -26,14 +26,16 @@ interface PageProps { params: Promise<{ id: string }> }
 export default async function ClientProfilePage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
-  const serviceClient = await createServiceClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: clientRaw, error } = await serviceClient
+  const adminClient = createAdminClient();
+
+  // Verify user has an active broker in this client's office
+  const { data: clientRaw } = await adminClient
     .from('clients').select('*').eq('id', id).single();
-  if (error || !clientRaw) notFound();
+  if (!clientRaw) notFound();
 
   const client = clientRaw as {
     id: string; broker_id: string; office_id: string;
@@ -44,8 +46,13 @@ export default async function ClientProfilePage({ params }: PageProps) {
     portal_token: string; created_at: string; updated_at: string;
   };
 
+  // Authorization: user must have an active broker in this client's office
+  const { data: brokerArr } = await adminClient
+    .from('brokers').select('id').eq('user_id', user.id).eq('office_id', client.office_id).eq('is_active', true).limit(1);
+  if (!brokerArr?.length) notFound();
+
   // Fetch processes for this client
-  const { data: processesRaw } = await serviceClient
+  const { data: processesRaw } = await adminClient
     .from('processes').select('*').eq('client_id', id).order('created_at', { ascending: false });
   const processes = (processesRaw ?? []) as {
     id: string; tipo: ProcessTipo; process_step: ProcessStep;

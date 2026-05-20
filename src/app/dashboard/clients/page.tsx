@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
@@ -46,15 +46,16 @@ export default async function ClientsPage() {
 
   let clients: ClientRow[] = [];
 
+  const adminClient = createAdminClient();
   if (showOwnOnly && broker) {
-    const { data } = await serviceClient
+    const { data } = await adminClient
       .from('clients')
       .select('id, p1_name, p1_email, p1_phone, p2_name, created_at, broker_id')
       .eq('broker_id', broker.id)
       .order('p1_name', { ascending: true });
     clients = (data ?? []) as unknown as ClientRow[];
   } else if (broker?.office_id) {
-    const { data } = await serviceClient
+    const { data } = await adminClient
       .from('clients')
       .select('id, p1_name, p1_email, p1_phone, p2_name, created_at, broker_id, brokers(users(name))')
       .eq('office_id', broker.office_id)
