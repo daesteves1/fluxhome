@@ -31,7 +31,7 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const supabase = createClient();
 
-    // PKCE flow (?code= in query string)
+    // PKCE flow: ?code= in query string
     const code = new URLSearchParams(window.location.search).get('code');
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(({ error: exchError }) => {
@@ -41,23 +41,25 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    // Implicit flow (#access_token in hash) — Supabase client processes it automatically
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
-        setReady(true);
-        subscription.unsubscribe();
-      }
-    });
+    // Implicit flow: #access_token=...&type=recovery in the URL hash.
+    // Parse it directly and call setSession — more reliable than waiting for
+    // onAuthStateChange which can fire before the listener is registered.
+    const hash = window.location.hash.slice(1);
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
 
-    // Also check if a session already exists (page refresh case)
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) {
-        setReady(true);
-        subscription.unsubscribe();
-      }
-    });
+    if (accessToken && type === 'recovery') {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
+        .then(({ error: sessError }) => {
+          if (sessError) setError('Link inválido ou expirado. Peça um novo link de recuperação.');
+          else setReady(true);
+        });
+      return;
+    }
 
-    return () => subscription.unsubscribe();
+    setError('Link inválido ou expirado. Peça um novo link de recuperação.');
   }, []);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
