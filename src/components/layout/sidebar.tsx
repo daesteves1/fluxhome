@@ -14,15 +14,15 @@ import {
   HelpCircle,
   FolderKanban,
   Inbox,
-  BookUser,
+  Landmark,
   ChevronDown,
   LogOut,
   User,
   KeyRound,
   MoreHorizontal,
   Check,
+  Home,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import {
   DropdownMenu,
@@ -31,6 +31,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+const ACCENT = '#2754ff';
+const BG = '#0e1320';
+const INK = '#e7e8ec';
+const MUTED = '#8b92a7';
+const DIVIDER = 'rgba(255,255,255,0.06)';
+const HOVER_BG = 'rgba(255,255,255,0.05)';
+const ACTIVE_BG = 'rgba(255,255,255,0.09)';
 
 interface NavItem {
   href: string;
@@ -55,53 +63,53 @@ interface SidebarProps {
   officeName?: string;
   logoUrl?: string;
   isOfficeAdmin?: boolean;
+  view?: 'broker' | 'office';
   userOffices?: Office[];
   activeOfficeId?: string;
   onClose?: () => void;
 }
 
-function buildNavGroups(role: string, isOfficeAdmin: boolean): NavGroup[] {
+function buildNavGroups(role: string, isOfficeAdmin: boolean, view: 'broker' | 'office'): NavGroup[] {
   if (role === 'super_admin') {
-    return [
-      {
-        items: [
-          { href: '/admin', icon: Shield, label: 'Dashboard' },
-          { href: '/admin/offices', icon: Building2, label: 'Escritórios' },
-          { href: '/admin/brokers', icon: UserCog, label: 'Mediadores' },
-          { href: '/admin/invitations', icon: UserPlus, label: 'Convites' },
-          { href: '/admin/impersonate', icon: Users, label: 'Impersonar' },
-          { href: '/admin/settings', icon: Settings, label: 'Definições' },
-          { href: '/admin/support', icon: HelpCircle, label: 'Suporte' },
-        ],
-      },
-    ];
+    return [{
+      items: [
+        { href: '/admin',             icon: Shield,       label: 'Dashboard'  },
+        { href: '/admin/offices',     icon: Building2,    label: 'Escritórios' },
+        { href: '/admin/brokers',     icon: UserCog,      label: 'Mediadores'  },
+        { href: '/admin/invitations', icon: UserPlus,     label: 'Convites'    },
+        { href: '/admin/impersonate', icon: Users,        label: 'Impersonar'  },
+        { href: '/admin/settings',    icon: Settings,     label: 'Definições'  },
+        { href: '/admin/support',     icon: HelpCircle,   label: 'Suporte'     },
+      ],
+    }];
   }
 
   const operacao: NavGroup = {
-    groupLabel: 'OPERAÇÃO',
+    groupLabel: 'Operação',
     items: [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { href: '/dashboard/processes', icon: FolderKanban, label: 'Pipeline' },
-      { href: '/dashboard/clients', icon: Users, label: 'Clientes' },
-      { href: '/dashboard/leads', icon: Inbox, label: 'Leads' },
+      { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard/processes', icon: FolderKanban,   label: 'Processos' },
+      { href: '/dashboard/clients',   icon: Users,          label: 'Clientes'  },
+      { href: '/dashboard/leads',     icon: Inbox,          label: 'Leads'     },
     ],
   };
 
-  if (!isOfficeAdmin) return [operacao];
+  // Office admin acting as broker sees only OPERAÇÃO
+  if (!isOfficeAdmin || view === 'broker') return [operacao];
 
   return [
     operacao,
     {
-      groupLabel: 'PARCEIROS',
+      groupLabel: 'Parceiros',
       items: [
-        { href: '/dashboard/office/bank-contacts', icon: BookUser, label: 'Contactos Bancários' },
+        { href: '/dashboard/office/bank-contacts', icon: Landmark, label: 'Contactos bancários' },
       ],
     },
     {
-      groupLabel: 'ESCRITÓRIO',
+      groupLabel: 'Escritório',
       items: [
-        { href: '/dashboard/mediadores', icon: UserCog, label: 'Mediadores' },
-        { href: '/dashboard/office', icon: Building2, label: 'Definições' },
+        { href: '/dashboard/mediadores', icon: UserCog,   label: 'Mediadores' },
+        { href: '/dashboard/office',     icon: Settings,  label: 'Definições' },
       ],
     },
   ];
@@ -113,6 +121,7 @@ export function Sidebar({
   officeName,
   logoUrl,
   isOfficeAdmin = false,
+  view = 'office',
   userOffices = [],
   activeOfficeId,
   onClose,
@@ -141,10 +150,7 @@ export function Sidebar({
     await fetch('/api/admin/impersonate/exit', { method: 'POST' });
     await supabase.auth.signOut();
     router.push('/login');
-    router.refresh();
   }
-
-  const navGroups = buildNavGroups(role, isOfficeAdmin);
 
   const isActive = (href: string) => {
     if (href === '/dashboard' || href === '/admin') {
@@ -156,85 +162,103 @@ export function Sidebar({
     return pathname.startsWith(href);
   };
 
-  const initials = userName
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase();
-
-  const roleLabel =
-    role === 'super_admin'
-      ? 'Super Admin'
-      : isOfficeAdmin
-      ? 'Office Admin'
-      : 'Mediador';
-
-  const displayOfficeName = officeName ?? (role === 'super_admin' ? 'Super Admin' : 'HomeFlux');
+  const navGroups = buildNavGroups(role, isOfficeAdmin, view);
   const multiOffice = userOffices.length > 1;
+  const displayOfficeName = officeName ?? (role === 'super_admin' ? 'Super Admin' : 'HomeFlux');
+  const officeInitials = displayOfficeName.slice(0, 2).toUpperCase();
+
+  const userInitials = userName.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase();
+  const roleLabel = role === 'super_admin' ? 'Super Admin' : isOfficeAdmin ? 'Office Admin' : 'Mediador';
 
   return (
-    <aside
-      className="flex flex-col w-[240px] shrink-0"
-      style={{ backgroundColor: '#0f172a', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}
-    >
-      {/* Office switcher / brand */}
-      <div className="h-14 px-4 flex items-center shrink-0">
-        {multiOffice ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="flex items-center gap-2 min-w-0 w-full rounded-lg px-1 py-1.5 hover:bg-white/[0.07] transition-colors"
-                disabled={switching}
-              >
-                <OfficeLogo logoUrl={logoUrl} name={displayOfficeName} />
-                <span className="text-sm font-semibold text-white truncate flex-1 text-left">
-                  {displayOfficeName}
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-white/40 shrink-0" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              sideOffset={4}
-              className="w-52"
-            >
-              {userOffices.map((office) => (
-                <DropdownMenuItem
-                  key={office.id}
-                  onClick={() => switchOffice(office.id)}
-                  className="flex items-center gap-2"
-                >
-                  <span className="flex-1 truncate">{office.name}</span>
-                  {office.id === activeOfficeId && (
-                    <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                  )}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <div className="flex items-center gap-2 min-w-0 px-1">
-            <OfficeLogo logoUrl={logoUrl} name={displayOfficeName} />
-            <span className="text-sm font-semibold text-white truncate">
-              {displayOfficeName}
-            </span>
-          </div>
-        )}
+    <aside style={{
+      width: 232,
+      minWidth: 232,
+      height: '100%',
+      background: BG,
+      color: INK,
+      display: 'flex',
+      flexDirection: 'column',
+      borderRight: '1px solid #000',
+    }}>
+      {/* Brand */}
+      <div style={{
+        height: 64,
+        padding: '0 20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        borderBottom: `1px solid ${DIVIDER}`,
+        flexShrink: 0,
+      }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: 8, background: ACCENT,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <Home size={15} strokeWidth={2} color="#fff" />
+        </div>
+        <span style={{ fontWeight: 600, fontSize: 15, letterSpacing: -0.2, color: INK }}>
+          HomeFlux
+        </span>
       </div>
 
-      <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.08)' }} className="shrink-0" />
+      {/* Office context */}
+      {role !== 'super_admin' && (
+        <div style={{ padding: '12px 12px 4px', flexShrink: 0 }}>
+          {multiOffice ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button disabled={switching} style={{
+                  width: '100%', display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', padding: '7px 10px',
+                  borderRadius: 8, background: HOVER_BG, border: 0, cursor: 'pointer',
+                  gap: 8,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <OfficeBadge logoUrl={logoUrl} initials={officeInitials} accent={ACCENT} />
+                    <span style={{ fontSize: 12.5, fontWeight: 500, color: INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {displayOfficeName}
+                    </span>
+                  </div>
+                  <ChevronDown size={13} color={MUTED} style={{ flexShrink: 0 }} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={4} className="w-52">
+                {userOffices.map((office) => (
+                  <DropdownMenuItem key={office.id} onClick={() => switchOffice(office.id)} className="flex items-center gap-2">
+                    <span className="flex-1 truncate">{office.name}</span>
+                    {office.id === activeOfficeId && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '7px 10px', borderRadius: 8, background: HOVER_BG,
+            }}>
+              <OfficeBadge logoUrl={logoUrl} initials={officeInitials} accent={ACCENT} />
+              <span style={{ fontSize: 12.5, fontWeight: 500, color: INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {displayOfficeName}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: '6px 12px', overflowY: 'auto' }}>
         {navGroups.map((group, gi) => (
-          <div key={gi}>
+          <div key={gi} style={{ marginTop: gi === 0 ? 6 : 20 }}>
             {group.groupLabel && (
-              <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-white/30">
+              <div style={{
+                fontSize: 10.5, letterSpacing: 0.8, textTransform: 'uppercase',
+                color: MUTED, padding: '4px 10px 6px', fontWeight: 600,
+              }}>
                 {group.groupLabel}
-              </p>
+              </div>
             )}
-            <div className="space-y-0.5">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {group.items.map(({ href, icon: Icon, label }) => {
                 const active = isActive(href);
                 return (
@@ -243,15 +267,27 @@ export function Sidebar({
                     href={href}
                     prefetch={false}
                     onClick={onClose}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors min-h-[36px]',
-                      active
-                        ? 'bg-white/10 text-white'
-                        : 'text-white/50 hover:bg-white/[0.06] hover:text-white/85'
-                    )}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      gap: 10, padding: '8px 10px', borderRadius: 8, textDecoration: 'none',
+                      background: active ? ACTIVE_BG : 'transparent',
+                      color: active ? '#fff' : INK,
+                      position: 'relative',
+                      transition: 'background 0.12s',
+                    }}
+                    onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = HOVER_BG; }}
+                    onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                   >
-                    <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-white' : 'text-white/35')} />
-                    {label}
+                    {active && (
+                      <span style={{
+                        position: 'absolute', left: -12, top: 8, bottom: 8,
+                        width: 2.5, background: ACCENT, borderRadius: 999,
+                      }} />
+                    )}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                      <Icon size={16} strokeWidth={1.6} style={{ opacity: active ? 1 : 0.75, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13.5, fontWeight: active ? 500 : 400 }}>{label}</span>
+                    </span>
                   </Link>
                 );
               })}
@@ -260,44 +296,48 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* Bottom profile */}
-      <div
-        className="px-3 py-3 shrink-0 flex items-center gap-2.5"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
-      >
-        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold shrink-0">
-          {initials}
+      {/* User footer */}
+      <div style={{
+        padding: '10px 12px',
+        borderTop: `1px solid ${DIVIDER}`,
+        display: 'flex', alignItems: 'center', gap: 10,
+        flexShrink: 0,
+      }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%', background: ACCENT,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontSize: 11, fontWeight: 600, flexShrink: 0,
+        }}>
+          {userInitials}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-medium text-white truncate leading-tight">{userName}</p>
-          <p className="text-[11px] text-white/40 truncate leading-tight">{roleLabel}</p>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {userName}
+          </div>
+          <div style={{ fontSize: 11, color: MUTED, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {roleLabel}
+          </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-white/10 transition-colors shrink-0">
-              <MoreHorizontal className="h-4 w-4 text-white/40" />
+            <button style={{ background: 'none', border: 0, cursor: 'pointer', padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+              <MoreHorizontal size={14} color={MUTED} />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem asChild>
               <Link href="/dashboard/settings" className="flex items-center gap-2" onClick={onClose}>
-                <User className="h-4 w-4" />
-                Perfil
+                <User className="h-4 w-4" />Perfil
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/dashboard/settings/password" className="flex items-center gap-2" onClick={onClose}>
-                <KeyRound className="h-4 w-4" />
-                Alterar password
+                <KeyRound className="h-4 w-4" />Alterar password
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive flex items-center gap-2"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-4 w-4" />
-              Terminar sessão
+            <DropdownMenuItem className="text-destructive focus:text-destructive flex items-center gap-2" onClick={handleLogout}>
+              <LogOut className="h-4 w-4" />Terminar sessão
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -306,16 +346,19 @@ export function Sidebar({
   );
 }
 
-function OfficeLogo({ logoUrl, name }: { logoUrl?: string; name: string }) {
+function OfficeBadge({ logoUrl, initials, accent }: { logoUrl?: string; initials: string; accent: string }) {
   if (logoUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={logoUrl} alt={name} className="h-6 w-6 object-contain rounded shrink-0" />
+      <img src={logoUrl} alt="" style={{ width: 22, height: 22, borderRadius: 6, objectFit: 'contain', flexShrink: 0 }} />
     );
   }
-  const initials = name.slice(0, 2).toUpperCase();
   return (
-    <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+    <div style={{
+      width: 22, height: 22, borderRadius: 6, background: '#fff',
+      color: accent, fontWeight: 700, fontSize: 10,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
       {initials}
     </div>
   );

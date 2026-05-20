@@ -16,23 +16,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
 
-  const [{ data: userProfileRaw }, { data: allBrokersRaw }] = await Promise.all([
-    serviceClient.from('users').select('id, name, email, role').eq('id', user.id).single(),
-    serviceClient.from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true),
-  ]);
+  // Fetch user profile first so we can redirect super admins before any further queries
+  const { data: userProfileRaw } = await serviceClient
+    .from('users').select('id, name, email, role').eq('id', user.id).single();
 
   const userProfile = userProfileRaw as {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
+    id: string; name: string; email: string; role: string;
   } | null;
 
   if (!userProfile) redirect('/login');
+  if (userProfile.role === 'super_admin' && !impersonatingId) redirect('/admin');
 
-  if (userProfile.role === 'super_admin' && !impersonatingId) {
-    redirect('/admin');
-  }
+  const { data: allBrokersRaw } = await serviceClient
+    .from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true);
 
   const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
   const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
