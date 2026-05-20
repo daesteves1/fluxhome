@@ -32,22 +32,14 @@ export default async function AdminDashboardPage() {
     serviceClient.from('document_uploads').select('*', { count: 'exact', head: true }).gte('uploaded_at', last7),
   ]);
 
-  // Recent offices
-  const { data: recentOfficesRaw } = await serviceClient
-    .from('offices')
-    .select('id, name, slug, is_active, created_at')
-    .order('created_at', { ascending: false })
-    .limit(5);
+  // Recent offices + recent processes in parallel
+  const [{ data: recentOfficesRaw }, { data: recentProcessesRaw }] = await Promise.all([
+    serviceClient.from('offices').select('id, name, slug, is_active, created_at').order('created_at', { ascending: false }).limit(5),
+    serviceClient.from('processes').select('id, process_step, updated_at, clients(p1_name, p2_name)').order('updated_at', { ascending: false }).limit(8),
+  ]);
 
   type OfficeRow = { id: string; name: string; slug: string; is_active: boolean; created_at: string };
   const recentOffices = (recentOfficesRaw ?? []) as OfficeRow[];
-
-  // Recent processes (activity)
-  const { data: recentProcessesRaw } = await serviceClient
-    .from('processes')
-    .select('id, process_step, updated_at, clients(p1_name, p2_name)')
-    .order('updated_at', { ascending: false })
-    .limit(8);
 
   type ClientRow = { id: string; p1_name: string; p2_name: string | null; process_step: string; updated_at: string };
   const recentClients = ((recentProcessesRaw ?? []) as unknown as { id: string; process_step: string; updated_at: string; clients: { p1_name: string; p2_name: string | null } | null }[]).map((p): ClientRow => ({

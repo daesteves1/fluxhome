@@ -31,7 +31,6 @@ async function getUserRole(userId: string): Promise<string | null> {
           Authorization: `Bearer ${key}`,
           Accept: 'application/json',
         },
-        // Don't cache — role can change
         cache: 'no-store',
       }
     );
@@ -42,6 +41,9 @@ async function getUserRole(userId: string): Promise<string | null> {
     return null;
   }
 }
+
+const ROLE_COOKIE = '__hf_role';
+const ROLE_COOKIE_MAX_AGE = 300; // 5 minutes
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -71,7 +73,23 @@ export async function middleware(request: NextRequest) {
   const isAdmin = pathname.startsWith('/admin');
 
   if (isDashboard || isAdmin) {
-    const role = await getUserRole(user.id);
+    // Use cached role cookie to avoid a DB call on every page load.
+    // Controls routing only — real access control is enforced by Supabase RLS.
+    const cachedRole = request.cookies.get(ROLE_COOKIE)?.value ?? null;
+    let role: string | null = cachedRole;
+
+    if (role === null) {
+      role = await getUserRole(user.id);
+      if (role !== null) {
+        supabaseResponse.cookies.set(ROLE_COOKIE, role, {
+          maxAge: ROLE_COOKIE_MAX_AGE,
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+        });
+      }
+    }
+
     const impersonatingId = request.cookies.get('impersonating_broker_id')?.value;
 
     if (isDashboard && role === 'super_admin' && !impersonatingId) {

@@ -63,35 +63,28 @@ export default async function ProcessDetailPage({ params, searchParams }: PagePr
 
   const clientInfo = proc.clients;
 
-  // Documents filtered by process_id
-  const { data: docRequestsRaw } = await serviceClient
-    .from('document_requests')
-    .select('*')
-    .eq('process_id', id)
-    .order('sort_order', { ascending: true });
+  // Fetch all independent data in parallel
+  const [
+    { data: docRequestsRaw },
+    { data: brokerNotesRaw },
+    { data: brokerRaw },
+    { data: officeRaw },
+  ] = await Promise.all([
+    serviceClient.from('document_requests').select('*').eq('process_id', id).order('sort_order', { ascending: true }),
+    serviceClient.from('broker_notes').select('*').eq('process_id', id).order('created_at', { ascending: false }),
+    serviceClient.from('brokers').select('id, is_office_admin').eq('user_id', user.id).eq('is_active', true).single(),
+    serviceClient.from('offices').select('name, white_label, document_template').eq('id', proc.office_id).single(),
+  ]);
 
+  const broker = brokerRaw as { id: string; is_office_admin: boolean } | null;
+
+  // Uploads depend on docRequestIds so run after
   const docRequestIds = (docRequestsRaw ?? []).map((r) => (r as { id: string }).id);
   let uploadsRaw: unknown[] = [];
   if (docRequestIds.length > 0) {
     const { data } = await serviceClient.from('document_uploads').select('*').in('document_request_id', docRequestIds);
     uploadsRaw = data ?? [];
   }
-
-  // Notes filtered by process_id
-  const { data: brokerNotesRaw } = await serviceClient
-    .from('broker_notes')
-    .select('*')
-    .eq('process_id', id)
-    .order('created_at', { ascending: false });
-
-  // Broker info
-  const { data: brokerRaw } = await serviceClient
-    .from('brokers').select('id, is_office_admin').eq('user_id', user.id).eq('is_active', true).single();
-  const broker = brokerRaw as { id: string; is_office_admin: boolean } | null;
-
-  // Office for document template
-  const { data: officeRaw } = await serviceClient
-    .from('offices').select('name, white_label, document_template').eq('id', proc.office_id).single();
   const officeDocTemplate = getOfficeDocumentTemplate(
     (officeRaw as { document_template?: OfficeDocTemplate[] | null } | null)?.document_template ?? null
   );
