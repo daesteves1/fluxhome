@@ -877,6 +877,7 @@ export type Database = {
 export type ProcessTipo = 'credito_habitacao' | 'renegociacao' | 'construcao' | 'outro';
 
 export type ProcessStep =
+  | 'lead'
   | 'docs_pending'
   | 'docs_complete'
   | 'propostas_sent'

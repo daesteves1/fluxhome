@@ -1336,7 +1336,7 @@ export function PortalView({
                       className={isApproved ? 'opacity-75' : undefined}
                     >
                       {/* Row */}
-                      <div className="flex items-center px-5 py-3.5 gap-3 sm:gap-4">
+                      <div className="flex items-center px-3 sm:px-5 py-3 sm:py-3.5 gap-2 sm:gap-4">
                         {/* Status icon */}
                         <DocStatusIcon status={status} />
 
@@ -1361,14 +1361,14 @@ export function PortalView({
                           {req.is_mandatory ? 'Obrigatório' : 'Opcional'}
                         </span>
 
-                        {/* Status badge */}
+                        {/* Status badge — desktop only */}
                         <div className="hidden sm:flex w-[108px] justify-center shrink-0">
                           <StatusChip status={status} />
                         </div>
 
                         {/* Action buttons */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {/* Mobile: show badge inline */}
+                        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                          {/* Mobile: compact status chip */}
                           <span className="sm:hidden">
                             <StatusChip status={status} />
                           </span>
@@ -1380,14 +1380,14 @@ export function PortalView({
                                   isExpanded ? null : { id: req.id, mode: 'upload' }
                                 )
                               }
-                              className={`flex items-center gap-1.5 h-8 px-3 text-xs font-semibold rounded-lg transition-colors ${
+                              className={`flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-3 text-xs font-semibold rounded-lg transition-colors ${
                                 isExpanded
                                   ? 'bg-blue-50 text-blue-700 border border-blue-200'
                                   : 'bg-blue-600 hover:bg-blue-700 text-white'
                               }`}
                             >
-                              <Upload className="h-3 w-3" />
-                              Carregar
+                              <Upload className="h-3 w-3 shrink-0" />
+                              <span className="hidden sm:inline">Carregar</span>
                             </button>
                           )}
 
@@ -1396,14 +1396,14 @@ export function PortalView({
                               <button
                                 onClick={() => handleViewClick(req.id)}
                                 disabled={isViewing || !hasUploads}
-                                className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
+                                className="flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
                               >
                                 {isViewing ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  <Loader2 className="h-3 w-3 animate-spin shrink-0" />
                                 ) : (
-                                  <Eye className="h-3 w-3" />
+                                  <Eye className="h-3 w-3 shrink-0" />
                                 )}
-                                Ver
+                                <span className="hidden sm:inline">Ver</span>
                               </button>
                               <button
                                 onClick={() =>
@@ -1413,14 +1413,14 @@ export function PortalView({
                                       : { id: req.id, mode: 'replace' }
                                   )
                                 }
-                                className={`flex items-center gap-1.5 h-8 px-3 text-xs font-medium border rounded-lg transition-colors ${
+                                className={`flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-3 text-xs font-medium border rounded-lg transition-colors ${
                                   isExpanded && isReplaceMode
                                     ? 'border-slate-300 bg-slate-100 text-slate-700'
                                     : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
                                 }`}
                               >
-                                <RefreshCw className="h-3 w-3" />
-                                Substituir
+                                <RefreshCw className="h-3 w-3 shrink-0" />
+                                <span className="hidden sm:inline">Substituir</span>
                               </button>
                             </>
                           )}
@@ -1429,14 +1429,14 @@ export function PortalView({
                             <button
                               onClick={() => handleViewClick(req.id)}
                               disabled={isViewing || !hasUploads}
-                              className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
+                              className="flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
                             >
                               {isViewing ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Loader2 className="h-3 w-3 animate-spin shrink-0" />
                               ) : (
-                                <Eye className="h-3 w-3" />
+                                <Eye className="h-3 w-3 shrink-0" />
                               )}
-                              Ver
+                              <span className="hidden sm:inline">Ver</span>
                             </button>
                           )}
 
@@ -1445,14 +1445,14 @@ export function PortalView({
                               <button
                                 onClick={() => handleViewClick(req.id)}
                                 disabled={isViewing || !hasUploads}
-                                className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
+                                className="flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-3 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-lg transition-colors"
                               >
                                 {isViewing ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  <Loader2 className="h-3 w-3 animate-spin shrink-0" />
                                 ) : (
-                                  <Eye className="h-3 w-3" />
+                                  <Eye className="h-3 w-3 shrink-0" />
                                 )}
-                                Ver
+                                <span className="hidden sm:inline">Ver</span>
                               </button>
                               <button
                                 onClick={() =>
@@ -1460,14 +1460,14 @@ export function PortalView({
                                     isExpanded ? null : { id: req.id, mode: 'upload' }
                                   )
                                 }
-                                className={`flex items-center gap-1.5 h-8 px-3 text-xs font-semibold rounded-lg transition-colors ${
+                                className={`flex items-center gap-1 sm:gap-1.5 h-8 px-2 sm:px-3 text-xs font-semibold rounded-lg transition-colors ${
                                   isExpanded
                                     ? 'bg-red-50 text-red-700 border border-red-200'
                                     : 'bg-red-600 hover:bg-red-700 text-white'
                                 }`}
                               >
-                                <Upload className="h-3 w-3" />
-                                Carregar novo
+                                <Upload className="h-3 w-3 shrink-0" />
+                                <span className="hidden sm:inline">Carregar novo</span>
                               </button>
                             </>
                           )}
