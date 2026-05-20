@@ -41,14 +41,14 @@ export async function POST(request: NextRequest) {
     const serviceClient = createAdminClient();
 
     // Get broker + office
-    const { data: brokerRaw } = await (serviceClient as any)
+    const { data: brokerArr } = await (serviceClient as any)
       .from('brokers')
       .select('id, office_id')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .single();
+      .limit(1);
 
-    const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
+    const broker = ((brokerArr ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Broker not found' }, { status: 403 });
 
     // Check feature flag
