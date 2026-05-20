@@ -75,15 +75,17 @@ export async function middleware(request: NextRequest) {
   const isAdmin = pathname.startsWith('/admin');
 
   if (isDashboard || isAdmin) {
-    // Use cached role cookie to avoid a DB call on every page load.
+    // Cache role as "role:userId" so it auto-invalidates when the user changes.
     // Controls routing only — real access control is enforced by Supabase RLS.
-    const cachedRole = request.cookies.get(ROLE_COOKIE)?.value ?? null;
-    let role: string | null = cachedRole;
+    const cached = request.cookies.get(ROLE_COOKIE)?.value ?? null;
+    const [cachedRole, cachedUserId] = cached ? cached.split(':') : [null, null];
+    const cacheHit = cachedRole && cachedUserId === user.id;
+    let role: string | null = cacheHit ? cachedRole : null;
 
     if (role === null) {
       role = await getUserRole(user.id);
       if (role !== null) {
-        supabaseResponse.cookies.set(ROLE_COOKIE, role, {
+        supabaseResponse.cookies.set(ROLE_COOKIE, `${role}:${user.id}`, {
           maxAge: ROLE_COOKIE_MAX_AGE,
           httpOnly: true,
           sameSite: 'lax',
