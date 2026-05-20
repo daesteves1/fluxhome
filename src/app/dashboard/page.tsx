@@ -1,4 +1,4 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
@@ -195,7 +195,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   let newLeadsCount = 0;
   let leadCaptureEnabled = false;
   if (broker?.office_id) {
-    const { data: officeRaw } = await serviceClient
+    const { data: officeRaw } = await createAdminClient()
       .from('offices').select('lead_capture_enabled').eq('id', broker.office_id).single();
     leadCaptureEnabled = (officeRaw as { lead_capture_enabled: boolean } | null)?.lead_capture_enabled ?? false;
     if (leadCaptureEnabled) {

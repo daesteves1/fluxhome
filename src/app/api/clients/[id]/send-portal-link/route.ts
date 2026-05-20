@@ -1,4 +1,4 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { resend, FROM_EMAIL, APP_URL } from '@/lib/email';
 import { ClientLinkEmail } from '@/emails/client-link-email';
@@ -39,7 +39,7 @@ export async function POST(
     return NextResponse.json({ error: 'Client has no email address' }, { status: 400 });
   }
 
-  const { data: officeRaw } = await serviceClient
+  const { data: officeRaw } = await createAdminClient()
     .from('offices')
     .select('name')
     .eq('id', broker.office_id)

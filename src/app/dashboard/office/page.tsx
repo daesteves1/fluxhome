@@ -1,4 +1,4 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { OfficeSettingsForm } from '@/components/settings/office-settings-form';
@@ -22,7 +22,8 @@ export default async function OfficeSettingsPage() {
   const broker = allBrokers.find((b) => b.office_id === activeOfficeCookie) ?? allBrokers[0] ?? null;
   if (!broker) redirect('/dashboard');
 
-  const { data: officeRaw } = await serviceClient
+  const adminClient = createAdminClient();
+  const { data: officeRaw } = await adminClient
     .from('offices')
     .select('id, name, slug, white_label, settings, document_template')
     .eq('id', broker.office_id)

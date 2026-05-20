@@ -1,4 +1,4 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { LeadsView } from '@/components/leads/leads-view';
@@ -38,7 +38,7 @@ export default async function LeadsPage() {
   if (!broker) redirect('/dashboard');
 
   // Check lead capture is enabled for this office
-  const { data: officeRaw } = await serviceClient
+  const { data: officeRaw } = await createAdminClient()
     .from('offices')
     .select('lead_capture_enabled')
     .eq('id', broker.office_id)

@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { ProcessDetailHeader } from '@/components/processes/process-detail-header';
 import { ClientDetailTabs } from '@/components/clients/client-detail-tabs';
 import { getOfficeDocumentTemplate, type OfficeDocTemplate } from '@/lib/document-defaults';
@@ -73,7 +73,7 @@ export default async function ProcessDetailPage({ params, searchParams }: PagePr
     serviceClient.from('document_requests').select('*').eq('process_id', id).order('sort_order', { ascending: true }),
     serviceClient.from('broker_notes').select('*').eq('process_id', id).order('created_at', { ascending: false }),
     serviceClient.from('brokers').select('id, is_office_admin').eq('user_id', user.id).eq('is_active', true).limit(1),
-    serviceClient.from('offices').select('name, white_label, document_template').eq('id', proc.office_id).single(),
+    createAdminClient().from('offices').select('name, white_label, document_template').eq('id', proc.office_id).single(),
   ]);
 
   const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; is_office_admin: boolean } | null;

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { MobileLayoutShell } from '@/components/layout/mobile-layout-shell';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +13,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     createServiceClient(),
     cookies(),
   ]);
+  const adminClient = createAdminClient();
 
   const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
 
@@ -64,7 +65,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     if (impBroker) {
       const [{ data: impUserRaw }, { data: impOfficeRaw }] = await Promise.all([
         serviceClient.from('users').select('name, email').eq('id', impBroker.user_id).single(),
-        serviceClient.from('offices').select('name, white_label').eq('id', impBroker.office_id).single(),
+        adminClient.from('offices').select('name, white_label').eq('id', impBroker.office_id).single(),
       ]);
 
       const impUser = impUserRaw as { name: string; email: string } | null;
@@ -103,7 +104,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       // Fetch all offices in parallel
       const officeIds = allBrokers.map((b) => b.office_id);
-      const { data: officesRaw } = await serviceClient
+      const { data: officesRaw } = await adminClient
         .from('offices')
         .select('id, name, white_label')
         .in('id', officeIds);

@@ -1,4 +1,4 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { NewPropostaStepper } from '@/components/propostas/new-proposta-stepper';
 import { resolveSettings } from '@/lib/settings';
@@ -43,7 +43,7 @@ export default async function NewBankPropostaProcessPage({ params, searchParams 
     clients: { p2_name: string | null } | null;
   };
 
-  const { data: officeRaw } = await serviceClient
+  const { data: officeRaw } = await createAdminClient()
     .from('offices')
     .select('settings')
     .eq('id', broker!.office_id)
