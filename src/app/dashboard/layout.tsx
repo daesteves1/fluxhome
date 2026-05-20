@@ -9,13 +9,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const serviceClient = await createServiceClient();
+  const [serviceClient, cookieStore] = await Promise.all([
+    createServiceClient(),
+    cookies(),
+  ]);
 
-  const { data: userProfileRaw } = await serviceClient
-    .from('users')
-    .select('id, name, email, role')
-    .eq('id', user.id)
-    .single();
+  const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
+
+  // Fetch user profile and broker data in parallel (broker result ignored when impersonating or super_admin)
+  const [{ data: userProfileRaw }, { data: brokerRawParallel }] = await Promise.all([
+    serviceClient.from('users').select('id, name, email, role').eq('id', user.id).single(),
+    serviceClient.from('brokers').select('id, office_id, is_office_admin').eq('user_id', user.id).eq('is_active', true).single(),
+  ]);
 
   const userProfile = userProfileRaw as {
     id: string;
@@ -25,9 +30,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   } | null;
 
   if (!userProfile) redirect('/login');
-
-  const cookieStore = await cookies();
-  const impersonatingId = cookieStore.get('impersonating_broker_id')?.value;
 
   // Super admins must use /admin — only allow /dashboard when actively impersonating
   if (userProfile.role === 'super_admin' && !impersonatingId) {
@@ -85,14 +87,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   } else if (userProfile.role !== 'super_admin') {
     // ── Normal broker/office-admin mode ───────────────────────────────────
-    const { data: brokerRaw } = await serviceClient
-      .from('brokers')
-      .select('id, office_id, is_office_admin')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single();
-
-    const broker = brokerRaw as { id: string; office_id: string; is_office_admin: boolean } | null;
+    const broker = brokerRawParallel as { id: string; office_id: string; is_office_admin: boolean } | null;
     isOfficeAdmin = broker?.is_office_admin ?? false;
 
     if (broker?.office_id) {
