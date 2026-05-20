@@ -11,8 +11,8 @@ async function getAdminBroker(userId: string) {
     .select('id, office_id, is_office_admin')
     .eq('user_id', userId)
     .eq('is_active', true)
-    .single();
-  return data as { id: string; office_id: string; is_office_admin: boolean } | null;
+    .limit(1);
+  return (((data ?? [])[0] ?? null)) as { id: string; office_id: string; is_office_admin: boolean } | null;
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {

@@ -34,9 +34,9 @@ async function requireAdminAccess(): Promise<AuthResult | null> {
     .select('office_id, is_office_admin')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .single();
+    .limit(1);
 
-  const broker = brokerRaw as { office_id: string; is_office_admin: boolean } | null;
+  const broker = ((brokerRaw ?? [])[0] ?? null) as { office_id: string; is_office_admin: boolean } | null;
   if (broker?.is_office_admin) {
     return { type: 'office_admin', serviceClient, officeId: broker.office_id };
   }

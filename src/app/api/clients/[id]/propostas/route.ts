@@ -12,12 +12,13 @@ export async function POST(
 
   const serviceClient = await createServiceClient();
 
-  const { data: broker } = await serviceClient
+  const { data: brokerRaw } = await serviceClient
     .from('brokers')
     .select('id')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .single();
+    .limit(1);
+  const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string } | null;
 
   if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 

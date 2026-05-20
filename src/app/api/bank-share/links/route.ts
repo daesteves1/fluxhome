@@ -23,11 +23,12 @@ export async function GET(request: NextRequest) {
     const serviceClient = createAdminClient();
 
     // Get broker with office info
-    const { data: broker } = await (serviceClient as any)
+    const { data: brokerRaw } = await (serviceClient as any)
       .from('brokers')
       .select('id, office_id, is_office_admin')
       .eq('user_id', user.id)
-      .single();
+      .limit(1);
+    const broker = ((brokerRaw ?? [])[0] ?? null);
 
     if (!broker) {
       return NextResponse.json({ error: 'Not a broker' }, { status: 403 });

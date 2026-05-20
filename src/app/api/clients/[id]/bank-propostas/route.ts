@@ -53,8 +53,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .select('id, office_id')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .single();
-    const broker = brokerRaw.data as { id: string; office_id: string } | null;
+      .limit(1);
+    const broker = ((brokerRaw.data ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) {
       console.error('[POST /api/clients/[id]/bank-propostas] Broker not found for user', user.id);
       return NextResponse.json({ error: 'Broker not found' }, { status: 403 });

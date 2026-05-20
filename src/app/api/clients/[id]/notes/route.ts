@@ -17,9 +17,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('id')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .single();
+    .limit(1);
 
-  const broker = brokerRaw as { id: string } | null;
+  const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string } | null;
   if (!broker) return NextResponse.json({ error: 'Broker not found' }, { status: 403 });
 
   const { data, error } = await serviceClient

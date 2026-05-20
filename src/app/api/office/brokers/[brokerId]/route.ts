@@ -12,9 +12,9 @@ async function requireOfficeAdmin() {
     .select('id, office_id, is_office_admin')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .single();
+    .limit(1);
 
-  const broker = data as { id: string; office_id: string; is_office_admin: boolean } | null;
+  const broker = ((data ?? [])[0] ?? null) as { id: string; office_id: string; is_office_admin: boolean } | null;
   if (!broker || !broker.is_office_admin) return null;
   return { serviceClient, broker };
 }

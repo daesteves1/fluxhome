@@ -18,12 +18,13 @@ export async function POST(request: NextRequest) {
     const { client_id, bank_id, bank_name, contact_email, note, expires_at, skip_email } = body;
 
     // Validate broker owns the client
-    const { data: brokerData, error: brokerError } = await (serviceClient as any)
+    const { data: brokerDataRaw, error: brokerError } = await (serviceClient as any)
       .from('brokers')
       .select('id, office_id, is_office_admin')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .single();
+      .limit(1);
+    const brokerData = ((brokerDataRaw ?? [])[0] ?? null);
 
     if (brokerError || !brokerData) {
       return NextResponse.json({ error: 'Broker not found' }, { status: 404 });

@@ -35,9 +35,9 @@ export async function GET(
     .select('id, office_id')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .single();
+    .limit(1);
 
-  const officeId = (brokerRaw as { id: string; office_id: string } | null)?.office_id;
+  const officeId = (((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null)?.office_id;
   const { data: officeRaw } = officeId
     ? await serviceClient.from('offices').select('name, white_label').eq('id', officeId).single()
     : { data: null };

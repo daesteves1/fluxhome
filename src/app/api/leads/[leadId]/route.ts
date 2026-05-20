@@ -19,9 +19,9 @@ export async function PATCH(
     .select('office_id')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .single();
+    .limit(1);
 
-  const broker = brokerRaw as { office_id: string } | null;
+  const broker = ((brokerRaw ?? [])[0] ?? null) as { office_id: string } | null;
   if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { data: leadRaw } = await serviceClient
