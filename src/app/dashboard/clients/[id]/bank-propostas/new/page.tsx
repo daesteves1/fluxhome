@@ -22,7 +22,6 @@ export default async function NewBankPropostaPage({ params }: PageProps) {
     .limit(1);
 
   if (!brokerArr?.length) redirect('/dashboard');
-  const brokerRaw = brokerArr[0];
 
   const { data: clientRaw } = await serviceClient
     .from('clients')
