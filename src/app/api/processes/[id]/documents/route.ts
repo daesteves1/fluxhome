@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { sendClientDocRequestedEmail } from '@/lib/client-notifications';
 
 interface RouteParams { params: Promise<{ id: string }> }
 
@@ -13,9 +14,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const serviceClient = await createServiceClient();
 
-  // Get client_id from process
-  const { data: procRaw } = await serviceClient.from('processes').select('client_id').eq('id', id).single();
-  const proc = procRaw as { client_id: string } | null;
+  // Get client_id + broker context from process
+  const { data: procRaw } = await serviceClient.from('processes').select('client_id, broker_id, office_id').eq('id', id).single();
+  const proc = procRaw as { client_id: string; broker_id: string; office_id: string } | null;
   if (!proc) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const { data, error } = await serviceClient
@@ -33,5 +34,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Send doc-requested email (non-fatal)
+  const { data: clientRaw } = await serviceClient.from('clients').select('p1_name, p1_email, portal_token').eq('id', proc.client_id).single() as { data: { p1_name: string; p1_email: string | null; portal_token: string | null } | null };
+  if (clientRaw) {
+    void sendClientDocRequestedEmail(serviceClient, {
+      clientName: clientRaw.p1_name,
+      clientEmail: clientRaw.p1_email,
+      portalToken: clientRaw.portal_token,
+      brokerId: proc.broker_id,
+      officeId: proc.office_id,
+      docLabels: [label],
+    });
+  }
+
   return NextResponse.json(data);
 }

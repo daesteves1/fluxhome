@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
 
       if (!fileError && fileData) {
         const fileName = upload.file_name || `document-${upload.id}`;
-        zip.folder(folder)?.file(fileName, fileData);
+        const arrayBuffer = await fileData.arrayBuffer();
+        zip.folder(folder)?.file(fileName, arrayBuffer);
       }
     }
 

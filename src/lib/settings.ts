@@ -14,6 +14,14 @@ export type PlatformSettings = {
   rgpd_text: string | null;
   // AI features
   ai_proposta_extraction: boolean;
+  // Client email notifications
+  notifications: {
+    client_process_created: boolean;
+    client_nudge_days: number;
+    client_propostas_available: boolean;
+    client_recomendacao_available: boolean;
+    client_doc_requested_after_creation: boolean;
+  };
 };
 
 export const PLATFORM_DEFAULTS: PlatformSettings = {
@@ -27,6 +35,13 @@ export const PLATFORM_DEFAULTS: PlatformSettings = {
   max_propostas_per_client: null,
   rgpd_text: null,
   ai_proposta_extraction: false,
+  notifications: {
+    client_process_created: true,
+    client_nudge_days: 7,
+    client_propostas_available: true,
+    client_recomendacao_available: true,
+    client_doc_requested_after_creation: true,
+  },
 };
 
 // Broker-level overrides use three-state: absent = inherit, 'on' = true, 'off' = false

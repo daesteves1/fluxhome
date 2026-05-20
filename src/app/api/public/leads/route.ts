@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { resend, FROM_EMAIL, APP_URL } from '@/lib/email';
 import { render } from '@react-email/render';
 import { LeadNotificationEmail } from '@/emails/lead-notification-email';
+import { createBrokerNotification } from '@/lib/broker-notifications';
 
 const schema = z.object({
   office_id: z.string().uuid(),
@@ -149,18 +150,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erro ao guardar contacto' }, { status: 500 });
   }
 
-  // Send notification email to office admin(s)
-  // TODO: allow office to configure a dedicated notification email override
+  // Send notification email + in-app notification to office admin(s)
   try {
     const { data: adminBrokersRaw } = await serviceClient
       .from('brokers')
-      .select('user_id')
+      .select('id, user_id')
       .eq('office_id', data.office_id)
       .eq('is_office_admin', true)
       .eq('is_active', true);
 
     if (adminBrokersRaw && adminBrokersRaw.length > 0) {
-      const userIds = (adminBrokersRaw as { user_id: string }[]).map((b) => b.user_id);
+      const adminBrokers = adminBrokersRaw as { id: string; user_id: string }[];
+
+      // In-app notifications for all office admins
+      for (const broker of adminBrokers) {
+        void createBrokerNotification(serviceClient, {
+          brokerId: broker.id,
+          officeId: data.office_id,
+          type: 'lead_new',
+          title: `Novo lead: ${data.p1_nome}`,
+          body: data.p1_telefone || data.p1_email || null,
+          link: '/dashboard/leads',
+        });
+      }
+
+      const userIds = adminBrokers.map((b) => b.user_id);
       const { data: usersRaw } = await serviceClient
         .from('users')
         .select('email')

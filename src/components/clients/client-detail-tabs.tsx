@@ -8,7 +8,7 @@ import { DocumentsTab } from './documents-tab';
 import { PropostasTab } from './propostas-tab';
 import { AnaliseComparativaTab } from './analise-comparativa-tab';
 import { NotesTab } from './notes-tab';
-import { BankShareTab } from './bank-share-tab';
+import { BankShareTab, type ApprovedDocument } from './bank-share-tab';
 import type { ProcessStep } from '@/types/database';
 import type { OfficeDocTemplate } from '@/lib/document-defaults';
 
@@ -79,6 +79,7 @@ export function ClientDetailTabs({
   brokerNotes,
   currentBrokerId,
   officeId,
+  officeName,
   officeDocTemplate,
   defaultTab,
   processId,
@@ -90,6 +91,10 @@ export function ClientDetailTabs({
     ? (defaultTab as Tab)
     : 'documents';
   const [activeTab, setActiveTab] = useState<Tab>(validDefault);
+
+  const approvedDocuments: ApprovedDocument[] = documentRequests
+    .filter((r) => r.status === 'approved')
+    .map((r) => ({ id: r.id, label: r.label, doc_type: r.doc_type, proponente: r.proponente }));
 
   const pendingDocs = documentRequests.filter(
     (r) => r.status === 'pending' || r.status === 'em_analise'
@@ -169,7 +174,13 @@ export function ClientDetailTabs({
           />
         )}
         {activeTab === 'bank_share' && (
-          <BankShareTab clientId={client.id} brokerId={currentBrokerId} />
+          <BankShareTab
+            clientId={client.id}
+            brokerId={currentBrokerId}
+            clientName={client.p1_name}
+            officeName={officeName}
+            approvedDocuments={approvedDocuments}
+          />
         )}
       </div>
     </div>

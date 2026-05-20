@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getOfficeDocumentTemplate, type OfficeDocTemplate } from '@/lib/document-defaults';
+import { sendClientWelcomeEmail } from '@/lib/client-notifications';
 import type { ProcessTipo } from '@/types/database';
 
 export async function POST(request: NextRequest) {
@@ -37,8 +38,8 @@ export async function POST(request: NextRequest) {
 
   // Verify client belongs to broker's office
   const { data: clientRaw } = await serviceClient
-    .from('clients').select('id, p1_name, p2_name, office_id, portal_token').eq('id', body.client_id).single();
-  const clientInfo = clientRaw as { id: string; p1_name: string; p2_name: string | null; office_id: string; portal_token: string | null } | null;
+    .from('clients').select('id, p1_name, p2_name, p1_email, office_id, portal_token').eq('id', body.client_id).single();
+  const clientInfo = clientRaw as { id: string; p1_name: string; p2_name: string | null; p1_email: string | null; office_id: string; portal_token: string | null } | null;
   if (!clientInfo || clientInfo.office_id !== broker.office_id) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
@@ -98,6 +99,15 @@ export async function POST(request: NextRequest) {
   });
 
   if (docRows.length > 0) await serviceClient.from('document_requests').insert(docRows);
+
+  // Send welcome email (non-fatal)
+  void sendClientWelcomeEmail(serviceClient, {
+    clientName: clientInfo.p1_name,
+    clientEmail: clientInfo.p1_email,
+    portalToken: clientInfo.portal_token,
+    brokerId: broker.id,
+    officeId: broker.office_id,
+  });
 
   return NextResponse.json({
     id: processId,

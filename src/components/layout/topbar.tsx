@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 import { HomeFluxLogoMark } from './homeflux-logo';
+import { NotificationBell } from './notification-bell';
 
 interface TopBarProps {
   userName: string;
@@ -61,6 +62,9 @@ export function TopBar({ userName, onMenuToggle, onHelpOpen }: TopBarProps) {
 
       {/* Desktop: push user menu to the right */}
       <div className="hidden md:flex flex-1" />
+
+      {/* Notification bell */}
+      <NotificationBell />
 
       {/* Help button */}
       <button

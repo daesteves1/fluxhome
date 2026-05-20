@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const serviceClient = createAdminClient();
     const body = await request.json();
 
-    const { client_id, bank_id, bank_name, contact_email, note, expires_at } = body;
+    const { client_id, bank_id, bank_name, contact_email, note, expires_at, skip_email } = body;
 
     // Validate broker owns the client
     const { data: brokerData, error: brokerError } = await (serviceClient as any)
@@ -103,7 +103,11 @@ export async function POST(request: NextRequest) {
     // Construct share URL
     const shareUrl = `${APP_URL}/bank-share/${token}`;
 
-    // Send email
+    // Send email (skip if requested)
+    if (skip_email) {
+      return NextResponse.json(shareLink);
+    }
+
     const emailHtml = await render(
       BankShareEmail({
         officeName,

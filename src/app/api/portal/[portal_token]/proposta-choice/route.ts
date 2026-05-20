@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { createBrokerNotification } from '@/lib/broker-notifications';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
@@ -10,13 +11,13 @@ export async function POST(
 
   const { data: clientRaw } = await serviceClient
     .from('clients')
-    .select('id')
+    .select('id, broker_id, office_id, p1_name')
     .eq('portal_token', portal_token)
     .single();
 
   if (!clientRaw) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const client = clientRaw as { id: string };
+  const client = clientRaw as { id: string; broker_id: string | null; office_id: string; p1_name: string };
 
   const body = (await request.json()) as {
     proposta_id: string;
@@ -41,6 +42,31 @@ export async function POST(
     .eq('id', client.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Notify broker of proposta choice (non-fatal)
+  if (client.broker_id) {
+    // Find the most recent process for this client to build the link
+    const { data: procRaw } = await serviceClient
+      .from('processes')
+      .select('id')
+      .eq('client_id', client.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() as unknown as { data: { id: string } | null };
+
+    const link = procRaw
+      ? `/dashboard/processes/${procRaw.id}?tab=propostas`
+      : `/dashboard/clients/${client.id}?tab=propostas`;
+
+    void createBrokerNotification(serviceClient, {
+      brokerId: client.broker_id,
+      officeId: client.office_id,
+      type: 'proposta_choice',
+      title: `${client.p1_name} escolheu uma proposta`,
+      body: body.bank_name,
+      link,
+    });
+  }
 
   return NextResponse.json({ ok: true, choice });
 }

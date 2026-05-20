@@ -15,6 +15,7 @@ import {
   HelpCircle,
   FolderKanban,
   Inbox,
+  BookUser,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HomeFluxLogoMark } from './homeflux-logo';
@@ -45,6 +46,7 @@ const officeAdminLinks = [
   { href: '/dashboard/leads', icon: Inbox, labelKey: 'leads' },
   { href: '/dashboard/mediadores', icon: UserCog, labelKey: 'mediadores' },
   { href: '/dashboard/office', icon: Building2, labelKey: 'office' },
+  { href: '/dashboard/office/bank-contacts', icon: BookUser, labelKey: 'bankContacts' },
 ];
 
 const superAdminLinks = [
@@ -102,6 +104,10 @@ export function Sidebar({
   const isActive = (href: string) => {
     if (href === '/dashboard' || href === '/admin') {
       return pathname === href || pathname === `${href}/`;
+    }
+    // Exact match for office root so bank-contacts doesn't also highlight it
+    if (href === '/dashboard/office') {
+      return pathname === '/dashboard/office' || pathname === '/dashboard/office/';
     }
     return pathname.startsWith(href);
   };

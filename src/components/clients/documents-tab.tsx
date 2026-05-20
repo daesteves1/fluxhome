@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import type { DocumentRequest, DocumentUpload } from './client-detail-tabs';
 import type { OfficeDocTemplate } from '@/lib/document-defaults';
+import { buildDocumentFileName } from '@/lib/file-utils';
 import { ManageDocumentsPanel } from './manage-documents-panel';
 import { DownloadDocumentsModal } from './download-documents-modal';
 import { DocumentViewer } from '@/components/documents/document-viewer';
@@ -129,8 +130,11 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId, offi
     activeUploadReqRef.current = null;
     setUploadingFor(requestId);
     try {
+      const docReq = documentRequests.find((r) => r.id === requestId);
+      const proponenteName = docReq?.proponente === 'p1' ? client.p1_name : docReq?.proponente === 'p2' ? (client.p2_name ?? null) : null;
       for (const file of Array.from(files)) {
-        const path = `${officeId}/${client.id}/${requestId}/${Date.now()}_${file.name}`;
+        const fileName = buildDocumentFileName(docReq?.doc_type ?? docReq?.label ?? 'documento', proponenteName, file.name);
+        const path = `${officeId}/${client.id}/${requestId}/${fileName}`;
         const { createClient } = await import('@/lib/supabase/client');
         const supabase = createClient();
         const { error: uploadError } = await supabase.storage.from('client-documents').upload(path, file);
@@ -138,7 +142,7 @@ export function DocumentsTab({ client, documentRequests, uploads, officeId, offi
         await fetch(`${base}/documents/${requestId}/uploads`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ storage_path: path, file_name: file.name, file_size: file.size, mime_type: file.type, uploaded_by: 'broker' }),
+          body: JSON.stringify({ storage_path: path, file_name: fileName, file_size: file.size, mime_type: file.type, uploaded_by: 'broker' }),
         });
       }
       toast.success(t('uploadFile'));

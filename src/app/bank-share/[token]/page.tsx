@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
 import { useEffect, useRef, useState } from 'react';
-import { XCircle, Copy, Download, CheckCircle2 } from 'lucide-react';
+import { XCircle, Copy, Download, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -239,53 +239,68 @@ export default function BankSharePage({ params }: { params: { token: string } })
     }
   };
 
-  const downloadDocument = async (docId: string) => {
+  const getSignedUrl = async (docId: string): Promise<string | null> => {
+    const response = await fetch('/api/bank-share/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, docId }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.signedUrl ?? null;
+  };
+
+  const downloadDocument = async (docId: string, fileName: string | null) => {
     try {
-      const response = await fetch('/api/bank-share/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, docId }),
-      });
-
-      if (!response.ok) {
-        toast.error('Erro ao descarregar documento');
-        return;
-      }
-
-      const data = await response.json();
-      window.open(data.signedUrl, '_blank');
-    } catch (error) {
+      const signedUrl = await getSignedUrl(docId);
+      if (!signedUrl) { toast.error('Erro ao descarregar documento'); return; }
+      // Fetch as blob to force download (avoids browser opening the file)
+      const fileRes = await fetch(signedUrl);
+      const blob = await fileRes.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || 'documento';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
       toast.error('Erro ao descarregar documento');
     }
   };
 
-  const bulkDownload = async () => {
-    if (selectedDocs.length === 0) {
-      toast.error('Selecione pelo menos um documento');
-      return;
+  const viewDocument = async (docId: string) => {
+    try {
+      const signedUrl = await getSignedUrl(docId);
+      if (!signedUrl) { toast.error('Erro ao abrir documento'); return; }
+      window.open(signedUrl, '_blank');
+    } catch {
+      toast.error('Erro ao abrir documento');
     }
+  };
 
+  const bulkDownload = async (docIds?: string[]) => {
+    const ids = docIds ?? selectedDocs;
+    if (ids.length === 0) { toast.error('Sem documentos para descarregar'); return; }
     try {
       const response = await fetch('/api/bank-share/bulk-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, docIds: selectedDocs }),
+        body: JSON.stringify({ token, docIds: ids }),
       });
-
-      if (!response.ok) {
-        toast.error('Erro ao descarregar documentos');
-        return;
-      }
-
+      if (!response.ok) { toast.error('Erro ao descarregar documentos'); return; }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'documentos.zip';
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setBulkDownloadDialogOpen(false);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao descarregar documentos');
     }
   };
@@ -584,16 +599,13 @@ export default function BankSharePage({ params }: { params: { token: string } })
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const allIds = pageData.documents
-                    .filter(d => d.upload)
-                    .map(d => d.upload!.id);
-                  setSelectedDocs(allIds);
-                  setBulkDownloadDialogOpen(true);
+                  const allIds = pageData.documents.filter(d => d.upload).map(d => d.upload!.id);
+                  bulkDownload(allIds);
                 }}
                 className="gap-2"
               >
                 <Download className="w-4 h-4" />
-                Descarregar todos
+                Descarregar todos (ZIP)
               </Button>
             </div>
 
@@ -617,15 +629,26 @@ export default function BankSharePage({ params }: { params: { token: string } })
                           )}
                         </div>
                         {doc.upload && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => downloadDocument(doc.upload!.id)}
-                            className="gap-2"
-                          >
-                            <Download className="w-4 h-4" />
-                            Descarregar
-                          </Button>
+                          <div className="flex gap-2 shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => viewDocument(doc.upload!.id)}
+                              className="gap-1.5"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Ver
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadDocument(doc.upload!.id, doc.upload!.file_name)}
+                              className="gap-1.5"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Descarregar
+                            </Button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -684,7 +707,7 @@ export default function BankSharePage({ params }: { params: { token: string } })
               <Button variant="outline" onClick={() => setBulkDownloadDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={bulkDownload} disabled={selectedDocs.length === 0}>
+              <Button onClick={() => bulkDownload()} disabled={selectedDocs.length === 0}>
                 Descarregar {selectedDocs.length > 0 ? `(${selectedDocs.length})` : ''}
               </Button>
             </DialogFooter>

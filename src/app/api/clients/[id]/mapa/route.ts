@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { sendClientRecomendacaoEmail } from '@/lib/client-notifications';
 
 interface RouteParams { params: Promise<{ id: string }> }
 
@@ -95,10 +96,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const { data: existingRaw } = await serviceClient
       .from('mapa_comparativo' as 'propostas')
-      .select('id')
+      .select('id, is_visible_to_client')
       .eq('client_id', id)
       .limit(1)
-      .maybeSingle() as unknown as { data: { id: string } | null };
+      .maybeSingle() as unknown as { data: { id: string; is_visible_to_client: boolean } | null };
 
     const now = new Date().toISOString();
 
@@ -117,6 +118,24 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         console.error('[PUT /api/clients/[id]/mapa] Update error:', errMsg(error));
         return NextResponse.json({ error: errMsg(error) }, { status: 500 });
       }
+
+      // Trigger recomendação email when visibility transitions false → true
+      const wasVisible = existingRaw.is_visible_to_client;
+      const nowVisible = body.is_visible_to_client === true;
+      if (!wasVisible && nowVisible) {
+        const { data: clientRaw } = await serviceClient
+          .from('clients').select('p1_name, p1_email, portal_token').eq('id', id).single() as unknown as { data: { p1_name: string; p1_email: string | null; portal_token: string | null } | null };
+        if (clientRaw) {
+          void sendClientRecomendacaoEmail(serviceClient, {
+            clientName: clientRaw.p1_name,
+            clientEmail: clientRaw.p1_email,
+            portalToken: clientRaw.portal_token,
+            brokerId: broker.id,
+            officeId: broker.office_id,
+          });
+        }
+      }
+
       return NextResponse.json({ id: data?.id });
     } else {
       const insertPayload = {

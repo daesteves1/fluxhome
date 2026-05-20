@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { sendClientPropostasEmail } from '@/lib/client-notifications';
 
 interface RouteParams { params: Promise<{ id: string }> }
 
@@ -61,6 +62,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const body = await request.json() as Record<string, unknown>;
 
+    // Check if this is the first proposta for this client
+    const { count: existingCount } = await serviceClient
+      .from('bank_propostas' as 'propostas')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', id) as unknown as { count: number | null };
+    const isFirstProposta = !existingCount || existingCount === 0;
+
     const { data, error } = await serviceClient
       .from('bank_propostas' as 'propostas')
       .insert({ ...body, client_id: id, broker_id: broker.id, office_id: broker.office_id })
@@ -71,6 +79,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.error('[POST /api/clients/[id]/bank-propostas] DB error:', errMsg(error));
       return NextResponse.json({ error: errMsg(error) }, { status: 500 });
     }
+
+    // Send propostas email only on the first proposta
+    if (isFirstProposta) {
+      const { data: clientRaw } = await serviceClient
+        .from('clients').select('p1_name, p1_email, portal_token').eq('id', id).single() as unknown as { data: { p1_name: string; p1_email: string | null; portal_token: string | null } | null };
+      if (clientRaw) {
+        void sendClientPropostasEmail(serviceClient, {
+          clientName: clientRaw.p1_name,
+          clientEmail: clientRaw.p1_email,
+          portalToken: clientRaw.portal_token,
+          brokerId: broker.id,
+          officeId: broker.office_id,
+        });
+      }
+    }
+
     return NextResponse.json({ id: data?.id }, { status: 201 });
   } catch (e) {
     console.error('[POST /api/clients/[id]/bank-propostas] Unexpected error:', e);

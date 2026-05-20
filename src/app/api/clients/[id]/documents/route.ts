@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { sendClientDocRequestedEmail } from '@/lib/client-notifications';
 
 interface RouteParams { params: Promise<{ id: string }> }
 
@@ -28,5 +29,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Send doc-requested email (non-fatal)
+  const { data: brokerRaw } = await serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).single() as { data: { id: string; office_id: string } | null };
+  const { data: clientRaw } = await serviceClient.from('clients').select('p1_name, p1_email, portal_token').eq('id', id).single() as { data: { p1_name: string; p1_email: string | null; portal_token: string | null } | null };
+  if (brokerRaw && clientRaw) {
+    void sendClientDocRequestedEmail(serviceClient, {
+      clientName: clientRaw.p1_name,
+      clientEmail: clientRaw.p1_email,
+      portalToken: clientRaw.portal_token,
+      brokerId: brokerRaw.id,
+      officeId: brokerRaw.office_id,
+      docLabels: [label],
+    });
+  }
+
   return NextResponse.json(data);
 }
