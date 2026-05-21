@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 interface RouteParams { params: Promise<{ id: string }> }
@@ -47,8 +48,11 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
 
     const serviceClient = createAdminClient();
 
-    const { data: brokerRaw } = await (serviceClient as any)
-      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+    const cookieStore = await cookies();
+    const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+    let brokerQuery = (serviceClient as any).from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true);
+    if (activeOfficeCookie) brokerQuery = brokerQuery.eq('office_id', activeOfficeCookie);
+    const { data: brokerRaw } = await brokerQuery.limit(1);
     const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -85,12 +89,11 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
     const serviceClient = createAdminClient();
 
-    const { data: brokerRaw } = await (serviceClient as any)
-      .from('brokers')
-      .select('id, office_id')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .limit(1);
+    const cookieStore = await cookies();
+    const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+    let brokerQuery = (serviceClient as any).from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true);
+    if (activeOfficeCookie) brokerQuery = brokerQuery.eq('office_id', activeOfficeCookie);
+    const { data: brokerRaw } = await brokerQuery.limit(1);
     const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 

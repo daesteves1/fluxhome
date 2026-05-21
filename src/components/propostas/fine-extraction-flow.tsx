@@ -272,8 +272,39 @@ export function ExtractionProcessingScreen({
 
   useEffect(() => {
     const supabase = createClient();
+    let cancelled = false;
 
-    // Poll via Realtime
+    const checkStatus = async (): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/proposta-extractions/${extractionId}`, {
+          cache: 'no-store',
+        });
+        if (!res.ok) return false;
+        const data = await res.json() as ExtractionResult;
+        if (data.status === 'complete' || data.status === 'failed') {
+          handleStatus(data.status, data);
+          return true;
+        }
+      } catch { /* network error — retry */ }
+      return false;
+    };
+
+    // Check immediately on mount (catches already-complete extractions)
+    void (async () => {
+      if (cancelled) return;
+      const done = await checkStatus();
+      if (done || cancelled) return;
+
+      // Poll every 3s as fallback
+      const poll = async () => {
+        if (cancelled) return;
+        const done = await checkStatus();
+        if (!done && !cancelled) setTimeout(poll, 3000);
+      };
+      setTimeout(poll, 3000);
+    })();
+
+    // Also listen via Realtime for faster detection
     const channel = supabase
       .channel(`extraction-${extractionId}`)
       .on(
@@ -292,24 +323,6 @@ export function ExtractionProcessingScreen({
         }
       )
       .subscribe();
-
-    // Also poll every 5s as fallback (webhook might be slow)
-    let cancelled = false;
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const res = await fetch(`/api/proposta-extractions/${extractionId}`);
-        if (res.ok) {
-          const data = await res.json() as ExtractionResult;
-          if (data.status === 'complete' || data.status === 'failed') {
-            handleStatus(data.status, data);
-            return;
-          }
-        }
-      } catch { /* ignore */ }
-      if (!cancelled) setTimeout(poll, 5000);
-    };
-    setTimeout(poll, 5000);
 
     return () => {
       cancelled = true;
