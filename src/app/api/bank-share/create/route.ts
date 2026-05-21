@@ -22,14 +22,14 @@ export async function POST(request: NextRequest) {
       .from('brokers')
       .select('id, office_id, is_office_admin')
       .eq('user_id', user.id)
-      .eq('is_active', true)
-      .limit(1);
-    const brokerData = ((brokerDataRaw ?? [])[0] ?? null);
+      .eq('is_active', true);
 
-    if (brokerError || !brokerData) {
+    if (brokerError || !brokerDataRaw?.length) {
       return NextResponse.json({ error: 'Broker not found' }, { status: 404 });
     }
 
+    // Primary record used for operations; ownership is checked against all records for this user
+    const brokerData = (brokerDataRaw as any[])[0];
     const broker_id = brokerData.id;
     const office_id = brokerData.office_id;
     const is_office_admin = brokerData.is_office_admin;
@@ -47,17 +47,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    const isOwner = (clientData as any).broker_id === broker_id;
-    const isOfficeAdmin = is_office_admin && (clientData as any).office_id === office_id;
+    const brokerIds = (brokerDataRaw as any[]).map((b) => b.id);
+    const isOwner = brokerIds.includes((clientData as any).broker_id);
+    const isOfficeAdmin = (brokerDataRaw as any[]).some((b) => b.is_office_admin && b.office_id === (clientData as any).office_id);
 
-    // Also allow if broker owns a process for this client (process-level access)
+    // Also allow if any of the user's broker records owns a process for this client
     let hasProcessAccess = false;
     if (!isOwner && !isOfficeAdmin) {
       const { data: processAccess } = await (serviceClient as any)
         .from('processes')
         .select('id')
         .eq('client_id', client_id)
-        .eq('broker_id', broker_id)
+        .in('broker_id', brokerIds)
         .limit(1);
       hasProcessAccess = Array.isArray(processAccess) && processAccess.length > 0;
     }
