@@ -5,6 +5,8 @@ import type { BankProposta, MapaComparativo } from '@/types/proposta';
 import { resolveSettings } from '@/lib/settings';
 import type { PlatformSettings, BrokerSettingsOverride } from '@/lib/settings';
 
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   params: Promise<{ locale: string; portal_token: string }>;
 }
