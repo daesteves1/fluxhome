@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import type { ProcessTipo } from '@/types/database';
+import { getOfficeDocumentTemplate, TRANSFER_AUTO_DOC_TYPES, type OfficeDocTemplate } from '@/lib/document-defaults';
 
 type RawProc = {
   id: string; process_step: string; updated_at: string; broker_id: string;
@@ -108,32 +109,65 @@ export async function POST(request: NextRequest) {
   // Verify client belongs to broker's office
   const { data: clientRaw } = await serviceClient
     .from('clients')
-    .select('id, p1_name, portal_token')
+    .select('id, p1_name, p2_name, portal_token')
     .eq('id', client_id)
     .eq('office_id', broker.office_id)
     .single();
-  const client = clientRaw as { id: string; p1_name: string; portal_token: string } | null;
+  const client = clientRaw as { id: string; p1_name: string; p2_name: string | null; portal_token: string } | null;
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
 
-  const { data: processData, error: processError } = await serviceClient
-    .from('processes')
-    .insert({
-      client_id: client.id,
-      broker_id: broker.id,
-      office_id: broker.office_id,
-      tipo,
-      valor_imovel: body.valor_imovel ?? null,
-      montante_solicitado: body.montante_solicitado ?? null,
-      prazo_meses: body.prazo_meses ?? null,
-      finalidade: body.finalidade ?? null,
-      localizacao_imovel: body.localizacao_imovel ?? null,
-      observacoes: body.observacoes ?? null,
-    })
-    .select('id')
-    .single();
+  const [{ data: processData, error: processError }, officeRaw] = await Promise.all([
+    serviceClient
+      .from('processes')
+      .insert({
+        client_id: client.id,
+        broker_id: broker.id,
+        office_id: broker.office_id,
+        tipo,
+        valor_imovel: body.valor_imovel ?? null,
+        montante_solicitado: body.montante_solicitado ?? null,
+        prazo_meses: body.prazo_meses ?? null,
+        finalidade: body.finalidade ?? null,
+        localizacao_imovel: body.localizacao_imovel ?? null,
+        observacoes: body.observacoes ?? null,
+      })
+      .select('id')
+      .single(),
+    serviceClient.from('offices').select('document_template').eq('id', broker.office_id).single(),
+  ]);
 
   if (processError) return NextResponse.json({ error: processError.message }, { status: 500 });
 
   const proc = processData as { id: string };
+
+  // Seed default document_requests from the office template
+  const officeTemplate = getOfficeDocumentTemplate(
+    (officeRaw.data as { document_template?: OfficeDocTemplate[] | null } | null)?.document_template ?? null
+  );
+  const hasP2 = Boolean(client.p2_name);
+  const autoDocTypes = tipo === 'renegociacao' ? new Set(TRANSFER_AUTO_DOC_TYPES) : new Set<string>();
+
+  const enabledDocs = officeTemplate.filter((doc) => doc.enabled || autoDocTypes.has(doc.doc_type));
+
+  type DocRow = {
+    client_id: string; process_id: string; proponente: 'p1' | 'p2' | 'shared';
+    doc_type: string; label: string; description: string | null;
+    is_mandatory: boolean; max_files: number; sort_order: number;
+  };
+  const docRows: DocRow[] = [];
+  for (let i = 0; i < enabledDocs.length; i++) {
+    const doc = enabledDocs[i];
+    const base = { client_id: client.id, process_id: proc.id, label: doc.label, description: doc.description ?? null, is_mandatory: doc.is_mandatory, max_files: doc.max_files, sort_order: i };
+    if (doc.proponente === 'per_proponente') {
+      docRows.push({ ...base, proponente: 'p1', doc_type: `p1_${doc.doc_type}` });
+      if (hasP2) docRows.push({ ...base, proponente: 'p2', doc_type: `p2_${doc.doc_type}` });
+    } else {
+      docRows.push({ ...base, proponente: 'shared', doc_type: doc.doc_type });
+    }
+  }
+  if (docRows.length > 0) {
+    await serviceClient.from('document_requests').insert(docRows);
+  }
+
   return NextResponse.json({ id: proc.id, portal_token: client.portal_token, client_name: client.p1_name });
 }
