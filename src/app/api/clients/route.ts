@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
 import { isValidNIF } from '@/lib/utils';
 
@@ -8,9 +9,12 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const serviceClient = await createServiceClient();
-    const { data: brokerRaw } = await serviceClient
-      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+    const [serviceClient, cookieStore] = await Promise.all([createServiceClient(), cookies()]);
+    const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+
+    let brokerQuery = serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true);
+    if (activeOfficeCookie) brokerQuery = brokerQuery.eq('office_id', activeOfficeCookie);
+    const { data: brokerRaw } = await brokerQuery.limit(1);
     const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 

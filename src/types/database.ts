@@ -867,6 +867,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      dashboard_snapshots: {
+        Row: {
+          id: string;
+          office_id: string;
+          scope_key: string;
+          snapshot_date: string;
+          data: Json;
+          computed_at: string;
+        };
+        Insert: {
+          id?: string;
+          office_id: string;
+          scope_key: string;
+          snapshot_date?: string;
+          data?: Json;
+          computed_at?: string;
+        };
+        Update: {
+          id?: string;
+          office_id?: string;
+          scope_key?: string;
+          snapshot_date?: string;
+          data?: Json;
+          computed_at?: string;
+        };
+        Relationships: [];
+      };
+      dashboard_layer_toggles: {
+        Row: {
+          id: string;
+          office_id: string;
+          layer: 'hero' | 'action_board' | 'pipeline_health' | 'performance';
+          enabled: boolean;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          office_id: string;
+          layer: 'hero' | 'action_board' | 'pipeline_health' | 'performance';
+          enabled?: boolean;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          office_id?: string;
+          layer?: 'hero' | 'action_board' | 'pipeline_health' | 'performance';
+          enabled?: boolean;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

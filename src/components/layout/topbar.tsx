@@ -16,7 +16,7 @@ interface TopBarProps {
 
 export function TopBar({ onMenuToggle, onHelpOpen, isOfficeAdmin, view = 'office', switching, onToggleView }: TopBarProps) {
   return (
-    <header className="sticky top-0 z-10 flex items-center h-14 px-4 bg-white border-b border-slate-200 shrink-0 gap-2">
+    <header className="sticky top-0 z-10 flex items-center h-16 px-4 bg-white border-b border-slate-200 shrink-0 gap-2">
       {/* Mobile: hamburger */}
       <button
         onClick={onMenuToggle}

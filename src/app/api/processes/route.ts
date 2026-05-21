@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
+import type { ProcessTipo } from '@/types/database';
 
 type RawProc = {
   id: string; process_step: string; updated_at: string; broker_id: string;
@@ -74,4 +75,65 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ processes, docCounts });
+}
+
+export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const [serviceClient, cookieStore] = await Promise.all([createServiceClient(), cookies()]);
+
+  const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+  let brokerQuery = serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true);
+  if (activeOfficeCookie) brokerQuery = brokerQuery.eq('office_id', activeOfficeCookie);
+  const { data: brokersRaw } = await brokerQuery.limit(1);
+  const broker = ((brokersRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
+  if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const body = await request.json() as {
+    client_id: string;
+    tipo: ProcessTipo;
+    valor_imovel?: number;
+    montante_solicitado?: number;
+    prazo_meses?: number;
+    finalidade?: string;
+    localizacao_imovel?: string;
+    observacoes?: string;
+  };
+
+  const { client_id, tipo } = body;
+  if (!client_id || !tipo) return NextResponse.json({ error: 'client_id and tipo are required' }, { status: 400 });
+
+  // Verify client belongs to broker's office
+  const { data: clientRaw } = await serviceClient
+    .from('clients')
+    .select('id, p1_name, portal_token')
+    .eq('id', client_id)
+    .eq('office_id', broker.office_id)
+    .single();
+  const client = clientRaw as { id: string; p1_name: string; portal_token: string } | null;
+  if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+
+  const { data: processData, error: processError } = await serviceClient
+    .from('processes')
+    .insert({
+      client_id: client.id,
+      broker_id: broker.id,
+      office_id: broker.office_id,
+      tipo,
+      valor_imovel: body.valor_imovel ?? null,
+      montante_solicitado: body.montante_solicitado ?? null,
+      prazo_meses: body.prazo_meses ?? null,
+      finalidade: body.finalidade ?? null,
+      localizacao_imovel: body.localizacao_imovel ?? null,
+      observacoes: body.observacoes ?? null,
+    })
+    .select('id')
+    .single();
+
+  if (processError) return NextResponse.json({ error: processError.message }, { status: 500 });
+
+  const proc = processData as { id: string };
+  return NextResponse.json({ id: proc.id, portal_token: client.portal_token, client_name: client.p1_name });
 }
