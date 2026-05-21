@@ -151,7 +151,7 @@ function PrestacaoMensalChart({ propostas }: ChartProps) {
           />
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <Tooltip content={(props: any) => <Chart1Tooltip {...props} />} cursor={{ fill: '#F9FAFB' }} />
-          <Bar dataKey="amortizacao" name="Amortização" stackId="a" fill={AMORT_COLOR} radius={[0, 0, 3, 3]}>
+          <Bar dataKey="amortizacao" name="Amortização de Capital" stackId="a" fill={AMORT_COLOR} radius={[0, 0, 3, 3]}>
             {data.map((entry) => (
               <Cell key={entry.bank} fill={AMORT_COLOR} fillOpacity={0.75 + entry.idx * 0} />
             ))}
@@ -167,10 +167,7 @@ function PrestacaoMensalChart({ propostas }: ChartProps) {
               content={(props: any) => <TotalLabel {...props} />}
             />
           </Bar>
-          <Legend
-            wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
-            formatter={(value: string) => value === 'amortizacao' ? 'Amortização de Capital' : 'Juros'}
-          />
+          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
         </BarChart>
       </ResponsiveContainer>
 

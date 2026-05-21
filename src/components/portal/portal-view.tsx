@@ -688,9 +688,11 @@ function FirstMonthCostBlock({
 
 // ─── Esforço Financeiro Block ─────────────────────────────────────────────────
 
+const AVATAR_COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0891b2'];
+const BAR_MAX_PCT = 60; // bar represents 0–60% of income
+
 function EsforcoFinanceiroBlock({
   propostas,
-  recommendedId,
   hasP2,
   portalToken,
 }: {
@@ -717,65 +719,139 @@ function EsforcoFinanceiroBlock({
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5">
-      <div className="flex items-center gap-2 mb-1">
-        <h3 className="text-sm font-semibold text-slate-900">Esforço financeiro</h3>
-        <span title="Taxa de esforço = prestação mensal total ÷ rendimento mensal líquido do agregado" className="text-[10px] text-slate-400 cursor-help border-b border-dashed border-slate-300">ⓘ</span>
-      </div>
-      <p className="text-xs text-slate-500 mb-4">Percentagem do rendimento mensal líquido afeto ao crédito</p>
-      <div className="flex items-center gap-3 mb-5">
-        <label className="text-xs text-slate-600 whitespace-nowrap shrink-0">Rendimento mensal líquido</label>
-        <div className="relative flex-1 max-w-[200px]">
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Esforço financeiro</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Percentagem do seu rendimento líquido absorvida pela prestação.{' '}
+            <strong className="text-slate-700">Recomendado abaixo de 35%.</strong>
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-slate-600 whitespace-nowrap">Rendimento mensal líquido</span>
           <input
             type="number"
             value={income}
             onChange={(e) => handleIncomeChange(e.target.value)}
-            placeholder="ex: 3500"
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-800"
+            placeholder="—"
+            className="w-24 text-sm text-right border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-800"
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">€</span>
+          <span className="text-xs text-slate-500">€</span>
         </div>
       </div>
-      {incomeNum > 0 ? (
-        <div className="space-y-4">
-          {propostas.map((p) => {
-            const total = calcPrestacaoCompleta(p, hasP2);
-            const pct = total > 0 && incomeNum > 0 ? (total / incomeNum) * 100 : 0;
-            const isRec = p.id === recommendedId;
-            const barColor = pct <= 35 ? 'bg-emerald-500' : pct <= 50 ? 'bg-amber-500' : 'bg-red-500';
-            const textColor = pct <= 35 ? 'text-emerald-700' : pct <= 50 ? 'text-amber-700' : 'text-red-700';
-            const zone = pct <= 35 ? 'Confortável' : pct <= 50 ? 'Elevado' : 'Muito elevado';
-            return (
-              <div key={p.id}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-slate-700">{p.bank_name}</span>
-                    {isRec && <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-full">Rec.</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold ${textColor}`}>{zone}</span>
-                    <span className={`text-sm font-bold ${textColor}`}>{pct.toFixed(1)}%</span>
-                  </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mb-5 flex-wrap">
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#86efac' }} />
+          Saudável ({'<'}35%)
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#fcd34d' }} />
+          Atenção (35% – 50%)
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#fca5a5' }} />
+          Excessivo ({'>'}50%)
+        </span>
+      </div>
+
+      {/* Rows */}
+      <div className="space-y-5">
+        {propostas.map((p, idx) => {
+          const total = calcPrestacaoCompleta(p, hasP2);
+          const pct = incomeNum > 0 && total > 0 ? (total / incomeNum) * 100 : null;
+          const initials = p.bank_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+          const avatarBg = AVATAR_COLORS[idx % AVATAR_COLORS.length] ?? '#64748b';
+          const textColor = pct === null ? '' : pct <= 35 ? 'text-emerald-600' : pct <= 50 ? 'text-amber-600' : 'text-red-600';
+          const zone = pct === null ? null : pct <= 35 ? 'SAUDÁVEL' : pct <= 50 ? 'ATENÇÃO' : 'EXCESSIVO';
+          const dotLeft = pct !== null ? `${Math.min(pct, BAR_MAX_PCT) / BAR_MAX_PCT * 100}%` : null;
+          const dotColor = pct === null ? '' : pct <= 35 ? '#10b981' : pct <= 50 ? '#f59e0b' : '#ef4444';
+
+          return (
+            <div key={p.id} className="flex items-center gap-4">
+              {/* Avatar + name + amount */}
+              <div className="flex items-center gap-2.5 shrink-0" style={{ width: 160 }}>
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                  style={{ backgroundColor: avatarBg }}
+                >
+                  {initials}
                 </div>
-                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} />
-                </div>
-                <div className="relative flex text-[9px] text-slate-400 mt-1">
-                  <span style={{ width: '35%' }}>0–35% ✓</span>
-                  <span style={{ width: '15%' }} className="text-center">35–50%</span>
-                  <span className="text-right flex-1">{'>'}50% ⚠</span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-800 leading-tight truncate">{p.bank_name}</p>
+                  {total > 0 && (
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {total.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                    </p>
+                  )}
                 </div>
               </div>
-            );
-          })}
-          <p className="text-[10px] text-slate-400 pt-2 border-t border-slate-100">
-            O Banco de Portugal recomenda que a taxa de esforço não exceda 35% do rendimento líquido mensal do agregado familiar.
-          </p>
-        </div>
-      ) : (
-        <div className="py-6 text-center text-sm text-slate-400">
-          Introduza o rendimento para ver o esforço financeiro por proposta
-        </div>
-      )}
+
+              {/* Bar */}
+              <div className="flex-1">
+                {/* Segmented bar + dot overlay */}
+                <div className="relative h-4">
+                  <div className="absolute inset-0 rounded-full overflow-hidden flex">
+                    <div style={{ width: `${35 / BAR_MAX_PCT * 100}%`, backgroundColor: '#bbf7d0' }} />
+                    <div style={{ width: `${15 / BAR_MAX_PCT * 100}%`, backgroundColor: '#fef9c3' }} />
+                    <div style={{ flex: 1, backgroundColor: '#fee2e2' }} />
+                  </div>
+                  {/* Boundary dividers */}
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute top-0 bottom-0 w-px bg-slate-300/60" style={{ left: `${35 / BAR_MAX_PCT * 100}%` }} />
+                    <div className="absolute top-0 bottom-0 w-px bg-slate-300/60" style={{ left: `${50 / BAR_MAX_PCT * 100}%` }} />
+                  </div>
+                  {/* Dot marker */}
+                  {dotLeft && (
+                    <div
+                      className="absolute top-1/2 w-4 h-4 rounded-full border-2 border-white shadow-md"
+                      style={{
+                        left: dotLeft,
+                        transform: 'translateX(-50%) translateY(-50%)',
+                        backgroundColor: dotColor,
+                      }}
+                    />
+                  )}
+                </div>
+                {/* Percentage labels below bar */}
+                <div className="relative h-4 mt-0.5">
+                  <span
+                    className="absolute text-[10px] text-slate-400 -translate-x-1/2"
+                    style={{ left: `${35 / BAR_MAX_PCT * 100}%` }}
+                  >
+                    35%
+                  </span>
+                  <span
+                    className="absolute text-[10px] text-slate-400 -translate-x-1/2"
+                    style={{ left: `${50 / BAR_MAX_PCT * 100}%` }}
+                  >
+                    50%
+                  </span>
+                </div>
+              </div>
+
+              {/* Percentage + zone */}
+              <div className="w-20 text-right shrink-0">
+                {pct !== null ? (
+                  <>
+                    <p className={`text-sm font-bold ${textColor}`}>{pct.toFixed(1)}%</p>
+                    <p className={`text-[10px] font-semibold ${textColor}`}>{zone}</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400">—%</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-[10px] text-slate-400 mt-4 pt-3 border-t border-slate-100">
+        O Banco de Portugal recomenda uma taxa de esforço até <strong>35%</strong> do rendimento líquido.
+        Valores entre 35% e 50% exigem prudência; acima de 50% são considerados de alto risco.
+      </p>
     </div>
   );
 }
@@ -1194,14 +1270,13 @@ function PortalMapaCard({
   return (
     <div className="space-y-5">
       <SummaryCards propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
-      <FirstMonthCostBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
-      <EsforcoFinanceiroBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} portalToken={portalToken} />
       <ComparisonTable
         propostas={propostas}
         recommendedId={mapa.recommended_proposta_id}
         hasP2={hasP2}
         mode="client"
       />
+      <EsforcoFinanceiroBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} portalToken={portalToken} />
       {mapa.broker_notes && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
           <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1.5">
@@ -1381,6 +1456,7 @@ function PortalMapaCard({
           </summary>
           <div className="mt-4 space-y-4">
             <MonthlyTotalBarChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+            <FirstMonthCostBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
             <CustoTotalCreditoBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
             <EuriborSensitivityChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
             <SimuladorAmortizacaoAntecipada propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
