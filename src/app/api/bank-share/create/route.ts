@@ -50,7 +50,19 @@ export async function POST(request: NextRequest) {
     const isOwner = (clientData as any).broker_id === broker_id;
     const isOfficeAdmin = is_office_admin && (clientData as any).office_id === office_id;
 
+    // Also allow if broker owns a process for this client (process-level access)
+    let hasProcessAccess = false;
     if (!isOwner && !isOfficeAdmin) {
+      const { data: processAccess } = await (serviceClient as any)
+        .from('processes')
+        .select('id')
+        .eq('client_id', client_id)
+        .eq('broker_id', broker_id)
+        .limit(1);
+      hasProcessAccess = Array.isArray(processAccess) && processAccess.length > 0;
+    }
+
+    if (!isOwner && !isOfficeAdmin && !hasProcessAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
