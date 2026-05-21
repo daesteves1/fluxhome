@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { resolveDashboardScope, loadLayerToggles, loadBrokersForFilter } from '@/lib/dashboard/scope';
 import { getOrRefreshSnapshot } from '@/lib/dashboard/snapshot';
 import { loadActionQueues } from '@/lib/dashboard/live-queries';
+import { RefreshButton } from '@/components/dashboard/refresh-button';
 import { HeroStrip } from '@/components/dashboard/hero-strip';
 import { ActionBoard } from '@/components/dashboard/action-board';
 import { PipelineFunnel } from '@/components/dashboard/pipeline-funnel';
@@ -87,9 +88,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             {greeting()}{firstName ? `, ${firstName}` : ''}.
           </h1>
           <p className="text-sm text-slate-500 capitalize mt-1">{todayPT}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Atualizado {timeAgo(snapshot.computed_at)}
-          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-xs text-slate-400">
+              Atualizado {timeAgo(snapshot.computed_at)}
+            </p>
+            <RefreshButton />
+          </div>
         </div>
         <Suspense>
           <ScopeControls
