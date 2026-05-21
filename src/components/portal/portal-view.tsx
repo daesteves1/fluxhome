@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Upload,
@@ -18,6 +18,7 @@ import {
   Download,
   Check,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -31,12 +32,14 @@ import {
 import { toast } from 'sonner';
 import { HomeFluxLogoMark } from '@/components/layout/homeflux-logo';
 import { ComparisonTable } from '@/components/propostas/comparison-table';
-import { PropostasCharts } from '@/components/propostas/propostas-charts';
+import { MonthlyTotalBarChart, EuriborSensitivityChart } from '@/components/propostas/propostas-charts';
 import type { BankProposta, MapaComparativo } from '@/types/proposta';
 import {
   calcTotalRecomendado,
+  calcPrestacaoCompleta,
   calcPrestacaoTotalBanco,
   calcPrestacaoTotalExterno,
+  calcTotalEncargosUnicos,
   fmtEur,
   fmtPct,
 } from '@/types/proposta';
@@ -612,6 +615,396 @@ function DocProgressBar({
   );
 }
 
+// ─── First Month Cost Block ───────────────────────────────────────────────────
+
+function FirstMonthCostBlock({
+  propostas,
+  recommendedId,
+  hasP2,
+}: {
+  propostas: BankProposta[];
+  recommendedId: string | null;
+  hasP2: boolean;
+}) {
+  if (!propostas.length) return null;
+
+  const rows = propostas.map((p) => {
+    const base = p.monthly_payment ?? 0;
+    const vida1 = p.vida_p1_recomendada === 'banco' ? (p.vida_p1_banco ?? 0) : (p.vida_p1_externa ?? 0);
+    const vida2 = hasP2
+      ? (p.vida_p2_recomendada === 'banco' ? (p.vida_p2_banco ?? 0) : (p.vida_p2_externa ?? 0))
+      : 0;
+    const multi = p.multiriscos_recomendada === 'banco' ? (p.multiriscos_banco ?? 0) : (p.multiriscos_externa ?? 0);
+    const conta = p.manutencao_conta ?? 0;
+    const total = base + vida1 + vida2 + multi + conta;
+    return { p, base, vida1, vida2, multi, conta, total };
+  });
+
+  if (rows.every((r) => r.total <= 0)) return null;
+  const maxTotal = Math.max(...rows.map((r) => r.total), 1);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <h3 className="text-sm font-semibold text-slate-900">Custo do primeiro mês</h3>
+        <span title="Decomposição da prestação completa no mês 1: prestação base + seguros recomendados + manutenção de conta" className="text-[10px] text-slate-400 cursor-help border-b border-dashed border-slate-300">ⓘ</span>
+      </div>
+      <p className="text-xs text-slate-500 mb-4">Prestação base + seguros recomendados + manutenção de conta</p>
+      <div className="space-y-5">
+        {rows.map(({ p, base, vida1, vida2, multi, conta, total }) => {
+          const isRec = p.id === recommendedId;
+          const pct = (v: number) => total > 0 ? (v / total) * 100 : 0;
+          const barWidth = (total / maxTotal) * 100;
+          return (
+            <div key={p.id}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-800">{p.bank_name}</span>
+                  {isRec && <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-full">Rec.</span>}
+                </div>
+                <span className={`text-sm font-bold ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>{fmtEur(total)}/mês</span>
+              </div>
+              <div className="h-6 rounded-lg overflow-hidden flex" style={{ width: `${barWidth}%` }}>
+                {base > 0 && <div className="bg-blue-500" style={{ width: `${pct(base)}%` }} title={`Prestação base: ${fmtEur(base)}`} />}
+                {vida1 > 0 && <div className="bg-violet-400" style={{ width: `${pct(vida1)}%` }} title={`Seguro vida${hasP2 ? ' P1' : ''}: ${fmtEur(vida1)}`} />}
+                {vida2 > 0 && <div className="bg-violet-300" style={{ width: `${pct(vida2)}%` }} title={`Seguro vida P2: ${fmtEur(vida2)}`} />}
+                {multi > 0 && <div className="bg-emerald-400" style={{ width: `${pct(multi)}%` }} title={`Seguro multirriscos: ${fmtEur(multi)}`} />}
+                {conta > 0 && <div className="bg-slate-400" style={{ width: `${pct(conta)}%` }} title={`Manutenção conta: ${fmtEur(conta)}`} />}
+              </div>
+              <div className="flex gap-3 mt-1.5 flex-wrap">
+                {base > 0 && <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-sm bg-blue-500 shrink-0" />Prestação {fmtEur(base)}</span>}
+                {vida1 > 0 && <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-sm bg-violet-400 shrink-0" />{hasP2 ? 'Vida P1' : 'Vida'} {fmtEur(vida1)}</span>}
+                {hasP2 && vida2 > 0 && <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-sm bg-violet-300 shrink-0" />Vida P2 {fmtEur(vida2)}</span>}
+                {multi > 0 && <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-sm bg-emerald-400 shrink-0" />Multirriscos {fmtEur(multi)}</span>}
+                {conta > 0 && <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-sm bg-slate-400 shrink-0" />Conta {fmtEur(conta)}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Esforço Financeiro Block ─────────────────────────────────────────────────
+
+function EsforcoFinanceiroBlock({
+  propostas,
+  recommendedId,
+  hasP2,
+  portalToken,
+}: {
+  propostas: BankProposta[];
+  recommendedId: string | null;
+  hasP2: boolean;
+  portalToken: string;
+}) {
+  const storageKey = `homeflux_portal_rendimento_${portalToken}`;
+  const [income, setIncome] = useState<string>('');
+
+  useEffect(() => {
+    const stored = localStorage.getItem(storageKey);
+    if (stored) setIncome(stored);
+  }, [storageKey]);
+
+  function handleIncomeChange(val: string) {
+    setIncome(val);
+    if (val) localStorage.setItem(storageKey, val);
+    else localStorage.removeItem(storageKey);
+  }
+
+  const incomeNum = parseFloat(income.replace(',', '.')) || 0;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <h3 className="text-sm font-semibold text-slate-900">Esforço financeiro</h3>
+        <span title="Taxa de esforço = prestação mensal total ÷ rendimento mensal líquido do agregado" className="text-[10px] text-slate-400 cursor-help border-b border-dashed border-slate-300">ⓘ</span>
+      </div>
+      <p className="text-xs text-slate-500 mb-4">Percentagem do rendimento mensal líquido afeto ao crédito</p>
+      <div className="flex items-center gap-3 mb-5">
+        <label className="text-xs text-slate-600 whitespace-nowrap shrink-0">Rendimento mensal líquido</label>
+        <div className="relative flex-1 max-w-[200px]">
+          <input
+            type="number"
+            value={income}
+            onChange={(e) => handleIncomeChange(e.target.value)}
+            placeholder="ex: 3500"
+            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-800"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">€</span>
+        </div>
+      </div>
+      {incomeNum > 0 ? (
+        <div className="space-y-4">
+          {propostas.map((p) => {
+            const total = calcPrestacaoCompleta(p, hasP2);
+            const pct = total > 0 && incomeNum > 0 ? (total / incomeNum) * 100 : 0;
+            const isRec = p.id === recommendedId;
+            const barColor = pct <= 35 ? 'bg-emerald-500' : pct <= 50 ? 'bg-amber-500' : 'bg-red-500';
+            const textColor = pct <= 35 ? 'text-emerald-700' : pct <= 50 ? 'text-amber-700' : 'text-red-700';
+            const zone = pct <= 35 ? 'Confortável' : pct <= 50 ? 'Elevado' : 'Muito elevado';
+            return (
+              <div key={p.id}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-slate-700">{p.bank_name}</span>
+                    {isRec && <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-full">Rec.</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold ${textColor}`}>{zone}</span>
+                    <span className={`text-sm font-bold ${textColor}`}>{pct.toFixed(1)}%</span>
+                  </div>
+                </div>
+                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                </div>
+                <div className="relative flex text-[9px] text-slate-400 mt-1">
+                  <span style={{ width: '35%' }}>0–35% ✓</span>
+                  <span style={{ width: '15%' }} className="text-center">35–50%</span>
+                  <span className="text-right flex-1">{'>'}50% ⚠</span>
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[10px] text-slate-400 pt-2 border-t border-slate-100">
+            O Banco de Portugal recomenda que a taxa de esforço não exceda 35% do rendimento líquido mensal do agregado familiar.
+          </p>
+        </div>
+      ) : (
+        <div className="py-6 text-center text-sm text-slate-400">
+          Introduza o rendimento para ver o esforço financeiro por proposta
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Custo Total Crédito Block ────────────────────────────────────────────────
+
+function CustoTotalCreditoBlock({
+  propostas,
+  recommendedId,
+  hasP2,
+}: {
+  propostas: BankProposta[];
+  recommendedId: string | null;
+  hasP2: boolean;
+}) {
+  const fmtK = (v: number) => {
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M€`;
+    if (v >= 1_000) return `${Math.round(v / 1_000)}k€`;
+    return fmtEur(v);
+  };
+
+  const rows = propostas.map((p) => {
+    const capital = p.loan_amount ?? 0;
+    const prazo = p.term_months ?? 0;
+    let juros = p.juros_totais ?? 0;
+    if (!juros && p.mtic && capital) {
+      juros = Math.max(0, p.mtic - capital - calcTotalEncargosUnicos(p));
+    }
+    const vida1 = p.vida_p1_recomendada === 'banco' ? (p.vida_p1_banco ?? 0) : (p.vida_p1_externa ?? 0);
+    const vida2 = hasP2 ? (p.vida_p2_recomendada === 'banco' ? (p.vida_p2_banco ?? 0) : (p.vida_p2_externa ?? 0)) : 0;
+    const multi = p.multiriscos_recomendada === 'banco' ? (p.multiriscos_banco ?? 0) : (p.multiriscos_externa ?? 0);
+    const seguros = (vida1 + vida2 + multi) * prazo;
+    const conta = (p.manutencao_conta ?? 0) * prazo;
+    const encargos = calcTotalEncargosUnicos(p);
+    const total = capital + juros + seguros + conta + encargos;
+    return { p, capital, juros, seguros, conta, encargos, total };
+  });
+
+  if (rows.every((r) => r.total <= 0)) return null;
+  const maxTotal = Math.max(...rows.map((r) => r.total), 1);
+
+  const segments: { key: keyof typeof rows[0]; label: string; color: string }[] = [
+    { key: 'capital', label: 'Capital', color: 'bg-blue-500' },
+    { key: 'juros', label: 'Juros', color: 'bg-amber-400' },
+    { key: 'seguros', label: 'Seguros', color: 'bg-violet-400' },
+    { key: 'conta', label: 'Manutenção', color: 'bg-slate-400' },
+    { key: 'encargos', label: 'Encargos únicos', color: 'bg-rose-400' },
+  ];
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-5">
+      <h3 className="text-sm font-semibold text-slate-900 mb-1">Custo total do crédito</h3>
+      <p className="text-xs text-slate-500 mb-4">Capital + juros + seguros + manutenção + encargos ao longo de todo o prazo</p>
+      <div className="space-y-5">
+        {rows.map(({ p, total, ...vals }) => {
+          const isRec = p.id === recommendedId;
+          const barWidth = (total / maxTotal) * 100;
+          const pct = (v: number) => total > 0 ? (v / total) * 100 : 0;
+          return (
+            <div key={p.id}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-800">{p.bank_name}</span>
+                  {isRec && <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-full">Rec.</span>}
+                </div>
+                <span className={`text-sm font-bold ${isRec ? 'text-blue-700' : 'text-slate-900'}`}>{fmtK(total)}</span>
+              </div>
+              <div className="h-6 rounded-lg overflow-hidden flex" style={{ width: `${barWidth}%` }}>
+                {segments.map(({ key, color }) => {
+                  const v = vals[key as keyof typeof vals] as number;
+                  const w = pct(v);
+                  if (w < 0.5 || v <= 0) return null;
+                  return <div key={key} className={color} style={{ width: `${w}%` }} title={`${key}: ${fmtK(v)}`} />;
+                })}
+              </div>
+              <div className="flex gap-3 mt-1.5 flex-wrap">
+                {segments.map(({ key, label, color }) => {
+                  const v = vals[key as keyof typeof vals] as number;
+                  if (v <= 0) return null;
+                  return (
+                    <span key={key} className="flex items-center gap-1 text-[10px] text-slate-500">
+                      <span className={`w-2 h-2 rounded-sm ${color} shrink-0`} />
+                      {label} {fmtK(v)}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-slate-400 mt-3 pt-2 border-t border-slate-100">Juros totais extraídos da FINE quando disponíveis; caso contrário estimados a partir do MTIC.</p>
+    </div>
+  );
+}
+
+// ─── Simulador de Amortização Antecipada ──────────────────────────────────────
+
+function SimuladorAmortizacaoAntecipada({
+  propostas,
+  recommendedId,
+}: {
+  propostas: BankProposta[];
+  recommendedId: string | null;
+}) {
+  const [amount, setAmount] = useState(10000);
+  const [year, setYear] = useState(5);
+
+  const validPropostas = propostas.filter((p) => p.loan_amount && p.term_months && p.tan);
+  if (!validPropostas.length) return null;
+
+  const maxTerm = Math.max(...validPropostas.map((p) => Math.floor((p.term_months ?? 0) / 12)));
+
+  function simulate(p: BankProposta) {
+    const principal = p.loan_amount!;
+    const n = p.term_months!;
+    const monthlyRate = (p.tan!) / 100 / 12;
+    const monthsPassed = year * 12;
+    if (monthsPassed >= n) return null;
+    const remainingMonths = n - monthsPassed;
+
+    let pmt: number;
+    if (monthlyRate <= 0) {
+      pmt = principal / n;
+    } else {
+      pmt = (monthlyRate * principal) / (1 - Math.pow(1 + monthlyRate, -n));
+    }
+
+    let remainingBalance: number;
+    if (monthlyRate <= 0) {
+      remainingBalance = principal - (pmt * monthsPassed);
+    } else {
+      remainingBalance = principal * Math.pow(1 + monthlyRate, monthsPassed)
+        - pmt * (Math.pow(1 + monthlyRate, monthsPassed) - 1) / monthlyRate;
+    }
+    remainingBalance = Math.max(0, remainingBalance);
+
+    const futureInterestWithout = pmt * remainingMonths - remainingBalance;
+
+    const newBalance = Math.max(0, remainingBalance - amount);
+    let newPmt: number;
+    if (monthlyRate <= 0) {
+      newPmt = newBalance / remainingMonths;
+    } else {
+      newPmt = (monthlyRate * newBalance) / (1 - Math.pow(1 + monthlyRate, -remainingMonths));
+    }
+    const futureInterestWith = newPmt * remainingMonths - newBalance;
+
+    const jurosPoupados = Math.max(0, futureInterestWithout - futureInterestWith);
+    const isVariable = p.rate_type === 'variavel' || p.rate_type === 'mista';
+    const commissionRate = isVariable && year < 10 ? 0.02 : 0.005;
+    const comissao = amount * commissionRate;
+    const ganhoLiquido = jurosPoupados - comissao;
+
+    return { jurosPoupados, comissao, ganhoLiquido, commissionRate };
+  }
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-5">
+      <h3 className="text-sm font-semibold text-slate-900 mb-1">Simulador de amortização antecipada</h3>
+      <p className="text-xs text-slate-500 mb-4">Calcule quanto poupa ao amortizar antecipadamente parte do capital</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+        <div>
+          <label className="block text-xs text-slate-600 mb-1.5">Montante a amortizar</label>
+          <input
+            type="range"
+            min={1000}
+            max={50000}
+            step={1000}
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
+            className="w-full accent-blue-600 mb-1"
+          />
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-slate-400">1.000€</span>
+            <span className="text-base font-bold text-blue-700">{fmtEur(amount)}</span>
+            <span className="text-xs text-slate-400">50.000€</span>
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-600 mb-1.5">No ano</label>
+          <select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
+          >
+            {Array.from({ length: Math.min(maxTerm - 1, 29) }, (_, i) => i + 1).map((y) => (
+              <option key={y} value={y}>Ano {y}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {validPropostas.map((p) => {
+          const isRec = p.id === recommendedId;
+          const result = simulate(p);
+          if (!result) return null;
+          const { jurosPoupados, comissao, ganhoLiquido, commissionRate } = result;
+          return (
+            <div key={p.id} className={`rounded-xl border p-4 ${isRec ? 'border-blue-200 bg-blue-50/40' : 'border-slate-200 bg-slate-50/30'}`}>
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="text-xs font-semibold text-slate-800">{p.bank_name}</span>
+                {isRec && <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-full">Rec.</span>}
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-0.5">Juros poupados</p>
+                  <p className="text-sm font-bold text-emerald-700">{fmtEur(jurosPoupados)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-0.5">Comissão ({(commissionRate * 100).toFixed(1)}%)</p>
+                  <p className="text-sm font-bold text-rose-600">{fmtEur(comissao)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-0.5">Ganho líquido</p>
+                  <p className={`text-sm font-bold ${ganhoLiquido >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{fmtEur(ganhoLiquido)}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-slate-400 mt-3">
+        Comissão de amortização antecipada: 2% (taxa variável, primeiros 10 anos) · 0,5% (variável após 10 anos ou taxa fixa). Valores estimados.
+      </p>
+    </div>
+  );
+}
+
 // ─── Summary Cards ────────────────────────────────────────────────────────────
 
 function SummaryCards({
@@ -667,6 +1060,7 @@ function SummaryCards({
               padding: '12px',
               borderRadius: '12px',
               border: isRec ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+              boxShadow: isRec ? '0 4px 16px rgba(59,130,246,0.15)' : undefined,
             }}
           >
             <div className="flex items-center gap-2">
@@ -690,8 +1084,8 @@ function SummaryCards({
                 </span>
               )}
             </div>
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-2">
-              Prestação recomendada
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-2" title="Inclui prestação base, seguros recomendados e manutenção de conta">
+              Prestação mensal
             </p>
             <p className="text-xl font-bold text-slate-900 leading-tight">
               {totalRec > 0 ? fmtEur(totalRec) : '—'}
@@ -757,7 +1151,7 @@ function PortalMapaCard({
   const [confirming, setConfirming] = useState(false);
 
   const selectedBank = propostas.find((p) => p.id === selectedBankId);
-  const hasChart =
+  const hasAnalysis =
     chartsEnabled && propostas.some((p) => (p.monthly_payment ?? 0) > 0 || (p.spread ?? 0) > 0);
   const showChoiceForm = !anyChoice || editing;
 
@@ -800,21 +1194,14 @@ function PortalMapaCard({
   return (
     <div className="space-y-5">
       <SummaryCards propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
+      <FirstMonthCostBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
+      <EsforcoFinanceiroBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} portalToken={portalToken} />
       <ComparisonTable
         propostas={propostas}
         recommendedId={mapa.recommended_proposta_id}
         hasP2={hasP2}
         mode="client"
       />
-      {hasChart && (
-        <div className="border-t border-slate-200 pt-6">
-          <p className="text-base font-bold text-slate-900 mb-1">Análise Comparativa</p>
-          <p className="text-xs text-slate-500 mb-4">
-            Visualize e compare as propostas para tomar a melhor decisão
-          </p>
-          <PropostasCharts propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
-        </div>
-      )}
       {mapa.broker_notes && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
           <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1.5">
@@ -983,6 +1370,23 @@ function PortalMapaCard({
           </div>
         )}
       </div>
+
+      {/* Análise detalhada — collapsible */}
+      {hasAnalysis && (
+        <details className="group">
+          <summary className="flex items-center gap-2 cursor-pointer py-3 px-5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors list-none select-none">
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180 shrink-0" />
+            Ver análise detalhada
+            <span className="text-xs font-normal text-slate-400 ml-1">Para quem quer perceber em profundidade</span>
+          </summary>
+          <div className="mt-4 space-y-4">
+            <MonthlyTotalBarChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+            <CustoTotalCreditoBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
+            <EuriborSensitivityChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+            <SimuladorAmortizacaoAntecipada propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+          </div>
+        </details>
+      )}
     </div>
   );
 }

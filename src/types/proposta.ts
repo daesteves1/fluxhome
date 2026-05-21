@@ -56,6 +56,12 @@ export type BankProposta = {
   condicoes_pos_fixo: string | null;
   // MTIC
   mtic: number | null;
+  // FINE analysis fields
+  juros_totais: number | null;
+  cenario_stress_euribor: number | null;
+  cenario_stress_tan: number | null;
+  cenario_stress_prestacao: number | null;
+  cenario_stress_mtic: number | null;
   // Other
   bank_pdf_path: string | null;
   notes: string | null;
@@ -132,6 +138,10 @@ export function calcSubtotalBanco(p: BankProposta): number {
 }
 export function calcSubtotalExterno(p: BankProposta): number {
   return calcPrestacaoTotalExterno(p);
+}
+
+export function calcPrestacaoCompleta(p: BankProposta, hasP2 = false): number {
+  return calcTotalRecomendado(p, hasP2) + (p.manutencao_conta ?? 0);
 }
 
 export function calcTotalRecomendado(p: BankProposta, hasP2 = false): number {

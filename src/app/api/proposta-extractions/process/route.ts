@@ -48,6 +48,12 @@ Schema:
   "condicoes_spread": string[],
   "condicoes_pos_fixo": string | null,
 
+  "juros_totais": number | null,
+  "cenario_stress_euribor": number | null,
+  "cenario_stress_tan": number | null,
+  "cenario_stress_prestacao": number | null,
+  "cenario_stress_mtic": number | null,
+
   "confidence": {
     "bank_name": number,
     "rate_type": number,
@@ -79,7 +85,12 @@ Schema:
     "registo_predial": number,
     "manutencao_conta": number,
     "condicoes_spread": number,
-    "condicoes_pos_fixo": number
+    "condicoes_pos_fixo": number,
+    "juros_totais": number,
+    "cenario_stress_euribor": number,
+    "cenario_stress_tan": number,
+    "cenario_stress_prestacao": number,
+    "cenario_stress_mtic": number
   }
 }
 
@@ -134,6 +145,13 @@ CONDITIONS:
 - condicoes_spread: array of conditions required to obtain the contracted spread (vendas associadas). E.g. ["Domiciliação de ordenado", "Seguro de vida banco", "Seguro multirriscos banco", "Cartão de crédito ativo"]
 - condicoes_pos_fixo: text description of the post-fixed-period conditions for "mista" type (e.g. "Euribor 6 meses + 0.75%")
 
+COST ANALYSIS:
+- juros_totais: total interest paid over the full loan term, in EUR. Look for "Juros totais", "Total de juros", or compute from MTIC − capital − charges if explicitly shown
+- cenario_stress_euribor: the stress-test Euribor rate (%), e.g. the "cenário stress" or "simulação adversa" rate. Look near "Simulação Stress" or "Cenário adverso"
+- cenario_stress_tan: the stress-test TAN (%). Usually spread + cenario_stress_euribor
+- cenario_stress_prestacao: the monthly payment under the stress scenario, in EUR
+- cenario_stress_mtic: the MTIC under the stress scenario, in EUR
+
 GENERAL RULES:
 - Always extract CONTRATADA/CONTRATADO values (with vendas associadas), never base values
 - Convert Portuguese decimal notation: "216.888,85" → 216888.85
@@ -172,6 +190,11 @@ interface ExtractionResult {
   registo_predial: number | null;
   condicoes_spread: string[];
   condicoes_pos_fixo: string | null;
+  juros_totais: number | null;
+  cenario_stress_euribor: number | null;
+  cenario_stress_tan: number | null;
+  cenario_stress_prestacao: number | null;
+  cenario_stress_mtic: number | null;
   confidence: Record<string, number>;
 }
 

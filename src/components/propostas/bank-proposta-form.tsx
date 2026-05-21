@@ -171,6 +171,11 @@ function emptyForm(): FormData {
     condicoes_spread: null,
     condicoes_pos_fixo: null,
     mtic: null,
+    juros_totais: null,
+    cenario_stress_euribor: null,
+    cenario_stress_tan: null,
+    cenario_stress_prestacao: null,
+    cenario_stress_mtic: null,
     bank_pdf_path: null,
     notes: null,
   };
@@ -257,6 +262,11 @@ export function BankPropostaForm({ clientId, backUrl, initialData, p2Name }: Ban
     condicoes_spread: initialData.condicoes_spread,
     condicoes_pos_fixo: initialData.condicoes_pos_fixo,
     mtic: initialData.mtic,
+    juros_totais: initialData.juros_totais,
+    cenario_stress_euribor: initialData.cenario_stress_euribor,
+    cenario_stress_tan: initialData.cenario_stress_tan,
+    cenario_stress_prestacao: initialData.cenario_stress_prestacao,
+    cenario_stress_mtic: initialData.cenario_stress_mtic,
     bank_pdf_path: initialData.bank_pdf_path,
     notes: initialData.notes,
   } : emptyForm());
