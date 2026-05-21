@@ -688,8 +688,18 @@ function FirstMonthCostBlock({
 
 // ─── Esforço Financeiro Block ─────────────────────────────────────────────────
 
-const AVATAR_COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0891b2'];
-const BAR_MAX_PCT = 60; // bar represents 0–60% of income
+// Design-system tokens from hf-portal design canvas
+const HF_AVATAR_COLORS = ['#2754ff', '#6a4cd6', '#1f9d5b', '#b76e00', '#c83a3a', '#0e7490'];
+const HF_ZONES = {
+  green: { bg: '#e6f5ec', dot: '#1f9d5b', text: '#1f9d5b', label: 'SAUDÁVEL' },
+  amber: { bg: '#fff3df', dot: '#b76e00', text: '#b76e00', label: 'ATENÇÃO' },
+  red:   { bg: '#fceaea', dot: '#c83a3a', text: '#c83a3a', label: 'EXCESSIVO' },
+} as const;
+const BAR_MAX_PCT = 60; // bar axis ends at 60% — covers all practical scenarios
+
+function zoneFor(pct: number) {
+  return pct <= 35 ? HF_ZONES.green : pct <= 50 ? HF_ZONES.amber : HF_ZONES.red;
+}
 
 function EsforcoFinanceiroBlock({
   propostas,
@@ -703,6 +713,7 @@ function EsforcoFinanceiroBlock({
 }) {
   const storageKey = `homeflux_portal_rendimento_${portalToken}`;
   const [income, setIncome] = useState<string>('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
@@ -716,140 +727,173 @@ function EsforcoFinanceiroBlock({
   }
 
   const incomeNum = parseFloat(income.replace(',', '.')) || 0;
+  const hasIncome = incomeNum > 0;
+
+  // Boundary positions as percentages of the bar width
+  const pos35 = (35 / BAR_MAX_PCT) * 100;
+  const pos50 = (50 / BAR_MAX_PCT) * 100;
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5">
-      {/* Header row */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Esforço financeiro</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs mt-0.5" style={{ color: '#757c8e' }}>
             Percentagem do seu rendimento líquido absorvida pela prestação.{' '}
-            <strong className="text-slate-700">Recomendado abaixo de 35%.</strong>
+            <strong style={{ color: '#3a4258' }}>Recomendado abaixo de 35%.</strong>
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-slate-600 whitespace-nowrap">Rendimento mensal líquido</span>
+          <span className="text-xs whitespace-nowrap" style={{ color: '#757c8e' }}>
+            Rendimento mensal líquido
+          </span>
           <input
+            ref={inputRef}
             type="number"
             value={income}
             onChange={(e) => handleIncomeChange(e.target.value)}
             placeholder="—"
-            className="w-24 text-sm text-right border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-800"
+            className="w-24 text-sm text-right rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2"
+            style={{
+              border: '1px solid #e8e8e0',
+              color: '#0e1320',
+            }}
           />
-          <span className="text-xs text-slate-500">€</span>
+          <span className="text-xs" style={{ color: '#757c8e' }}>€</span>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mb-5 flex-wrap">
-        <span className="flex items-center gap-1.5 text-xs text-slate-600">
-          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#86efac' }} />
-          Saudável ({'<'}35%)
-        </span>
-        <span className="flex items-center gap-1.5 text-xs text-slate-600">
-          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#fcd34d' }} />
-          Atenção (35% – 50%)
-        </span>
-        <span className="flex items-center gap-1.5 text-xs text-slate-600">
-          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#fca5a5' }} />
-          Excessivo ({'>'}50%)
-        </span>
+      <div className="flex items-center gap-5 mb-4 flex-wrap">
+        {([
+          { label: 'Saudável (< 35%)', zone: HF_ZONES.green },
+          { label: 'Atenção (35% – 50%)', zone: HF_ZONES.amber },
+          { label: 'Excessivo (> 50%)', zone: HF_ZONES.red },
+        ] as const).map(({ label, zone }) => (
+          <span key={label} className="flex items-center gap-1.5 text-xs" style={{ color: '#3a4258' }}>
+            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.dot }} />
+            {label}
+          </span>
+        ))}
       </div>
 
-      {/* Rows */}
-      <div className="space-y-5">
+      {/* Chart rows */}
+      <div className={`space-y-5 ${!hasIncome ? 'relative' : ''}`}>
         {propostas.map((p, idx) => {
           const total = calcPrestacaoCompleta(p, hasP2);
-          const pct = incomeNum > 0 && total > 0 ? (total / incomeNum) * 100 : null;
+          const pct = hasIncome && total > 0 ? (total / incomeNum) * 100 : null;
+          const zone = pct !== null ? zoneFor(pct) : null;
+          const dotPos = pct !== null ? (Math.min(pct, BAR_MAX_PCT) / BAR_MAX_PCT) * 100 : null;
           const initials = p.bank_name.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-          const avatarBg = AVATAR_COLORS[idx % AVATAR_COLORS.length] ?? '#64748b';
-          const textColor = pct === null ? '' : pct <= 35 ? 'text-emerald-600' : pct <= 50 ? 'text-amber-600' : 'text-red-600';
-          const zone = pct === null ? null : pct <= 35 ? 'SAUDÁVEL' : pct <= 50 ? 'ATENÇÃO' : 'EXCESSIVO';
-          const dotLeft = pct !== null ? `${Math.min(pct, BAR_MAX_PCT) / BAR_MAX_PCT * 100}%` : null;
-          const dotColor = pct === null ? '' : pct <= 35 ? '#10b981' : pct <= 50 ? '#f59e0b' : '#ef4444';
+          const avatarColor = HF_AVATAR_COLORS[idx % HF_AVATAR_COLORS.length] ?? '#64748b';
 
           return (
             <div key={p.id} className="flex items-center gap-4">
               {/* Avatar + name + amount */}
-              <div className="flex items-center gap-2.5 shrink-0" style={{ width: 160 }}>
+              <div className="flex items-center gap-2.5 shrink-0" style={{ width: 164 }}>
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                  style={{ backgroundColor: avatarBg }}
+                  style={{ backgroundColor: !hasIncome ? '#d1d5db' : avatarColor }}
                 >
                   {initials}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-800 leading-tight truncate">{p.bank_name}</p>
+                  <p className="text-xs font-semibold leading-tight truncate" style={{ color: !hasIncome ? '#9ca3af' : '#0e1320' }}>
+                    {p.bank_name}
+                  </p>
                   {total > 0 && (
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[11px] mt-0.5" style={{ color: !hasIncome ? '#9ca3af' : '#757c8e' }}>
                       {total.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Bar */}
+              {/* Bar area */}
               <div className="flex-1">
-                {/* Segmented bar + dot overlay */}
                 <div className="relative h-4">
+                  {/* Segmented zone bar — greyed out when no income */}
                   <div className="absolute inset-0 rounded-full overflow-hidden flex">
-                    <div style={{ width: `${35 / BAR_MAX_PCT * 100}%`, backgroundColor: '#bbf7d0' }} />
-                    <div style={{ width: `${15 / BAR_MAX_PCT * 100}%`, backgroundColor: '#fef9c3' }} />
-                    <div style={{ flex: 1, backgroundColor: '#fee2e2' }} />
+                    {hasIncome ? (
+                      <>
+                        <div style={{ width: `${pos35}%`, backgroundColor: HF_ZONES.green.bg }} />
+                        <div style={{ width: `${pos50 - pos35}%`, backgroundColor: HF_ZONES.amber.bg }} />
+                        <div style={{ flex: 1, backgroundColor: HF_ZONES.red.bg }} />
+                      </>
+                    ) : (
+                      <div style={{ flex: 1, backgroundColor: '#f1f5f9' }} />
+                    )}
                   </div>
-                  {/* Boundary dividers */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-0 bottom-0 w-px bg-slate-300/60" style={{ left: `${35 / BAR_MAX_PCT * 100}%` }} />
-                    <div className="absolute top-0 bottom-0 w-px bg-slate-300/60" style={{ left: `${50 / BAR_MAX_PCT * 100}%` }} />
-                  </div>
+                  {/* Boundary dividers (only when income entered) */}
+                  {hasIncome && (
+                    <>
+                      <div className="absolute top-0 bottom-0 w-px" style={{ left: `${pos35}%`, backgroundColor: '#d1d5db' }} />
+                      <div className="absolute top-0 bottom-0 w-px" style={{ left: `${pos50}%`, backgroundColor: '#d1d5db' }} />
+                    </>
+                  )}
                   {/* Dot marker */}
-                  {dotLeft && (
+                  {dotPos !== null && zone && (
                     <div
-                      className="absolute top-1/2 w-4 h-4 rounded-full border-2 border-white shadow-md"
+                      className="absolute w-4 h-4 rounded-full border-2 border-white shadow"
                       style={{
-                        left: dotLeft,
+                        left: `${dotPos}%`,
+                        top: '50%',
                         transform: 'translateX(-50%) translateY(-50%)',
-                        backgroundColor: dotColor,
+                        backgroundColor: zone.dot,
                       }}
                     />
                   )}
                 </div>
-                {/* Percentage labels below bar */}
-                <div className="relative h-4 mt-0.5">
-                  <span
-                    className="absolute text-[10px] text-slate-400 -translate-x-1/2"
-                    style={{ left: `${35 / BAR_MAX_PCT * 100}%` }}
-                  >
-                    35%
-                  </span>
-                  <span
-                    className="absolute text-[10px] text-slate-400 -translate-x-1/2"
-                    style={{ left: `${50 / BAR_MAX_PCT * 100}%` }}
-                  >
-                    50%
-                  </span>
+                {/* Axis labels */}
+                <div className="relative h-4 mt-0.5 select-none">
+                  {hasIncome && (
+                    <>
+                      <span className="absolute text-[10px] -translate-x-1/2" style={{ left: `${pos35}%`, color: '#9ca3af' }}>35%</span>
+                      <span className="absolute text-[10px] -translate-x-1/2" style={{ left: `${pos50}%`, color: '#9ca3af' }}>50%</span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Percentage + zone */}
+              {/* Percentage + zone label */}
               <div className="w-20 text-right shrink-0">
-                {pct !== null ? (
+                {pct !== null && zone ? (
                   <>
-                    <p className={`text-sm font-bold ${textColor}`}>{pct.toFixed(1)}%</p>
-                    <p className={`text-[10px] font-semibold ${textColor}`}>{zone}</p>
+                    <p className="text-sm font-bold" style={{ color: zone.text }}>{pct.toFixed(1)}%</p>
+                    <p className="text-[10px] font-semibold" style={{ color: zone.text }}>{zone.label}</p>
                   </>
                 ) : (
-                  <p className="text-xs text-slate-400">—%</p>
+                  <p className="text-xs" style={{ color: '#d1d5db' }}>—%</p>
                 )}
               </div>
             </div>
           );
         })}
+
+        {/* Empty-state overlay when no income */}
+        {!hasIncome && (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <p className="text-sm text-center" style={{ color: '#757c8e' }}>
+              Insira o rendimento mensal líquido para calcular o esforço financeiro
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={income}
+                onChange={(e) => handleIncomeChange(e.target.value)}
+                placeholder="ex: 3 500"
+                className="text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 text-center"
+                style={{ border: '1px solid #e8e8e0', color: '#0e1320', width: 140 }}
+              />
+              <span className="text-sm font-medium" style={{ color: '#757c8e' }}>€ / mês</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      <p className="text-[10px] text-slate-400 mt-4 pt-3 border-t border-slate-100">
-        O Banco de Portugal recomenda uma taxa de esforço até <strong>35%</strong> do rendimento líquido.
+      <p className="text-[10px] mt-4 pt-3 border-t" style={{ color: '#a7adba', borderColor: '#e8e8e0' }}>
+        O Banco de Portugal recomenda uma taxa de esforço até <strong style={{ color: '#757c8e' }}>35%</strong> do rendimento líquido.{' '}
         Valores entre 35% e 50% exigem prudência; acima de 50% são considerados de alto risco.
       </p>
     </div>
@@ -1276,6 +1320,9 @@ function PortalMapaCard({
         hasP2={hasP2}
         mode="client"
       />
+      {hasAnalysis && (
+        <MonthlyTotalBarChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
+      )}
       <EsforcoFinanceiroBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} portalToken={portalToken} />
       {mapa.broker_notes && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
@@ -1455,7 +1502,6 @@ function PortalMapaCard({
             <span className="text-xs font-normal text-slate-400 ml-1">Para quem quer perceber em profundidade</span>
           </summary>
           <div className="mt-4 space-y-4">
-            <MonthlyTotalBarChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
             <FirstMonthCostBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
             <CustoTotalCreditoBlock propostas={propostas} recommendedId={mapa.recommended_proposta_id} hasP2={hasP2} />
             <EuriborSensitivityChart propostas={propostas} recommendedId={mapa.recommended_proposta_id} />
