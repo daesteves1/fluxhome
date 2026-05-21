@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
         broker_id: broker.id,
         office_id: broker.office_id,
         tipo,
+        process_step: 'lead',
         valor_imovel: body.valor_imovel ?? null,
         montante_solicitado: body.montante_solicitado ?? null,
         prazo_meses: body.prazo_meses ?? null,

@@ -215,16 +215,20 @@ export function ProcessosList({
           </button>
         </div>
 
-        {/* Colunas — list view only */}
-        {view === 'list' && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button className="flex items-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shrink-0">
-                <Columns3 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Colunas</span>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-44 p-1.5" align="end">
+        {/* Colunas — list view only, kept in layout for both views to avoid search bar width shift */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                'flex items-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shrink-0',
+                view === 'kanban' && 'invisible pointer-events-none'
+              )}
+            >
+              <Columns3 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Colunas</span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-44 p-1.5" align="end">
               {TOGGLEABLE_COLS.map(({ key, label }) => (
                 <button
                   key={key}
@@ -246,9 +250,8 @@ export function ProcessosList({
                   {label}
                 </button>
               ))}
-            </PopoverContent>
-          </Popover>
-        )}
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Filter pills — list view only */}

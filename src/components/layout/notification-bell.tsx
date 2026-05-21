@@ -38,7 +38,8 @@ export function NotificationBell() {
 
   useEffect(() => {
     const t = setTimeout(() => { fetchNotifications(); }, 2000);
-    return () => clearTimeout(t);
+    const interval = setInterval(() => { fetchNotifications(); }, 30_000);
+    return () => { clearTimeout(t); clearInterval(interval); };
   }, []);
 
   // Close on outside click

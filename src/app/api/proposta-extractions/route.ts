@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { resolveSettings } from '@/lib/settings';
+import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,8 +11,11 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const serviceClient = createAdminClient();
-    const { data: brokerRaw } = await (serviceClient as any)
-      .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true).limit(1);
+    const cookieStore = await cookies();
+    const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+    let brokerQuery = (serviceClient as any).from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true);
+    if (activeOfficeCookie) brokerQuery = brokerQuery.eq('office_id', activeOfficeCookie);
+    const { data: brokerRaw } = await brokerQuery.limit(1);
     const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json([], { status: 200 });
 
@@ -40,13 +44,12 @@ export async function POST(request: NextRequest) {
 
     const serviceClient = createAdminClient();
 
-    // Get broker + office
-    const { data: brokerArr } = await (serviceClient as any)
-      .from('brokers')
-      .select('id, office_id')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .limit(1);
+    // Get broker + office (respect active office cookie so multi-office users resolve correctly)
+    const cookieStore = await cookies();
+    const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
+    let brokerQuery = (serviceClient as any).from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true);
+    if (activeOfficeCookie) brokerQuery = brokerQuery.eq('office_id', activeOfficeCookie);
+    const { data: brokerArr } = await brokerQuery.limit(1);
 
     const broker = ((brokerArr ?? [])[0] ?? null) as { id: string; office_id: string } | null;
     if (!broker) return NextResponse.json({ error: 'Broker not found' }, { status: 403 });
