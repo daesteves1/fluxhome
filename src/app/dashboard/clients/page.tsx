@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
@@ -9,23 +9,24 @@ import { ChevronRight } from 'lucide-react';
 
 export default async function ClientsPage() {
   const supabase = await createClient();
-  const serviceClient = await createServiceClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: userProfileRaw } = await serviceClient
-    .from('users').select('id, role').eq('id', user.id).single();
-  const userProfile = userProfileRaw as { id: string; role: string } | null;
+  const adminClient = createAdminClient();
+  const [cookieStore, userProfileResult, brokerResult] = await Promise.all([
+    cookies(),
+    adminClient.from('users').select('id, role').eq('id', user.id).maybeSingle(),
+    adminClient.from('brokers').select('id, office_id, is_office_admin')
+      .eq('user_id', user.id).eq('is_active', true),
+  ]);
 
-  const cookieStore = await cookies();
+  const userProfile = userProfileResult.data as { id: string; role: string } | null;
+  const allBrokers = (brokerResult.data ?? []) as { id: string; office_id: string; is_office_admin: boolean }[];
+
   const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
   const viewCookie = cookieStore.get('homeflux_view')?.value as 'broker' | 'office' | undefined;
 
-  const { data: brokerArr } = await serviceClient
-    .from('brokers').select('id, office_id, is_office_admin')
-    .eq('user_id', user.id).eq('is_active', true);
-  const allBrokers = (brokerArr ?? []) as { id: string; office_id: string; is_office_admin: boolean }[];
   const broker = allBrokers.find((b) => b.office_id === activeOfficeCookie) ?? allBrokers[0] ?? null;
 
   if (!broker && userProfile?.role !== 'super_admin') redirect('/login');
@@ -46,7 +47,6 @@ export default async function ClientsPage() {
 
   let clients: ClientRow[] = [];
 
-  const adminClient = createAdminClient();
   if (showOwnOnly && broker) {
     const { data } = await adminClient
       .from('clients')

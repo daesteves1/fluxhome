@@ -1,4 +1,4 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { PropostaEditor } from '@/components/propostas/proposta-editor';
 
@@ -9,21 +9,23 @@ interface PageProps {
 export default async function NewPropostaPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const adminClient = createAdminClient();
+
+  // Fetch auth + client + broker in parallel
+  const [{ data: { user } }, { data: clientRaw }] = await Promise.all([
+    supabase.auth.getUser(),
+    adminClient
+      .from('clients')
+      .select('id, p1_name, p2_name, loan_amount, term_months')
+      .eq('id', id)
+      .single(),
+  ]);
+
   if (!user) redirect('/login');
-
-  const serviceClient = await createServiceClient();
-
-  const { data: clientRaw } = await serviceClient
-    .from('clients')
-    .select('id, p1_name, p2_name, loan_amount, term_months')
-    .eq('id', id)
-    .single();
-
   if (!clientRaw) notFound();
   const client = clientRaw as { id: string; p1_name: string; p2_name: string | null; loan_amount: number | null; term_months: number | null };
 
-  const { data: brokerArr } = await serviceClient
+  const { data: brokerArr } = await adminClient
     .from('brokers')
     .select('id, office_id')
     .eq('user_id', user.id)

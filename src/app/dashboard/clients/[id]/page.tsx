@@ -26,15 +26,16 @@ interface PageProps { params: Promise<{ id: string }> }
 export default async function ClientProfilePage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
   const adminClient = createAdminClient();
 
-  // Verify user has an active broker in this client's office
-  const { data: clientRaw } = await adminClient
-    .from('clients').select('*').eq('id', id).single();
+  // Fetch auth + client + processes in parallel (id is known from params)
+  const [{ data: { user } }, { data: clientRaw }, { data: processesRaw }] = await Promise.all([
+    supabase.auth.getUser(),
+    adminClient.from('clients').select('*').eq('id', id).single(),
+    adminClient.from('processes').select('*').eq('client_id', id).order('created_at', { ascending: false }),
+  ]);
+
+  if (!user) redirect('/login');
   if (!clientRaw) notFound();
 
   const client = clientRaw as {
@@ -50,10 +51,6 @@ export default async function ClientProfilePage({ params }: PageProps) {
   const { data: brokerArr } = await adminClient
     .from('brokers').select('id').eq('user_id', user.id).eq('office_id', client.office_id).eq('is_active', true).limit(1);
   if (!brokerArr?.length) notFound();
-
-  // Fetch processes for this client
-  const { data: processesRaw } = await adminClient
-    .from('processes').select('*').eq('client_id', id).order('created_at', { ascending: false });
   const processes = (processesRaw ?? []) as {
     id: string; tipo: ProcessTipo; process_step: ProcessStep;
     montante_solicitado: number | null; prazo_meses: number | null;

@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { createClient, createServiceClient, createAdminClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { ProcessDetailHeader } from '@/components/processes/process-detail-header';
 import { ClientDetailTabs } from '@/components/clients/client-detail-tabs';
 import { getOfficeDocumentTemplate, type OfficeDocTemplate } from '@/lib/document-defaults';
@@ -14,18 +14,19 @@ export default async function ProcessDetailPage({ params, searchParams }: PagePr
   const { id } = await params;
   const { tab } = await searchParams;
   const supabase = await createClient();
-  const serviceClient = await createServiceClient();
+  const adminClient = createAdminClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // Fetch auth + process in parallel (id is known from params)
+  const [{ data: { user } }, { data: processRaw, error }] = await Promise.all([
+    supabase.auth.getUser(),
+    adminClient
+      .from('processes')
+      .select('*, clients(id, p1_name, p2_name, p1_email, p1_phone, p1_nif, p1_birth_date, p2_email, p2_phone, p2_nif, portal_token, office_id, broker_id)')
+      .eq('id', id)
+      .single(),
+  ]);
+
   if (!user) redirect('/login');
-
-  // Fetch process with client
-  const { data: processRaw, error } = await serviceClient
-    .from('processes')
-    .select('*, clients(id, p1_name, p2_name, p1_email, p1_phone, p1_nif, p1_birth_date, p2_email, p2_phone, p2_nif, portal_token, office_id, broker_id)')
-    .eq('id', id)
-    .single();
-
   if (error || !processRaw) notFound();
 
   const proc = processRaw as {
@@ -70,10 +71,10 @@ export default async function ProcessDetailPage({ params, searchParams }: PagePr
     { data: brokerRaw },
     { data: officeRaw },
   ] = await Promise.all([
-    serviceClient.from('document_requests').select('*').eq('process_id', id).order('sort_order', { ascending: true }),
-    serviceClient.from('broker_notes').select('*').eq('process_id', id).order('created_at', { ascending: false }),
-    serviceClient.from('brokers').select('id, is_office_admin').eq('user_id', user.id).eq('is_active', true).limit(1),
-    createAdminClient().from('offices').select('name, white_label, document_template').eq('id', proc.office_id).single(),
+    adminClient.from('document_requests').select('*').eq('process_id', id).order('sort_order', { ascending: true }),
+    adminClient.from('broker_notes').select('*').eq('process_id', id).order('created_at', { ascending: false }),
+    adminClient.from('brokers').select('id, is_office_admin').eq('user_id', user.id).eq('is_active', true).limit(1),
+    adminClient.from('offices').select('name, white_label, document_template').eq('id', proc.office_id).single(),
   ]);
 
   const broker = ((brokerRaw ?? [])[0] ?? null) as { id: string; is_office_admin: boolean } | null;
@@ -82,7 +83,7 @@ export default async function ProcessDetailPage({ params, searchParams }: PagePr
   const docRequestIds = (docRequestsRaw ?? []).map((r) => (r as { id: string }).id);
   let uploadsRaw: unknown[] = [];
   if (docRequestIds.length > 0) {
-    const { data } = await serviceClient.from('document_uploads').select('*').in('document_request_id', docRequestIds);
+    const { data } = await adminClient.from('document_uploads').select('*').in('document_request_id', docRequestIds);
     uploadsRaw = data ?? [];
   }
   const officeDocTemplate = getOfficeDocumentTemplate(
