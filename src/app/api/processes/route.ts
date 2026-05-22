@@ -86,10 +86,11 @@ export async function POST(request: NextRequest) {
   const [serviceClient, cookieStore] = await Promise.all([createServiceClient(), cookies()]);
 
   const activeOfficeCookie = cookieStore.get('homeflux_active_office')?.value;
-  let brokerQuery = serviceClient.from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true);
-  if (activeOfficeCookie) brokerQuery = brokerQuery.eq('office_id', activeOfficeCookie);
-  const { data: brokersRaw } = await brokerQuery.limit(1);
-  const broker = ((brokersRaw ?? [])[0] ?? null) as { id: string; office_id: string } | null;
+  const { data: brokersRaw } = await serviceClient
+    .from('brokers').select('id, office_id').eq('user_id', user.id).eq('is_active', true);
+  const allBrokers = (brokersRaw ?? []) as { id: string; office_id: string }[];
+  const cookieMatch = activeOfficeCookie ? allBrokers.find((b) => b.office_id === activeOfficeCookie) : null;
+  const broker = cookieMatch ?? allBrokers[0] ?? null;
   if (!broker) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json() as {
